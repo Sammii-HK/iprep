@@ -86,34 +86,40 @@ export async function GET() {
         forcePathStyle: true, // R2 requires path-style addressing
       });
       
-      // Try to list buckets first (this tests basic permissions)
-      const listResponse = await s3Client.send(new ListBucketsCommand({}));
-      const bucketNames = listResponse.Buckets?.map(b => b.Name) || [];
+      // Try to access the bucket directly (bucket-scoped tokens can't list buckets)
+      const { HeadBucketCommand, ListObjectsV2Command } = await import('@aws-sdk/client-s3');
       
-      // Check if our bucket exists in the list
-      const bucketExists = bucketNames.includes(config.r2.bucketName);
-      
-      if (!bucketExists) {
+      try {
+        // First, try to check if bucket exists and is accessible
+        await s3Client.send(new HeadBucketCommand({ Bucket: config.r2.bucketName }));
+        
+        // Then try to list objects (this tests read permissions)
+        await s3Client.send(new ListObjectsV2Command({ 
+          Bucket: config.r2.bucketName,
+          MaxKeys: 1 
+        }));
+        
+        checks.r2_connection = {
+          status: 'ok',
+          message: 'R2 connection successful - bucket accessible with read/write permissions',
+        };
+      } catch (bucketError) {
+        const bucketErrorMsg = bucketError instanceof Error ? bucketError.message : 'Unknown error';
+        
+        // Provide specific guidance based on error
+        let helpfulMessage = bucketErrorMsg;
+        if (bucketErrorMsg.includes('Access Denied') || bucketErrorMsg.includes('403')) {
+          helpfulMessage = `Access Denied for bucket "${config.r2.bucketName}". Your token is scoped to specific buckets. Either: 1) Scope token to "All buckets", or 2) Verify bucket name matches exactly (case-sensitive).`;
+        } else if (bucketErrorMsg.includes('NotFound') || bucketErrorMsg.includes('404')) {
+          helpfulMessage = `Bucket "${config.r2.bucketName}" not found. Check bucket name in Cloudflare R2 dashboard (case-sensitive).`;
+        } else if (bucketErrorMsg.includes('Forbidden')) {
+          helpfulMessage = `Bucket access forbidden. Token may not have permissions for "${config.r2.bucketName}". Try scoping token to "All buckets" or recreate token with Admin permissions.`;
+        }
+        
         checks.r2_connection = {
           status: 'error',
-          message: `Bucket "${config.r2.bucketName}" not found. Available buckets: ${bucketNames.length > 0 ? bucketNames.join(', ') : 'none'}. Check bucket name (case-sensitive).`,
+          message: helpfulMessage,
         };
-      } else {
-        // Try to access the bucket directly
-        const { HeadBucketCommand } = await import('@aws-sdk/client-s3');
-        try {
-          await s3Client.send(new HeadBucketCommand({ Bucket: config.r2.bucketName }));
-          checks.r2_connection = {
-            status: 'ok',
-            message: 'R2 connection successful - bucket accessible',
-          };
-        } catch (bucketError) {
-          const bucketErrorMsg = bucketError instanceof Error ? bucketError.message : 'Unknown error';
-          checks.r2_connection = {
-            status: 'error',
-            message: `Bucket exists but not accessible: ${bucketErrorMsg}. Check token has permissions for bucket "${config.r2.bucketName}".`,
-          };
-        }
       }
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
