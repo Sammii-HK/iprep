@@ -1,0 +1,73 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model User {
+  id        String        @id @default(cuid())
+  email     String?       @unique
+  name      String?
+  createdAt DateTime      @default(now())
+  banks     QuestionBank[]
+  sessions  Session[]
+}
+
+model QuestionBank {
+  id        String     @id @default(cuid())
+  userId    String?
+  title     String
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+  user      User?      @relation(fields: [userId], references: [id])
+  questions Question[]
+}
+
+model Question {
+  id         String       @id @default(cuid())
+  bankId     String
+  text       String
+  tags       String[]     // e.g. ["leadership","system-design"]
+  difficulty Int          // 1..5
+  bank       QuestionBank @relation(fields: [bankId], references: [id])
+  items      SessionItem[]
+}
+
+model Session {
+  id        String        @id @default(cuid())
+  userId    String?
+  title     String
+  bankId    String?
+  createdAt DateTime      @default(now())
+  user      User?         @relation(fields: [userId], references: [id])
+  bank      QuestionBank? @relation(fields: [bankId], references: [id])
+  items     SessionItem[]
+}
+
+model SessionItem {
+  id             String   @id @default(cuid())
+  sessionId      String
+  questionId     String
+  audioUrl       String?
+  transcript     String?
+  words          Int?
+  wpm            Int?
+  fillerCount    Int?
+  fillerRate     Float?   // per 100 words
+  longPauses     Int?     // >800ms
+  confidenceScore Int?    // 0..5 (vocal confidence)
+  intonationScore Int?    // 0..5 (pitch variation, expressiveness)
+  starScore      Int?     // 0..5
+  impactScore    Int?     // 0..5
+  clarityScore   Int?     // 0..5
+  aiFeedback     String?
+  createdAt      DateTime @default(now())
+  session        Session  @relation(fields: [sessionId], references: [id])
+  question       Question @relation(fields: [questionId], references: [id])
+}

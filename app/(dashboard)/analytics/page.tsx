@@ -1,0 +1,136 @@
+'use client';
+
+import { useEffect, useState } from 'react';
+import { TrendChart } from '@/components/TrendChart';
+
+interface AnalyticsData {
+  avgWPM: number;
+  avgFillerRate: number;
+  avgConfidence: number;
+  avgIntonation: number;
+  avgStar: number;
+  avgImpact: number;
+  avgClarity: number;
+  weakestTags: string[];
+  trends: {
+    wpm: Array<{ date: string; value: number }>;
+    fillerRate: Array<{ date: string; value: number }>;
+  };
+}
+
+export default function AnalyticsPage() {
+  const [data, setData] = useState<AnalyticsData | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [range, setRange] = useState(30);
+
+  useEffect(() => {
+    fetchAnalytics();
+  }, [range]);
+
+  const fetchAnalytics = async () => {
+    try {
+      const response = await fetch(`/api/analytics/summary?range=${range}`);
+      if (response.ok) {
+        const analyticsData = await response.json();
+        setData(analyticsData);
+      }
+    } catch (error) {
+      console.error('Error fetching analytics:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (loading) {
+    return <div className="text-center py-12">Loading...</div>;
+  }
+
+  if (!data) {
+    return <div className="text-center py-12">No analytics data available</div>;
+  }
+
+  return (
+    <div className="px-4 py-6">
+      <div className="flex justify-between items-center mb-6">
+        <h1 className="text-3xl font-bold">Analytics</h1>
+        <select
+          value={range}
+          onChange={(e) => setRange(parseInt(e.target.value))}
+          className="px-3 py-2 border border-gray-300 rounded-lg"
+        >
+          <option value={7}>Last 7 days</option>
+          <option value={30}>Last 30 days</option>
+          <option value={90}>Last 90 days</option>
+        </select>
+      </div>
+
+      {/* KPIs */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+        <div className="bg-white rounded-lg shadow-md p-6">
+          <div className="text-sm text-gray-600 mb-1">Avg WPM</div>
+          <div className="text-2xl font-bold">{data.avgWPM}</div>
+        </div>
+        <div className="bg-white rounded-lg shadow-md p-6">
+          <div className="text-sm text-gray-600 mb-1">Filler Rate</div>
+          <div className="text-2xl font-bold">{data.avgFillerRate.toFixed(1)}%</div>
+        </div>
+        <div className="bg-white rounded-lg shadow-md p-6">
+          <div className="text-sm text-gray-600 mb-1">Avg Confidence</div>
+          <div className="text-2xl font-bold">{data.avgConfidence.toFixed(1)}/5</div>
+        </div>
+        <div className="bg-white rounded-lg shadow-md p-6">
+          <div className="text-sm text-gray-600 mb-1">Avg Intonation</div>
+          <div className="text-2xl font-bold">{data.avgIntonation.toFixed(1)}/5</div>
+        </div>
+      </div>
+
+      {/* Content Scores */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
+        <div className="bg-white rounded-lg shadow-md p-6">
+          <div className="text-sm text-gray-600 mb-1">Avg STAR</div>
+          <div className="text-2xl font-bold">{data.avgStar.toFixed(1)}/5</div>
+        </div>
+        <div className="bg-white rounded-lg shadow-md p-6">
+          <div className="text-sm text-gray-600 mb-1">Avg Impact</div>
+          <div className="text-2xl font-bold">{data.avgImpact.toFixed(1)}/5</div>
+        </div>
+        <div className="bg-white rounded-lg shadow-md p-6">
+          <div className="text-sm text-gray-600 mb-1">Avg Clarity</div>
+          <div className="text-2xl font-bold">{data.avgClarity.toFixed(1)}/5</div>
+        </div>
+      </div>
+
+      {/* Charts */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+        <div className="bg-white rounded-lg shadow-md p-6">
+          <h3 className="text-lg font-semibold mb-4">WPM Trend</h3>
+          <TrendChart data={data.trends.wpm} label="WPM" color="#3b82f6" />
+        </div>
+        <div className="bg-white rounded-lg shadow-md p-6">
+          <h3 className="text-lg font-semibold mb-4">Filler Rate Trend</h3>
+          <TrendChart data={data.trends.fillerRate} label="Filler Rate %" color="#ef4444" />
+        </div>
+      </div>
+
+      {/* Weakness Tags */}
+      {data.weakestTags.length > 0 && (
+        <div className="bg-white rounded-lg shadow-md p-6">
+          <h3 className="text-lg font-semibold mb-4">Areas for Improvement</h3>
+          <div className="flex flex-wrap gap-2">
+            {data.weakestTags.map((tag) => (
+              <span
+                key={tag}
+                className="px-3 py-1 bg-yellow-100 text-yellow-800 rounded-full text-sm"
+              >
+                {tag}
+              </span>
+            ))}
+          </div>
+          <p className="text-sm text-gray-600 mt-4">
+            Focus on practicing questions with these tags to improve your overall performance.
+          </p>
+        </div>
+      )}
+    </div>
+  );
+}

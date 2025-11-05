@@ -1,0 +1,63 @@
+text,tags,difficulty
+"Tell me about a time when you had to work with a difficult team member.",leadership,conflict,3
+"Describe a project where you had to learn a new technology quickly.",learning,adaptability,2
+"How do you handle tight deadlines?",time-management,stress,2
+"Tell me about a time when you disagreed with your manager.",leadership,communication,4
+"Describe a system you designed from scratch.",system-design,architecture,4
+"What was your biggest technical challenge?",problem-solving,technical,3
+"Tell me about a time you made a mistake. How did you handle it?",accountability,learning,3
+"Describe a time when you had to explain a complex technical concept to a non-technical person.",communication,technical,3
+"How do you stay updated with new technologies?",learning,continuous-improvement,2
+"Tell me about a time when you had to optimize performance.",performance,technical,4
+"What is your approach to code reviews?",best-practices,technical,2
+"Describe a time when you had to collaborate with multiple teams.",collaboration,leadership,3
+"Tell me about a time you took initiative beyond your role.",leadership,initiative,3
+"How do you handle conflicting priorities?",time-management,prioritization,3
+"Describe a security vulnerability you found and fixed.",security,technical,4
+"What is your process for debugging complex issues?",problem-solving,technical,3
+"Tell me about a time when you had to refactor legacy code.",refactoring,technical,3
+"Describe a time when you had to mentor a junior developer.",mentoring,leadership,3
+"How do you ensure code quality?",best-practices,technical,2
+"Tell me about a time when you had to make a trade-off decision.",decision-making,architecture,4
+"What was your most impactful project?",impact,leadership,4
+"Describe a time when you had to learn from failure.",resilience,learning,3
+"How do you handle technical debt?",technical-debt,architecture,3
+"Tell me about a time when you had to convince stakeholders.",communication,leadership,4
+"Describe your approach to testing.",testing,technical,2
+"How do you handle scope creep?",project-management,communication,3
+"Tell me about a time when you improved team productivity.",leadership,productivity,3
+"Describe a time when you had to work with limited resources.",resource-management,problem-solving,4
+"What is your approach to handling production incidents?",incident-management,technical,4
+"Tell me about a time when you had to implement a feature you disagreed with.",communication,professionalism,4
+"How do you handle feedback?",growth-mindset,communication,2
+"Describe a time when you had to work with a distributed team.",remote-work,collaboration,3
+"What was your most challenging bug fix?",problem-solving,technical,4
+"Tell me about a time when you had to balance speed and quality.",trade-offs,quality,3
+"How do you approach designing APIs?",api-design,architecture,3
+"Describe a time when you had to deprecate a feature.",change-management,technical,3
+"What is your process for estimating project timelines?",estimation,project-management,3
+"Tell me about a time when you had to reduce costs.",cost-optimization,business-impact,4
+"How do you handle disagreements in technical discussions?",communication,technical,3
+"Describe a time when you had to migrate a system.",migration,technical,4
+"What was your approach to scaling a system?",scalability,architecture,4
+"Tell me about a time when you had to learn a new domain quickly.",learning,adaptability,3
+"How do you ensure accessibility in your work?",accessibility,inclusivity,3
+"Describe a time when you had to work with legacy code.",legacy-code,technical,3
+"What is your approach to documentation?",documentation,communication,2
+"Tell me about a time when you had to convince your team to adopt a new tool.",change-management,leadership,4
+"How do you handle conflicting technical opinions?",communication,technical,3
+"Describe a time when you had to implement something under pressure.",stress,problem-solving,4
+"What was your most significant contribution to a project?",impact,leadership,4
+"Tell me about a time when you had to balance user needs and technical constraints.",product-thinking,architecture,4
+"How do you approach performance optimization?",performance,technical,3
+"Describe a time when you had to work with an external API.",integration,technical,3
+"What is your approach to handling breaking changes?",change-management,communication,3
+"Tell me about a time when you had to simplify a complex solution.",simplicity,architecture,3
+"How do you ensure your code is maintainable?",maintainability,best-practices,3
+"Describe a time when you had to work with data at scale.",big-data,technical,4
+"What was your approach to implementing a new feature?",feature-development,technical,2
+"Tell me about a time when you had to debug a production issue.",debugging,incident-management,4
+"How do you handle code reviews that take a long time?",code-review,communication,3
+"Describe a time when you had to work with a third-party library.",integration,technical,3
+"What is your approach to handling user feedback?",user-feedback,product-thinking,3
+"Tell me about a time when you had to make a quick decision with incomplete information.",decision-making,problem-solving,4
