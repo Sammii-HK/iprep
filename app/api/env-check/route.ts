@@ -83,24 +83,37 @@ export async function GET() {
           accessKeyId: config.r2.accessKeyId,
           secretAccessKey: config.r2.secretAccessKey,
         },
+        forcePathStyle: true, // R2 requires path-style addressing
       });
       
-      // Try to list buckets (this tests permissions)
-      await s3Client.send(new ListBucketsCommand({}));
+      // Try to list buckets first (this tests basic permissions)
+      const listResponse = await s3Client.send(new ListBucketsCommand({}));
+      const bucketNames = listResponse.Buckets?.map(b => b.Name) || [];
       
-      // Also try to check if our specific bucket exists/accessible
-      const { HeadBucketCommand } = await import('@aws-sdk/client-s3');
-      try {
-        await s3Client.send(new HeadBucketCommand({ Bucket: config.r2.bucketName }));
-        checks.r2_connection = {
-          status: 'ok',
-          message: 'R2 connection successful - bucket accessible',
-        };
-      } catch (bucketError) {
+      // Check if our bucket exists in the list
+      const bucketExists = bucketNames.includes(config.r2.bucketName);
+      
+      if (!bucketExists) {
         checks.r2_connection = {
           status: 'error',
-          message: `R2 connected but bucket "${config.r2.bucketName}" not accessible. Check bucket name and permissions.`,
+          message: `Bucket "${config.r2.bucketName}" not found. Available buckets: ${bucketNames.length > 0 ? bucketNames.join(', ') : 'none'}. Check bucket name (case-sensitive).`,
         };
+      } else {
+        // Try to access the bucket directly
+        const { HeadBucketCommand } = await import('@aws-sdk/client-s3');
+        try {
+          await s3Client.send(new HeadBucketCommand({ Bucket: config.r2.bucketName }));
+          checks.r2_connection = {
+            status: 'ok',
+            message: 'R2 connection successful - bucket accessible',
+          };
+        } catch (bucketError) {
+          const bucketErrorMsg = bucketError instanceof Error ? bucketError.message : 'Unknown error';
+          checks.r2_connection = {
+            status: 'error',
+            message: `Bucket exists but not accessible: ${bucketErrorMsg}. Check token has permissions for bucket "${config.r2.bucketName}".`,
+          };
+        }
       }
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';

@@ -1,14 +1,17 @@
 import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
 import { randomBytes } from 'crypto';
 
-const s3Client = new S3Client({
-  region: 'auto',
-  endpoint: process.env.R2_ENDPOINT,
-  credentials: {
-    accessKeyId: process.env.R2_ACCESS_KEY_ID!,
-    secretAccessKey: process.env.R2_SECRET_ACCESS_KEY!,
-  },
-});
+function getS3Client() {
+  return new S3Client({
+    region: 'auto',
+    endpoint: process.env.R2_ENDPOINT,
+    credentials: {
+      accessKeyId: process.env.R2_ACCESS_KEY_ID!,
+      secretAccessKey: process.env.R2_SECRET_ACCESS_KEY!,
+    },
+    forcePathStyle: true, // R2 requires path-style addressing
+  });
+}
 
 export async function uploadAudio(
   audioBlob: Blob,
@@ -16,6 +19,8 @@ export async function uploadAudio(
 ): Promise<string> {
   const key = `audio/${Date.now()}-${randomBytes(8).toString('hex')}.webm`;
   const buffer = Buffer.from(await audioBlob.arrayBuffer());
+
+  const s3Client = getS3Client();
 
   await s3Client.send(
     new PutObjectCommand({
