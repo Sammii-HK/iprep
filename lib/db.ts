@@ -14,7 +14,7 @@ export const prisma =
 if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = prisma;
 
 // Add connection error handling
-prisma.$connect().catch((error) => {
+prisma.$connect().catch((error: unknown) => {
   console.error('Failed to connect to database:', error);
   if (process.env.NODE_ENV === 'production') {
     process.exit(1);

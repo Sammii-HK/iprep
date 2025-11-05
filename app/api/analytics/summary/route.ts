@@ -39,57 +39,57 @@ export async function GET(request: NextRequest) {
     }
 
     // Calculate averages
-    const validWPM = items.filter((i) => i.wpm !== null).map((i) => i.wpm!);
+    const validWPM = items.filter((i: any) => i.wpm !== null).map((i: any) => i.wpm!);
     const validFillerRate = items
-      .filter((i) => i.fillerRate !== null)
-      .map((i) => i.fillerRate!);
+      .filter((i: any) => i.fillerRate !== null)
+      .map((i: any) => i.fillerRate!);
     const validConfidence = items
-      .filter((i) => i.confidenceScore !== null)
-      .map((i) => i.confidenceScore!);
+      .filter((i: any) => i.confidenceScore !== null)
+      .map((i: any) => i.confidenceScore!);
     const validIntonation = items
-      .filter((i) => i.intonationScore !== null)
-      .map((i) => i.intonationScore!);
+      .filter((i: any) => i.intonationScore !== null)
+      .map((i: any) => i.intonationScore!);
     const validStar = items
-      .filter((i) => i.starScore !== null)
-      .map((i) => i.starScore!);
+      .filter((i: any) => i.starScore !== null)
+      .map((i: any) => i.starScore!);
     const validImpact = items
-      .filter((i) => i.impactScore !== null)
-      .map((i) => i.impactScore!);
+      .filter((i: any) => i.impactScore !== null)
+      .map((i: any) => i.impactScore!);
     const validClarity = items
-      .filter((i) => i.clarityScore !== null)
-      .map((i) => i.clarityScore!);
+      .filter((i: any) => i.clarityScore !== null)
+      .map((i: any) => i.clarityScore!);
 
     const avgWPM =
       validWPM.length > 0
-        ? validWPM.reduce((a, b) => a + b, 0) / validWPM.length
+        ? validWPM.reduce((a: number, b: number) => a + b, 0) / validWPM.length
         : 0;
     const avgFillerRate =
       validFillerRate.length > 0
-        ? validFillerRate.reduce((a, b) => a + b, 0) / validFillerRate.length
+        ? validFillerRate.reduce((a: number, b: number) => a + b, 0) / validFillerRate.length
         : 0;
     const avgConfidence =
       validConfidence.length > 0
-        ? validConfidence.reduce((a, b) => a + b, 0) / validConfidence.length
+        ? validConfidence.reduce((a: number, b: number) => a + b, 0) / validConfidence.length
         : 0;
     const avgIntonation =
       validIntonation.length > 0
-        ? validIntonation.reduce((a, b) => a + b, 0) / validIntonation.length
+        ? validIntonation.reduce((a: number, b: number) => a + b, 0) / validIntonation.length
         : 0;
     const avgStar =
-      validStar.length > 0 ? validStar.reduce((a, b) => a + b, 0) / validStar.length : 0;
+      validStar.length > 0 ? validStar.reduce((a: number, b: number) => a + b, 0) / validStar.length : 0;
     const avgImpact =
       validImpact.length > 0
-        ? validImpact.reduce((a, b) => a + b, 0) / validImpact.length
+        ? validImpact.reduce((a: number, b: number) => a + b, 0) / validImpact.length
         : 0;
     const avgClarity =
       validClarity.length > 0
-        ? validClarity.reduce((a, b) => a + b, 0) / validClarity.length
+        ? validClarity.reduce((a: number, b: number) => a + b, 0) / validClarity.length
         : 0;
 
     // Calculate weakest tags (tags with lowest average scores)
     const tagScores: Record<string, number[]> = {};
-    items.forEach((item) => {
-      item.question.tags.forEach((tag) => {
+    items.forEach((item: any) => {
+      item.question.tags.forEach((tag: string) => {
         if (!tagScores[tag]) {
           tagScores[tag] = [];
         }
@@ -116,7 +116,7 @@ export async function GET(request: NextRequest) {
 
     // Calculate daily trends (simplified - group by day)
     const dailyData: Record<string, { wpm: number[]; fillerRate: number[] }> = {};
-    items.forEach((item) => {
+    items.forEach((item: any) => {
       const date = item.createdAt.toISOString().split('T')[0];
       if (!dailyData[date]) {
         dailyData[date] = { wpm: [], fillerRate: [] };

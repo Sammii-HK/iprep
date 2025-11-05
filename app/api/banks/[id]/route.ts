@@ -14,7 +14,7 @@ export async function GET(
       include: {
         questions: {
           orderBy: {
-            createdAt: 'asc',
+            id: 'asc',
           },
         },
       },

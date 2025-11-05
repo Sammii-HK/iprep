@@ -17,6 +17,7 @@ model User {
   createdAt DateTime      @default(now())
   banks     QuestionBank[]
   sessions  Session[]
+  quizzes   Quiz[]
 }
 
 model QuestionBank {
@@ -27,6 +28,8 @@ model QuestionBank {
   updatedAt DateTime   @updatedAt
   user      User?      @relation(fields: [userId], references: [id])
   questions Question[]
+  quizzes   Quiz[]
+  sessions  Session[]
 }
 
 model Question {
@@ -37,6 +40,7 @@ model Question {
   difficulty Int          // 1..5
   bank       QuestionBank @relation(fields: [bankId], references: [id])
   items      SessionItem[]
+  quizAttempts QuizAttempt[]
 }
 
 model Session {
@@ -70,4 +74,38 @@ model SessionItem {
   createdAt      DateTime @default(now())
   session        Session  @relation(fields: [sessionId], references: [id])
   question       Question @relation(fields: [questionId], references: [id])
+}
+
+model Quiz {
+  id          String      @id @default(cuid())
+  userId      String?
+  title       String
+  description String?
+  type        QuizType    @default(SPOKEN) // SPOKEN or WRITTEN
+  bankId      String?
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+  user        User?       @relation(fields: [userId], references: [id])
+  bank        QuestionBank? @relation(fields: [bankId], references: [id])
+  attempts    QuizAttempt[]
+}
+
+enum QuizType {
+  SPOKEN
+  WRITTEN
+}
+
+model QuizAttempt {
+  id          String   @id @default(cuid())
+  quizId      String
+  questionId  String
+  answer      String?  // Written answer or transcript
+  audioUrl    String?  // For spoken quizzes
+  transcript  String?  // For spoken quizzes
+  score       Float?   // 0..100
+  feedback    String?
+  startedAt   DateTime @default(now())
+  completedAt DateTime?
+  quiz        Quiz     @relation(fields: [quizId], references: [id])
+  question    Question @relation(fields: [questionId], references: [id])
 }

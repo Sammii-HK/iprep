@@ -16,7 +16,7 @@ export async function GET(
           include: {
             questions: {
               orderBy: {
-                createdAt: 'asc',
+                id: 'asc',
               },
             },
           },
@@ -38,7 +38,7 @@ export async function GET(
 
     // Format response
     const questions = session.bank?.questions || [];
-    const items = session.items.map((item) => ({
+    const items = session.items.map((item: any) => ({
       id: item.id,
       audioUrl: item.audioUrl,
       transcript: item.transcript,

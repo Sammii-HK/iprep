@@ -42,10 +42,6 @@ const nextConfig: NextConfig = {
     ];
   },
 
-  // Environment variables validation
-  env: {
-    NODE_ENV: process.env.NODE_ENV || 'development',
-  },
 };
 
 export default nextConfig;

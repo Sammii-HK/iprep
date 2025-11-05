@@ -15,7 +15,7 @@ import {
 } from '@/lib/audio-analysis';
 import { handleApiError, RateLimitError, ValidationError, NotFoundError, ExternalServiceError } from '@/lib/errors';
 import { validateAudioFile, validateId } from '@/lib/validation';
-import { config } from '@/lib/config';
+import { getConfig } from '@/lib/config';
 
 // Simple in-memory rate limiting (upgrade to Redis in v2)
 const rateLimitMap = new Map<string, { count: number; resetTime: number }>();
@@ -27,12 +27,12 @@ function checkRateLimit(ip: string): boolean {
   if (!record || now > record.resetTime) {
     rateLimitMap.set(ip, {
       count: 1,
-      resetTime: now + config.limits.rateLimitWindowMs,
+      resetTime: now + getConfig().limits.rateLimitWindowMs,
     });
     return true;
   }
 
-  if (record.count >= config.limits.rateLimitRequests) {
+  if (record.count >= getConfig().limits.rateLimitRequests) {
     return false;
   }
 
@@ -210,7 +210,7 @@ export async function POST(request: NextRequest) {
       {
         error: errorResponse.message,
         code: errorResponse.code,
-        ...(errorResponse.details && { details: errorResponse.details }),
+        ...(errorResponse.details ? { details: errorResponse.details } : {}),
       },
       { status: errorResponse.statusCode }
     );

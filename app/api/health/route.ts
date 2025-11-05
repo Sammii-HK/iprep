@@ -17,6 +17,7 @@ export async function GET() {
       tables: {
         questionBanks: bankCount >= 0, // Just checking if query works
       },
+      message: 'All systems operational',
     });
   } catch (error) {
     const errorResponse = handleApiError(error);

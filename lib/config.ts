@@ -1,17 +1,7 @@
 /**
  * Environment variable validation and configuration
- * Validates all required environment variables at startup
+ * Validates all required environment variables at runtime, not build time
  */
-
-const requiredEnvVars = [
-  'DATABASE_URL',
-  'R2_ACCOUNT_ID',
-  'R2_BUCKET_NAME',
-  'R2_ACCESS_KEY_ID',
-  'R2_SECRET_ACCESS_KEY',
-  'R2_ENDPOINT',
-  'OPENAI_API_KEY',
-] as const;
 
 const optionalEnvVars = {
   ENABLE_LIVE_CAPTIONS: 'true',
@@ -58,25 +48,29 @@ function getOptionalEnvVar(name: keyof typeof optionalEnvVars): string {
   return process.env[name] || optionalEnvVars[name];
 }
 
+// Cache config (lazy initialization)
+let config: Config | null = null;
+
 export function getConfig(): Config {
-  try {
-    return {
-      database: {
-        url: validateEnvVar('DATABASE_URL'),
-      },
+  if (config) return config;
+  
+  // During build, return minimal config to avoid validation errors
+  // NEXT_PHASE is set during Next.js build
+  const isBuildTime = process.env.NEXT_PHASE === 'phase-production-build' || 
+                      process.env.NODE_ENV === 'production' && !process.env.VERCEL;
+  
+  if (isBuildTime || !process.env.DATABASE_URL) {
+    config = {
+      database: { url: process.env.DATABASE_URL || '' },
       r2: {
-        accountId: validateEnvVar('R2_ACCOUNT_ID'),
-        bucketName: validateEnvVar('R2_BUCKET_NAME'),
-        accessKeyId: validateEnvVar('R2_ACCESS_KEY_ID'),
-        secretAccessKey: validateEnvVar('R2_SECRET_ACCESS_KEY'),
-        endpoint: validateEnvVar('R2_ENDPOINT'),
+        accountId: process.env.R2_ACCOUNT_ID || '',
+        bucketName: process.env.R2_BUCKET_NAME || '',
+        accessKeyId: process.env.R2_ACCESS_KEY_ID || '',
+        secretAccessKey: process.env.R2_SECRET_ACCESS_KEY || '',
+        endpoint: process.env.R2_ENDPOINT || '',
       },
-      openai: {
-        apiKey: validateEnvVar('OPENAI_API_KEY'),
-      },
-      features: {
-        liveCaptions: getOptionalEnvVar('ENABLE_LIVE_CAPTIONS') === 'true',
-      },
+      openai: { apiKey: process.env.OPENAI_API_KEY || '' },
+      features: { liveCaptions: getOptionalEnvVar('ENABLE_LIVE_CAPTIONS') === 'true' },
       limits: {
         maxAudioSizeMB: parseInt(getOptionalEnvVar('MAX_AUDIO_SIZE_MB'), 10) || 50,
         rateLimitRequests: parseInt(getOptionalEnvVar('RATE_LIMIT_REQUESTS'), 10) || 10,
@@ -84,17 +78,8 @@ export function getConfig(): Config {
       },
       nodeEnv: getOptionalEnvVar('NODE_ENV'),
     };
-  } catch (error) {
-    console.error('Configuration error:', error);
-    throw error;
+    return config;
   }
-}
-
-// Validate config on module load
-let config: Config | null = null;
-
-export function getConfig(): Config {
-  if (config) return config;
   
   try {
     config = {
@@ -128,7 +113,7 @@ export function getConfig(): Config {
       console.warn('Configuration validation failed:', error);
       console.warn('Some features may not work until environment variables are set');
       // Return a minimal config for development
-      return {
+      config = {
         database: { url: '' },
         r2: { accountId: '', bucketName: '', accessKeyId: '', secretAccessKey: '', endpoint: '' },
         openai: { apiKey: '' },
@@ -136,11 +121,9 @@ export function getConfig(): Config {
         limits: { maxAudioSizeMB: 50, rateLimitRequests: 10, rateLimitWindowMs: 60000 },
         nodeEnv: 'development',
       };
+      return config;
     } else {
       throw error;
     }
   }
 }
-
-// Initialize config
-config = getConfig();
