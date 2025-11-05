@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getConfig } from '@/lib/config';
 import { prisma } from '@/lib/db';
-import { S3Client, ListBucketsCommand } from '@aws-sdk/client-s3';
+import { S3Client } from '@aws-sdk/client-s3';
 import OpenAI from 'openai';
 
 export async function GET() {
