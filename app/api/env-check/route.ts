@@ -84,15 +84,42 @@ export async function GET() {
           secretAccessKey: config.r2.secretAccessKey,
         },
       });
+      
+      // Try to list buckets (this tests permissions)
       await s3Client.send(new ListBucketsCommand({}));
-      checks.r2_connection = {
-        status: 'ok',
-        message: 'R2 connection successful',
-      };
+      
+      // Also try to check if our specific bucket exists/accessible
+      const { HeadBucketCommand } = await import('@aws-sdk/client-s3');
+      try {
+        await s3Client.send(new HeadBucketCommand({ Bucket: config.r2.bucketName }));
+        checks.r2_connection = {
+          status: 'ok',
+          message: 'R2 connection successful - bucket accessible',
+        };
+      } catch (bucketError) {
+        checks.r2_connection = {
+          status: 'error',
+          message: `R2 connected but bucket "${config.r2.bucketName}" not accessible. Check bucket name and permissions.`,
+        };
+      }
     } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      
+      // Provide more helpful error messages
+      let helpfulMessage = errorMessage;
+      if (errorMessage.includes('Access Denied') || errorMessage.includes('403')) {
+        helpfulMessage = 'Access Denied - Check R2 API token permissions. Token needs "Object Read & Write" for your bucket.';
+      } else if (errorMessage.includes('InvalidAccessKeyId')) {
+        helpfulMessage = 'Invalid Access Key - Check R2_ACCESS_KEY_ID is correct.';
+      } else if (errorMessage.includes('SignatureDoesNotMatch')) {
+        helpfulMessage = 'Invalid Secret Key - Check R2_SECRET_ACCESS_KEY is correct.';
+      } else if (errorMessage.includes('endpoint')) {
+        helpfulMessage = 'Invalid Endpoint - Check R2_ENDPOINT format: https://[ACCOUNT_ID].r2.cloudflarestorage.com';
+      }
+      
       checks.r2_connection = {
         status: 'error',
-        message: `R2 connection failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        message: helpfulMessage,
       };
     }
   }
