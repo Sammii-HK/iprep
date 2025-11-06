@@ -20,6 +20,9 @@ export default function BanksPage() {
   const [importFile, setImportFile] = useState<File | null>(null);
   const [importing, setImporting] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
+  const [editingBankId, setEditingBankId] = useState<string | null>(null);
+  const [editingTitle, setEditingTitle] = useState('');
+  const [deletingBankId, setDeletingBankId] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const dropZoneRef = useRef<HTMLDivElement>(null);
 
@@ -120,6 +123,72 @@ export default function BanksPage() {
       alert('Failed to import bank');
     } finally {
       setImporting(false);
+    }
+  };
+
+  const handleEditStart = (e: React.MouseEvent, bank: QuestionBank) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setEditingBankId(bank.id);
+    setEditingTitle(bank.title);
+  };
+
+  const handleEditSave = async (bankId: string) => {
+    if (!editingTitle.trim()) {
+      alert('Title cannot be empty');
+      return;
+    }
+
+    try {
+      const response = await fetch(`/api/banks/${bankId}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ title: editingTitle.trim() }),
+      });
+
+      if (response.ok) {
+        setEditingBankId(null);
+        setEditingTitle('');
+        fetchBanks();
+      } else {
+        const error = await response.json();
+        alert(`Error: ${error.error}`);
+      }
+    } catch (error) {
+      console.error('Error updating bank:', error);
+      alert('Failed to update bank');
+    }
+  };
+
+  const handleEditCancel = () => {
+    setEditingBankId(null);
+    setEditingTitle('');
+  };
+
+  const handleDeleteClick = (e: React.MouseEvent, bankId: string) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDeletingBankId(bankId);
+  };
+
+  const handleDeleteConfirm = async (bankId: string) => {
+    try {
+      const response = await fetch(`/api/banks/${bankId}`, {
+        method: 'DELETE',
+      });
+
+      if (response.ok) {
+        setDeletingBankId(null);
+        fetchBanks();
+      } else {
+        const error = await response.json();
+        alert(`Error: ${error.error}`);
+      }
+    } catch (error) {
+      console.error('Error deleting bank:', error);
+      alert('Failed to delete bank');
     }
   };
 
@@ -262,20 +331,103 @@ export default function BanksPage() {
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {banks.map((bank) => (
-            <Link
+            <div
               key={bank.id}
-              href={`/banks/${bank.id}`}
-              className="bg-white dark:bg-slate-800 rounded-lg shadow-md p-6 hover:shadow-lg transition-shadow border border-slate-200 dark:border-slate-700"
+              className="bg-white dark:bg-slate-800 rounded-lg shadow-md p-6 hover:shadow-lg transition-shadow border border-slate-200 dark:border-slate-700 relative group"
             >
-              <h3 className="text-xl font-semibold mb-2 text-slate-900 dark:text-slate-100">{bank.title}</h3>
-              <p className="text-slate-700 dark:text-slate-300 text-sm">
-                {bank._count.questions} questions
-              </p>
-              <p className="text-slate-600 dark:text-slate-400 text-xs mt-2">
-                Created {new Date(bank.createdAt).toLocaleDateString()}
-              </p>
-            </Link>
+              {editingBankId === bank.id ? (
+                <div className="space-y-3">
+                  <input
+                    type="text"
+                    value={editingTitle}
+                    onChange={(e) => setEditingTitle(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        handleEditSave(bank.id);
+                      } else if (e.key === 'Escape') {
+                        handleEditCancel();
+                      }
+                    }}
+                    className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    autoFocus
+                  />
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => handleEditSave(bank.id)}
+                      className="px-3 py-1 bg-blue-500 text-white rounded text-sm hover:bg-blue-600 transition-colors"
+                    >
+                      Save
+                    </button>
+                    <button
+                      onClick={handleEditCancel}
+                      className="px-3 py-1 bg-slate-200 dark:bg-slate-700 text-slate-900 dark:text-slate-100 rounded text-sm hover:bg-slate-300 dark:hover:bg-slate-600 transition-colors"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <>
+                  <Link
+                    href={`/banks/${bank.id}`}
+                    className="block mb-2"
+                  >
+                    <h3 className="text-xl font-semibold mb-2 text-slate-900 dark:text-slate-100 hover:text-blue-600 dark:hover:text-blue-400 transition-colors">
+                      {bank.title}
+                    </h3>
+                  </Link>
+                  <p className="text-slate-700 dark:text-slate-300 text-sm">
+                    {bank._count.questions} questions
+                  </p>
+                  <p className="text-slate-600 dark:text-slate-400 text-xs mt-2">
+                    Created {new Date(bank.createdAt).toLocaleDateString()}
+                  </p>
+                  <div className="flex gap-2 mt-3 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <button
+                      onClick={(e) => handleEditStart(e, bank)}
+                      className="px-3 py-1 bg-blue-500 text-white rounded text-sm hover:bg-blue-600 transition-colors"
+                      title="Edit bank name"
+                    >
+                      Edit
+                    </button>
+                    <button
+                      onClick={(e) => handleDeleteClick(e, bank.id)}
+                      className="px-3 py-1 bg-red-500 text-white rounded text-sm hover:bg-red-600 transition-colors"
+                      title="Delete bank"
+                    >
+                      Delete
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
           ))}
+        </div>
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {deletingBankId && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white dark:bg-slate-800 rounded-lg shadow-xl p-6 max-w-md w-full mx-4 border border-slate-200 dark:border-slate-700">
+            <h3 className="text-xl font-semibold mb-4 text-slate-900 dark:text-slate-100">Delete Question Bank?</h3>
+            <p className="text-slate-700 dark:text-slate-300 mb-6">
+              Are you sure you want to delete this question bank? This will also delete all questions, quizzes, and sessions associated with it. This action cannot be undone.
+            </p>
+            <div className="flex gap-3 justify-end">
+              <button
+                onClick={() => setDeletingBankId(null)}
+                className="px-4 py-2 bg-slate-200 dark:bg-slate-700 text-slate-900 dark:text-slate-100 rounded-lg hover:bg-slate-300 dark:hover:bg-slate-600 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => handleDeleteConfirm(deletingBankId)}
+                className="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors"
+              >
+                Delete
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

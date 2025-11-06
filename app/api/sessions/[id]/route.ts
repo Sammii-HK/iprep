@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
+import { handleApiError, NotFoundError } from '@/lib/errors';
 
 export async function GET(
   request: NextRequest,
@@ -37,7 +38,7 @@ export async function GET(
     });
 
     if (!session) {
-      return NextResponse.json({ error: 'Session not found' }, { status: 404 });
+      throw new NotFoundError('Session', id);
     }
 
     // Limit questions based on maxQuestions query param
@@ -88,10 +89,52 @@ export async function GET(
       items,
     });
   } catch (error) {
-    console.error('Error fetching session:', error);
+    const errorResponse = handleApiError(error);
     return NextResponse.json(
-      { error: 'Failed to fetch session' },
-      { status: 500 }
+      { error: errorResponse.message },
+      { status: errorResponse.statusCode }
+    );
+  }
+}
+
+export async function DELETE(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const { id } = await params;
+
+    const session = await prisma.session.findUnique({
+      where: { id },
+      include: {
+        _count: {
+          select: {
+            items: true,
+          },
+        },
+      },
+    });
+
+    if (!session) {
+      throw new NotFoundError('Session', id);
+    }
+
+    // Delete the session (cascade will handle related items)
+    await prisma.session.delete({
+      where: { id },
+    });
+
+    return NextResponse.json({
+      message: 'Session deleted successfully',
+    });
+  } catch (error) {
+    const errorResponse = handleApiError(error);
+    return NextResponse.json(
+      {
+        error: errorResponse.message,
+        code: errorResponse.code,
+      },
+      { status: errorResponse.statusCode }
     );
   }
 }

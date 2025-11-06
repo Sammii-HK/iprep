@@ -40,6 +40,7 @@ export default function QuizzesPage() {
   const [quizType, setQuizType] = useState<'SPOKEN' | 'WRITTEN'>('SPOKEN');
   const [selectedBankId, setSelectedBankId] = useState<string>('');
   const [maxQuestions, setMaxQuestions] = useState<number>(0); // 0 means "all"
+  const [deletingQuizId, setDeletingQuizId] = useState<string | null>(null);
 
   useEffect(() => {
     fetchData();
@@ -106,6 +107,25 @@ export default function QuizzesPage() {
     } catch (error) {
       console.error('Error creating quiz:', error);
       alert('Failed to create quiz');
+    }
+  };
+
+  const handleDeleteQuiz = async (quizId: string) => {
+    try {
+      const response = await fetch(`/api/quizzes/${quizId}`, {
+        method: 'DELETE',
+      });
+
+      if (response.ok) {
+        setDeletingQuizId(null);
+        fetchData();
+      } else {
+        const error = await response.json();
+        alert(`Error: ${error.error}`);
+      }
+    } catch (error) {
+      console.error('Error deleting quiz:', error);
+      alert('Failed to delete quiz');
     }
   };
 
@@ -252,44 +272,85 @@ export default function QuizzesPage() {
         </div>
       )}
 
-      {quizzes.length === 0 ? (
-        <div className="text-center py-12 text-slate-600 dark:text-slate-400">
-          No quizzes yet. Create one to get started!
-        </div>
-      ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {quizzes.map((quiz) => (
-            <Link
-              key={quiz.id}
-              href={`/quizzes/${quiz.id}`}
-              className="bg-white dark:bg-slate-800 rounded-lg shadow-md p-6 hover:shadow-lg transition-shadow border border-slate-200 dark:border-slate-700"
-            >
-              <div className="flex items-start justify-between mb-2">
-                <h3 className="text-xl font-semibold text-slate-900 dark:text-slate-100">{quiz.title}</h3>
-                <span
-                  className={`px-2 py-1 rounded text-xs font-semibold ${
-                    quiz.type === 'SPOKEN'
-                      ? 'bg-blue-100 text-blue-800'
-                      : 'bg-green-100 text-green-800'
-                  }`}
+          {quizzes.length === 0 ? (
+            <div className="text-center py-12 text-slate-600 dark:text-slate-400">
+              No quizzes yet. Create one to get started!
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {quizzes.map((quiz) => (
+                <div
+                  key={quiz.id}
+                  className="bg-white dark:bg-slate-800 rounded-lg shadow-md p-6 hover:shadow-lg transition-shadow border border-slate-200 dark:border-slate-700 relative group"
                 >
-                  {quiz.type}
-                </span>
-              </div>
-              {quiz.description && (
-                <p className="text-slate-700 dark:text-slate-300 text-sm mb-3">{quiz.description}</p>
-              )}
-              <div className="flex items-center gap-4 text-sm text-slate-600 dark:text-slate-400">
-                <span>
-                  {quiz.bank?._count.questions || 0} questions
-                </span>
-                <span>{quiz._count.attempts} attempts</span>
-              </div>
-              <p className="text-slate-600 dark:text-slate-400 text-xs mt-2">
-                Created {new Date(quiz.createdAt).toLocaleDateString()}
-              </p>
-            </Link>
-          ))}
+                  <Link
+                    href={`/quizzes/${quiz.id}`}
+                    className="block"
+                  >
+                    <div className="flex items-start justify-between mb-2">
+                      <h3 className="text-xl font-semibold text-slate-900 dark:text-slate-100 hover:text-blue-600 dark:hover:text-blue-400 transition-colors">{quiz.title}</h3>
+                      <span
+                        className={`px-2 py-1 rounded text-xs font-semibold ${
+                          quiz.type === 'SPOKEN'
+                            ? 'bg-blue-100 text-blue-800'
+                            : 'bg-green-100 text-green-800'
+                        }`}
+                      >
+                        {quiz.type}
+                      </span>
+                    </div>
+                    {quiz.description && (
+                      <p className="text-slate-700 dark:text-slate-300 text-sm mb-3">{quiz.description}</p>
+                    )}
+                    <div className="flex items-center gap-4 text-sm text-slate-600 dark:text-slate-400">
+                      <span>
+                        {quiz.bank?._count.questions || 0} questions
+                      </span>
+                      <span>{quiz._count.attempts} attempts</span>
+                    </div>
+                    <p className="text-slate-600 dark:text-slate-400 text-xs mt-2">
+                      Created {new Date(quiz.createdAt).toLocaleDateString()}
+                    </p>
+                  </Link>
+                  <button
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      setDeletingQuizId(quiz.id);
+                    }}
+                    className="mt-3 px-3 py-1 bg-red-500 text-white rounded text-sm hover:bg-red-600 transition-colors opacity-0 group-hover:opacity-100"
+                    title="Delete quiz"
+                  >
+                    Delete
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+
+      {/* Delete Confirmation Modal */}
+      {deletingQuizId && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white dark:bg-slate-800 rounded-lg shadow-xl p-6 max-w-md w-full mx-4 border border-slate-200 dark:border-slate-700">
+            <h3 className="text-xl font-semibold mb-4 text-slate-900 dark:text-slate-100">Delete Quiz?</h3>
+            <p className="text-slate-700 dark:text-slate-300 mb-6">
+              Are you sure you want to delete this quiz? This will also delete all quiz attempts associated with it. This action cannot be undone.
+            </p>
+            <div className="flex gap-3 justify-end">
+              <button
+                onClick={() => setDeletingQuizId(null)}
+                className="px-4 py-2 bg-slate-200 dark:bg-slate-700 text-slate-900 dark:text-slate-100 rounded-lg hover:bg-slate-300 dark:hover:bg-slate-600 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => handleDeleteQuiz(deletingQuizId)}
+                className="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors"
+              >
+                Delete
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

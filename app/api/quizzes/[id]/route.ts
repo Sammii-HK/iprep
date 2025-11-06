@@ -62,3 +62,45 @@ export async function GET(
     );
   }
 }
+
+export async function DELETE(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const { id } = await params;
+
+    const quiz = await prisma.quiz.findUnique({
+      where: { id },
+      include: {
+        _count: {
+          select: {
+            attempts: true,
+          },
+        },
+      },
+    });
+
+    if (!quiz) {
+      throw new NotFoundError('Quiz', id);
+    }
+
+    // Delete the quiz (cascade will handle related attempts)
+    await prisma.quiz.delete({
+      where: { id },
+    });
+
+    return NextResponse.json({
+      message: 'Quiz deleted successfully',
+    });
+  } catch (error) {
+    const errorResponse = handleApiError(error);
+    return NextResponse.json(
+      {
+        error: errorResponse.message,
+        code: errorResponse.code,
+      },
+      { status: errorResponse.statusCode }
+    );
+  }
+}

@@ -26,6 +26,7 @@ export default function PracticePage() {
   const [newSessionTitle, setNewSessionTitle] = useState('');
   const [selectedBankId, setSelectedBankId] = useState<string>('');
   const [maxQuestions, setMaxQuestions] = useState<number>(0); // 0 means "all"
+  const [deletingSessionId, setDeletingSessionId] = useState<string | null>(null);
 
   useEffect(() => {
     fetchData();
@@ -89,6 +90,25 @@ export default function PracticePage() {
     } catch (error) {
       console.error('Error creating session:', error);
       alert('Failed to create session');
+    }
+  };
+
+  const handleDeleteSession = async (sessionId: string) => {
+    try {
+      const response = await fetch(`/api/sessions/${sessionId}`, {
+        method: 'DELETE',
+      });
+
+      if (response.ok) {
+        setDeletingSessionId(null);
+        fetchData();
+      } else {
+        const error = await response.json();
+        alert(`Error: ${error.error}`);
+      }
+    } catch (error) {
+      console.error('Error deleting session:', error);
+      alert('Failed to delete session');
     }
   };
 
@@ -212,22 +232,62 @@ export default function PracticePage() {
         </div>
       )}
 
-      {sessions.length > 0 && (
-        <div>
-          <h2 className="text-xl font-semibold mb-4 text-slate-900 dark:text-slate-100">Recent Sessions</h2>
-          <div className="space-y-2">
-            {sessions.map((session) => (
-              <div
-                key={session.id}
-                className="bg-white dark:bg-slate-800 rounded-lg shadow-md p-4 hover:shadow-lg transition-shadow cursor-pointer border border-slate-200 dark:border-slate-700"
-                onClick={() => router.push(`/practice/session/${session.id}`)}
-              >
-                <h3 className="font-semibold text-slate-900 dark:text-slate-100">{session.title}</h3>
-                <p className="text-sm text-slate-700 dark:text-slate-300">
-                  {new Date(session.createdAt).toLocaleDateString()}
-                </p>
+          {sessions.length > 0 && (
+            <div>
+              <h2 className="text-xl font-semibold mb-4 text-slate-900 dark:text-slate-100">Recent Sessions</h2>
+              <div className="space-y-2">
+                {sessions.map((session) => (
+                  <div
+                    key={session.id}
+                    className="bg-white dark:bg-slate-800 rounded-lg shadow-md p-4 hover:shadow-lg transition-shadow border border-slate-200 dark:border-slate-700 group"
+                  >
+                    <div
+                      className="cursor-pointer"
+                      onClick={() => router.push(`/practice/session/${session.id}`)}
+                    >
+                      <h3 className="font-semibold text-slate-900 dark:text-slate-100">{session.title}</h3>
+                      <p className="text-sm text-slate-700 dark:text-slate-300">
+                        {new Date(session.createdAt).toLocaleDateString()}
+                      </p>
+                    </div>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setDeletingSessionId(session.id);
+                      }}
+                      className="mt-2 px-3 py-1 bg-red-500 text-white rounded text-sm hover:bg-red-600 transition-colors opacity-0 group-hover:opacity-100"
+                      title="Delete session"
+                    >
+                      Delete
+                    </button>
+                  </div>
+                ))}
               </div>
-            ))}
+            </div>
+          )}
+
+      {/* Delete Confirmation Modal */}
+      {deletingSessionId && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white dark:bg-slate-800 rounded-lg shadow-xl p-6 max-w-md w-full mx-4 border border-slate-200 dark:border-slate-700">
+            <h3 className="text-xl font-semibold mb-4 text-slate-900 dark:text-slate-100">Delete Session?</h3>
+            <p className="text-slate-700 dark:text-slate-300 mb-6">
+              Are you sure you want to delete this practice session? This will also delete all practice attempts and recordings associated with it. This action cannot be undone.
+            </p>
+            <div className="flex gap-3 justify-end">
+              <button
+                onClick={() => setDeletingSessionId(null)}
+                className="px-4 py-2 bg-slate-200 dark:bg-slate-700 text-slate-900 dark:text-slate-100 rounded-lg hover:bg-slate-300 dark:hover:bg-slate-600 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => handleDeleteSession(deletingSessionId)}
+                className="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors"
+              >
+                Delete
+              </button>
+            </div>
           </div>
         </div>
       )}
