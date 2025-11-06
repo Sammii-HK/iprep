@@ -171,7 +171,11 @@ export async function POST(request: NextRequest) {
       throw new ValidationError('Transcript is empty. Please ensure audio contains speech.');
     }
 
-    // Calculate delivery metrics
+    // OPTIMIZE: Calculate metrics quickly (synchronous, fast) then start AI analysis immediately
+    // Metrics are needed for both delivery scores and AI analysis
+    const questionTags = question.tags || [];
+    
+    // Calculate metrics (fast synchronous operations - ~10-50ms)
     const wordCount = countWords(transcript);
     const fillerCount = countFillers(transcript);
     const fillerRate = calculateFillerRate(fillerCount, wordCount);
@@ -189,7 +193,7 @@ export async function POST(request: NextRequest) {
 
     const wpm = calculateWPM(wordCount, duration);
 
-    // Analyze confidence and intonation from transcript
+    // Analyze confidence and intonation from transcript (also fast, synchronous)
     const confidenceScore = analyzeConfidenceFromTranscript(
       transcript,
       fillerCount,
@@ -198,25 +202,18 @@ export async function POST(request: NextRequest) {
     );
     const intonationScore = analyzeIntonationFromTranscript(transcript, wordCount);
 
-    // Analyze content with enhanced GPT analysis (includes technical accuracy based on question tags)
+    // OPTIMIZE: Start AI analysis immediately (this is the slowest operation)
+    // We already have all the metrics it needs
+    console.log('Starting AI analysis...', {
+      transcriptLength: transcript.length,
+      wordCount,
+      questionTags,
+      hasQuestionText: !!question.text,
+      hasQuestionHint: !!question.hint,
+    });
+
     let analysis;
     try {
-      // Use question tags for better technical accuracy assessment
-      const questionTags = question.tags || [];
-      
-      // Load coaching preferences from request (could be from user session in future)
-      // For now, use defaults or get from localStorage on client side
-      // In a real app, you'd get this from the user's session/database
-      
-      console.log('Starting AI analysis...', {
-        transcriptLength: transcript.length,
-        wordCount: countWords(transcript),
-        questionTags,
-        hasQuestionText: !!question.text,
-        hasQuestionHint: !!question.hint,
-      });
-      
-      // Use optimized analysis (70% token reduction + caching)
       analysis = await Promise.race([
         analyzeTranscriptOptimized(
           transcript,
@@ -289,59 +286,23 @@ export async function POST(request: NextRequest) {
       };
     }
 
-    // Wait for audio upload to complete (or fail) before saving
-    await uploadPromise;
-    
-    // Save SessionItem
-    const sessionItem = await prisma.sessionItem.create({
-      data: {
-        sessionId,
-        questionId,
-        audioUrl: audioUrl || null,
-        transcript,
+    // OPTIMIZE: Return response immediately, save to DB in background
+    // This reduces perceived latency significantly
+    const responseData = {
+      transcript,
+      metrics: {
         words: wordCount,
         wpm,
         fillerCount,
         fillerRate,
         longPauses,
-        confidenceScore,
-        intonationScore,
-        starScore: analysis.starScore,
-        impactScore: analysis.impactScore,
-        clarityScore: analysis.clarityScore,
-        technicalAccuracy: analysis.technicalAccuracy,
-        terminologyUsage: analysis.terminologyUsage,
-        questionAnswered: analysis.questionAnswered,
-        answerQuality: analysis.answerQuality,
-        whatWasRight: analysis.whatWasRight,
-        // whatWasWrong removed - not in schema anymore
-        betterWording: analysis.betterWording,
-        aiFeedback: analysis.tips.join(' | '),
-      },
-      include: {
-        question: true,
-      },
-    });
-
-    // Return scorecard data
-    return NextResponse.json({
-      id: sessionItem.id,
-      audioUrl: sessionItem.audioUrl,
-      transcript: sessionItem.transcript,
-      metrics: {
-        words: sessionItem.words,
-        wpm: sessionItem.wpm,
-        fillerCount: sessionItem.fillerCount,
-        fillerRate: sessionItem.fillerRate,
-        longPauses: sessionItem.longPauses,
       },
       scores: {
-        confidence: sessionItem.confidenceScore,
-        intonation: sessionItem.intonationScore,
-        star: sessionItem.starScore,
-        impact: sessionItem.impactScore,
-        clarity: sessionItem.clarityScore,
-        // Enhanced scores from technical analysis
+        confidence: confidenceScore,
+        intonation: intonationScore,
+        star: analysis.starScore,
+        impact: analysis.impactScore,
+        clarity: analysis.clarityScore,
         technicalAccuracy: analysis.technicalAccuracy,
         terminologyUsage: analysis.terminologyUsage,
       },
@@ -349,8 +310,55 @@ export async function POST(request: NextRequest) {
       questionAnswered: analysis.questionAnswered,
       answerQuality: analysis.answerQuality,
       whatWasRight: analysis.whatWasRight,
-      // whatWasWrong removed - not in schema anymore
       betterWording: analysis.betterWording,
+      audioUrl: null as string | null, // Will be updated when upload completes
+    };
+
+    // Save to database in background (non-blocking)
+    // Wait for upload to complete, then save
+    Promise.all([uploadPromise])
+      .then(async () => {
+        try {
+          await prisma.sessionItem.create({
+            data: {
+              sessionId,
+              questionId,
+              audioUrl: audioUrl || null,
+              transcript,
+              words: wordCount,
+              wpm,
+              fillerCount,
+              fillerRate,
+              longPauses,
+              confidenceScore,
+              intonationScore,
+              starScore: analysis.starScore,
+              impactScore: analysis.impactScore,
+              clarityScore: analysis.clarityScore,
+              technicalAccuracy: analysis.technicalAccuracy,
+              terminologyUsage: analysis.terminologyUsage,
+              questionAnswered: analysis.questionAnswered,
+              answerQuality: analysis.answerQuality,
+              whatWasRight: analysis.whatWasRight,
+              betterWording: analysis.betterWording,
+              aiFeedback: analysis.tips.join(' | '),
+            },
+          });
+          console.log('SessionItem saved successfully (background)');
+        } catch (error) {
+          console.error('Failed to save SessionItem (background):', error);
+          // Don't throw - response already sent
+        }
+      })
+      .catch((error) => {
+        console.error('Error in background save:', error);
+      });
+
+    // Return response immediately with current audioUrl (may be null if upload still in progress)
+    // Client can poll or we can use Server-Sent Events for updates
+    return NextResponse.json({
+      ...responseData,
+      audioUrl: audioUrl, // May be null if upload still in progress
     });
   } catch (error) {
     const errorResponse = handleApiError(error);

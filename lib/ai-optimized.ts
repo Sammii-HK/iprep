@@ -57,22 +57,17 @@ function buildOptimizedSystemPrompt(
     level === 'senior' ? 'deep expertise, strong metrics' :
     'strategic vision, executive presence';
 
-  return `Expert interview coach for ${level} ${coachingPrefs.role}. ${style}
+  return `Expert ${level} interview coach. ${style}
 
-Score 0-5: questionAnswered (bool), answerQuality, starScore (STAR for behavioral, clarity for factual), impactScore (metrics), clarityScore, technicalAccuracy, terminologyUsage.
+Score 0-5: questionAnswered (bool), answerQuality, starScore (STAR/behavioral, clarity/factual), impactScore, clarityScore, technicalAccuracy, terminologyUsage.
 
-Provide: whatWasRight (2-4 items), betterWording (2-3 items), tips (5 items with examples).
+Output: whatWasRight (2-4), betterWording (2-3), tips (5 with examples).
 
-Context: ${coachingPrefs.priorities.join(', ')}, ${getFocusAreaContext(coachingPrefs.focusAreas)}. Expect: ${levelExpectation}.
+Context: ${coachingPrefs.priorities.slice(0, 3).join(', ')}, ${getFocusAreaContext(coachingPrefs.focusAreas)}. Expect: ${levelExpectation}.
 
-Scoring:
-- answerQuality: 5=complete/accurate, 4=good/minor gaps, 3=partial, 2=tangential, 1=barely, 0=no answer
-- starScore: 5=full STAR, 4=good, 3=partial, 2=weak, 1=minimal, 0=none (or clarity for factual Qs)
-- impactScore: 5=multiple metrics+business, 4=good metrics, 3=some metrics, 2=few, 1=qualitative, 0=none
-- technicalAccuracy: 5=deep/accurate, 4=good/minor issues, 3=basic/some errors, 2=superficial, 1=errors, 0=wrong
-- terminologyUsage: 5=precise throughout, 4=good/occasional generic, 3=mixed, 2=mostly generic, 1=few terms, 0=none
+Scoring: answerQuality (5=complete, 4=good, 3=partial, 2=tangential, 1=barely, 0=none), starScore (5=full STAR, 4=good, 3=partial, 2=weak, 1=minimal, 0=none), impactScore (5=metrics+business, 4=good, 3=some, 2=few, 1=qualitative, 0=none), technicalAccuracy (5=deep, 4=good, 3=basic, 2=superficial, 1=errors, 0=wrong), terminologyUsage (5=precise, 4=good, 3=mixed, 2=generic, 1=few, 0=none).
 
-Tips must include concrete examples. Return JSON only.`;
+Return JSON only.`;
 }
 
 /**
@@ -98,21 +93,33 @@ function buildOptimizedUserPrompt(
   const wpm = metrics?.wpm || 0;
   const longPauses = metrics?.longPauses || 0;
 
+  // OPTIMIZE: Truncate very long transcripts to reduce token usage and speed
+  // Keep first 800 words (most important context) and last 200 words (conclusion)
+  const MAX_TRANSCRIPT_WORDS = 1000; // Limit transcript to ~1000 words for faster processing
+  let processedTranscript = transcript;
+  if (wordCount > MAX_TRANSCRIPT_WORDS) {
+    const words = transcript.split(/\s+/);
+    const firstPart = words.slice(0, 800).join(' ');
+    const lastPart = words.slice(-200).join(' ');
+    processedTranscript = `${firstPart}... [${wordCount - 1000} words omitted] ...${lastPart}`;
+    console.log(`Truncated transcript from ${wordCount} to ~1000 words for faster processing`);
+  }
+
   let prompt = '';
   
   if (questionText) {
     prompt += `Q: ${questionText}\n`;
   }
   if (questionHint) {
-    prompt += `Expected: ${questionHint}\n`;
+    prompt += `Expected: ${questionHint.substring(0, 200)}\n`; // Truncate hint if too long
   }
   if (questionTags.length > 0) {
-    prompt += `Domain: ${questionTags.join(', ')}\n`;
+    prompt += `Domain: ${questionTags.slice(0, 5).join(', ')}\n`; // Limit to 5 tags
   }
   
-  prompt += `\nAnswer: ${transcript}\n\n`;
-  prompt += `Metrics: ${wordCount} words, ${fillerCount} fillers (${fillerRate.toFixed(1)}%), ${wpm} WPM, ${longPauses} pauses.\n`;
-  prompt += `Assess: relevance, quality, STAR/clarity, impact/metrics, technical accuracy, terminology. Provide actionable tips with examples.`;
+  prompt += `\nAnswer: ${processedTranscript}\n\n`;
+  prompt += `Metrics: ${wordCount}w, ${fillerCount}f (${fillerRate.toFixed(1)}%), ${wpm}wpm, ${longPauses}p.\n`;
+  prompt += `Score: relevance, quality, STAR/clarity, impact, technical, terminology. Tips with examples.`;
 
   return prompt;
 }
@@ -182,7 +189,7 @@ export async function analyzeTranscriptOptimized(
   });
 
   let attempts = 0;
-  const maxAttempts = 3;
+  const maxAttempts = 2; // Reduced from 3 for faster failure recovery
 
   while (attempts < maxAttempts) {
     try {
@@ -193,8 +200,8 @@ export async function analyzeTranscriptOptimized(
           { role: 'user', content: userPrompt },
         ],
         response_format: { type: 'json_object' },
-        temperature: 0.5,
-        max_tokens: 1800, // Reduced from 2500 (optimized prompts need less)
+        temperature: 0.3, // Lower temperature = faster, more deterministic generation
+        max_tokens: 1200, // Further reduced (optimized prompts + structured output need less)
       });
 
       const fullText = completion.choices[0]?.message?.content;
@@ -274,8 +281,8 @@ export async function analyzeTranscriptOptimized(
         return fallback;
       }
       
-      // Exponential backoff
-      await new Promise((resolve) => setTimeout(resolve, 1000 * attempts));
+      // Exponential backoff (reduced delay for faster recovery)
+      await new Promise((resolve) => setTimeout(resolve, 500 * attempts)); // Reduced from 1000ms
     }
   }
 
