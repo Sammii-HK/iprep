@@ -3,6 +3,7 @@ import jwt from 'jsonwebtoken';
 import { NextRequest } from 'next/server';
 import { prisma } from './db';
 import { getConfig } from './config';
+import { AppError } from './errors';
 
 const JWT_EXPIRES_IN = '7d';
 
@@ -84,7 +85,7 @@ export async function requireAuth(request: NextRequest): Promise<{
 }> {
   const user = await getCurrentUser(request);
   if (!user) {
-    throw new Error('Authentication required');
+    throw new AppError('Authentication required', 401, 'AUTHENTICATION_REQUIRED');
   }
   return user;
 }
@@ -100,7 +101,7 @@ export async function requireAdmin(request: NextRequest): Promise<{
 }> {
   const user = await requireAuth(request);
   if (!isAdmin(user.email || '')) {
-    throw new Error('Admin access required');
+    throw new AppError('Admin access required', 403, 'ADMIN_ACCESS_REQUIRED');
   }
   return user;
 }
