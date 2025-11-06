@@ -21,6 +21,7 @@ export function MicRecorder({
 	const mediaRecorderRef = useRef<MediaRecorder | null>(null);
 	const audioContextRef = useRef<AudioContext | null>(null);
 	const analyserRef = useRef<AnalyserNode | null>(null);
+	const sourceRef = useRef<MediaStreamAudioSourceNode | null>(null);
 	const streamRef = useRef<MediaStream | null>(null);
 	const chunksRef = useRef<Blob[]>([]);
 	const intervalRef = useRef<NodeJS.Timeout | null>(null);
@@ -33,6 +34,7 @@ export function MicRecorder({
 			const levelCheck = levelCheckRef.current;
 			const stream = streamRef.current;
 			const audioContext = audioContextRef.current;
+			const source = sourceRef.current;
 
 			if (interval) {
 				clearInterval(interval);
@@ -40,6 +42,15 @@ export function MicRecorder({
 			if (levelCheck) {
 				cancelAnimationFrame(levelCheck);
 			}
+			// Disconnect source
+			if (source) {
+				try {
+					source.disconnect();
+				} catch (error) {
+					// Source might already be disconnected
+				}
+			}
+			// Only stop stream when component unmounts (not between recordings)
 			if (stream) {
 				stream.getTracks().forEach((track) => track.stop());
 			}
@@ -172,18 +183,41 @@ export function MicRecorder({
 
 	const startRecording = async () => {
 		try {
-			// Request microphone with iOS-compatible constraints
-			const constraints: MediaStreamConstraints = {
-				audio: {
-					echoCancellation: true,
-					noiseSuppression: true,
-					autoGainControl: true,
-					// iOS-specific: don't request sampleRate (let iOS choose)
-					...(isIOS() ? {} : { sampleRate: 44100 }),
-				},
-			};
+			// Reuse existing stream if available and active
+			let stream = streamRef.current;
 
-			const stream = await navigator.mediaDevices.getUserMedia(constraints);
+			// Check if existing stream is still active
+			if (stream) {
+				const audioTracks = stream.getAudioTracks();
+				const isStreamActive =
+					audioTracks.length > 0 &&
+					audioTracks.some(
+						(track) => track.readyState === "live" && track.enabled
+					);
+
+				if (!isStreamActive) {
+					// Stream is dead, need to get a new one
+					stream = null;
+					streamRef.current = null;
+				}
+			}
+
+			// Only request new stream if we don't have an active one
+			if (!stream) {
+				// Request microphone with iOS-compatible constraints
+				const constraints: MediaStreamConstraints = {
+					audio: {
+						echoCancellation: true,
+						noiseSuppression: true,
+						autoGainControl: true,
+						// iOS-specific: don't request sampleRate (let iOS choose)
+						...(isIOS() ? {} : { sampleRate: 44100 }),
+					},
+				};
+
+				stream = await navigator.mediaDevices.getUserMedia(constraints);
+				streamRef.current = stream;
+			}
 
 			// Check if stream has audio tracks
 			const audioTracks = stream.getAudioTracks();
@@ -205,36 +239,59 @@ export function MicRecorder({
 				settings: audioTrack.getSettings(),
 			});
 
-			streamRef.current = stream;
 			setMicConnected(true);
 
-			// Set up audio analysis for level detection
-			// TypeScript doesn't have webkitAudioContext in types, but it exists in Safari
-			// eslint-disable-next-line @typescript-eslint/no-explicit-any
-			const webkitAudioContext = (window as any).webkitAudioContext;
-			const AudioContextClass = window.AudioContext || webkitAudioContext;
-			const audioContext = new AudioContextClass();
+			// Set up audio analysis for level detection (reuse if already exists)
+			let audioContext = audioContextRef.current;
+			let analyser = analyserRef.current;
 
-			// iOS requires AudioContext to be resumed on user interaction
-			if (audioContext.state === "suspended") {
-				try {
-					await audioContext.resume();
-					console.log("AudioContext resumed successfully");
-				} catch (resumeError) {
-					console.warn("Failed to resume AudioContext:", resumeError);
-					// Continue anyway - some browsers handle this differently
+			if (!audioContext || audioContext.state === "closed") {
+				// TypeScript doesn't have webkitAudioContext in types, but it exists in Safari
+				// eslint-disable-next-line @typescript-eslint/no-explicit-any
+				const webkitAudioContext = (window as any).webkitAudioContext;
+				const AudioContextClass = window.AudioContext || webkitAudioContext;
+				audioContext = new AudioContextClass();
+
+				// iOS requires AudioContext to be resumed on user interaction
+				if (audioContext.state === "suspended") {
+					try {
+						await audioContext.resume();
+						console.log("AudioContext resumed successfully");
+					} catch (resumeError) {
+						console.warn("Failed to resume AudioContext:", resumeError);
+						// Continue anyway - some browsers handle this differently
+					}
 				}
+
+				analyser = audioContext.createAnalyser();
+				analyser.fftSize = 2048; // Increased for better accuracy
+				analyser.smoothingTimeConstant = 0.8;
+
+				audioContextRef.current = audioContext;
+				analyserRef.current = analyser;
 			}
 
-			const analyser = audioContext.createAnalyser();
-			analyser.fftSize = 2048; // Increased for better accuracy
-			analyser.smoothingTimeConstant = 0.8;
+			// Reconnect source if needed (in case it was disconnected or doesn't exist)
+			if (audioContext && analyser) {
+				// Disconnect old source if it exists
+				if (sourceRef.current) {
+					try {
+						sourceRef.current.disconnect();
+					} catch (error) {
+						// Source might already be disconnected, that's okay
+						console.log("Source disconnection:", error);
+					}
+				}
 
-			const source = audioContext.createMediaStreamSource(stream);
-			source.connect(analyser);
-
-			audioContextRef.current = audioContext;
-			analyserRef.current = analyser;
+				// Create and connect new source
+				try {
+					const source = audioContext.createMediaStreamSource(stream);
+					source.connect(analyser);
+					sourceRef.current = source;
+				} catch (error) {
+					console.error("Failed to create/connect source:", error);
+				}
+			}
 
 			// Use iOS-compatible MIME type
 			const mimeType = getCompatibleMimeType();
@@ -287,13 +344,10 @@ export function MicRecorder({
 				});
 				chunksRef.current = [];
 				onRecordingComplete(blob);
-				stream.getTracks().forEach((track) => track.stop());
-				setMicConnected(false);
+				// Don't stop the stream tracks - keep them alive for next recording
+				// This prevents having to request permission again
 				setAudioLevel(0);
-				if (audioContextRef.current) {
-					audioContextRef.current.close();
-					audioContextRef.current = null;
-				}
+				// Keep audioContext alive for next recording
 				if (levelCheckRef.current) {
 					cancelAnimationFrame(levelCheckRef.current);
 					levelCheckRef.current = null;
@@ -375,6 +429,30 @@ export function MicRecorder({
 				levelCheckRef.current = null;
 			}
 			onStop?.();
+		}
+	};
+
+	// Function to explicitly release microphone (optional, for cleanup)
+	const releaseMicrophone = () => {
+		if (sourceRef.current) {
+			try {
+				sourceRef.current.disconnect();
+			} catch (error) {
+				// Source might already be disconnected
+			}
+			sourceRef.current = null;
+		}
+		if (streamRef.current) {
+			streamRef.current.getTracks().forEach((track) => track.stop());
+			streamRef.current = null;
+			setMicConnected(false);
+		}
+		if (audioContextRef.current) {
+			audioContextRef.current.close();
+			audioContextRef.current = null;
+		}
+		if (analyserRef.current) {
+			analyserRef.current = null;
 		}
 	};
 
