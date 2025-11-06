@@ -222,7 +222,7 @@ export default function BanksPage() {
               />
 
               <p className="text-sm text-gray-500 mt-2">
-                CSV format: text,tags,difficulty (tags comma-separated)
+                CSV format: front,back (front = question, back = optional - can be empty)
               </p>
             </div>
             <div className="flex gap-2">

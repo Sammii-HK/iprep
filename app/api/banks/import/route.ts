@@ -75,7 +75,7 @@ export async function POST(request: NextRequest) {
     const errorMessage = error instanceof Error ? error.message : 'Failed to import bank';
     const friendlyMessage = errorMessage.includes('Row') 
       ? errorMessage 
-      : `Import failed: ${errorMessage}. Please ensure your CSV has columns: text,tags,difficulty`;
+      : `Import failed: ${errorMessage}. Please ensure your CSV has columns: front,back (back can be comma-separated tags or empty)`;
     
     return NextResponse.json(
       { error: friendlyMessage },

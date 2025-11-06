@@ -1,7 +1,8 @@
 import Papa from 'papaparse';
 import { z } from 'zod';
 
-const QuestionRowSchema = z.object({
+// Support both formats: text,tags,difficulty AND front,back
+const QuestionRowSchemaText = z.object({
   text: z.string().min(1),
   tags: z.string(), // Comma-separated string
   difficulty: z
@@ -14,6 +15,11 @@ const QuestionRowSchema = z.object({
       return num;
     })
     .pipe(z.number().int().min(1).max(5)),
+});
+
+const QuestionRowSchemaFrontBack = z.object({
+  front: z.string().min(1),
+  back: z.string().optional().default(''), // Optional - can be empty
 });
 
 export interface ParsedQuestion {
@@ -35,18 +41,22 @@ export function parseCSV(csvContent: string): ParsedQuestion[] {
     console.warn('CSV parsing warnings:', result.errors);
   }
 
-  // Validate that we have the expected headers
+  // Detect CSV format based on headers
+  // Primary format: front,back (standard flashcard format)
+  let format: 'frontback' | 'text' | null = null;
   if (result.data.length > 0) {
-    const firstRow = result.data[0] as Record<string, any>;
-    const headers = Object.keys(firstRow);
-    const requiredHeaders = ['text'];
-    const missingHeaders = requiredHeaders.filter(h => !headers.includes(h));
+    const firstRow = result.data[0] as Record<string, string | undefined>;
+    const headers = Object.keys(firstRow).map(h => h.toLowerCase().trim());
     
-    if (missingHeaders.length > 0) {
+    if (headers.includes('front') && headers.includes('back')) {
+      format = 'frontback';
+    } else if (headers.includes('text')) {
+      // Legacy format support
+      format = 'text';
+    } else {
       throw new Error(
-        `CSV is missing required columns: ${missingHeaders.join(', ')}. ` +
-        `Found columns: ${headers.join(', ')}. ` +
-        `Expected format: text,tags,difficulty`
+        `CSV format not recognized. Found columns: ${Object.keys(firstRow).join(', ')}. ` +
+        `Expected format: front,back (or legacy: text,tags,difficulty)`
       );
     }
   }
@@ -63,37 +73,66 @@ export function parseCSV(csvContent: string): ParsedQuestion[] {
       continue;
     }
 
-    // Check if required fields exist
-    if (!row.text || !row.text.trim()) {
-      errors.push(`Row ${rowNumber}: Missing or empty "text" field`);
-      continue;
-    }
-
-    if (row.difficulty === undefined || row.difficulty === null || row.difficulty === '') {
-      errors.push(`Row ${rowNumber}: Missing "difficulty" field`);
-      continue;
-    }
-
     try {
-      // Ensure tags field exists (default to empty string)
-      const tagsString = row.tags || '';
-      
-      const validated = QuestionRowSchema.parse({
-        text: row.text.trim(),
-        tags: tagsString,
-        difficulty: row.difficulty,
-      });
+      if (format === 'frontback') {
+        // Handle front,back format
+        if (!row.front || !row.front.trim()) {
+          errors.push(`Row ${rowNumber}: Missing or empty "front" field`);
+          continue;
+        }
 
-      const tags = validated.tags
-        .split(',')
-        .map((tag) => tag.trim())
-        .filter((tag) => tag.length > 0);
+        // Back is optional - can be empty
+        const backValue = row.back?.trim() || '';
+        
+        const validated = QuestionRowSchemaFrontBack.parse({
+          front: row.front.trim(),
+          back: backValue,
+        });
 
-      questions.push({
-        text: validated.text,
-        tags,
-        difficulty: validated.difficulty,
-      });
+        // Convert front/back to question format
+        // front = question text (required)
+        // back = optional tags (comma-separated) - if empty, no tags
+        const tags = validated.back && validated.back.length > 0
+          ? validated.back.split(',').map(t => t.trim()).filter(t => t.length > 0)
+          : [];
+        
+        questions.push({
+          text: validated.front,
+          tags, // Can be empty array if back is empty
+          difficulty: 3, // Default difficulty
+        });
+      } else {
+        // Handle text,tags,difficulty format
+        if (!row.text || !row.text.trim()) {
+          errors.push(`Row ${rowNumber}: Missing or empty "text" field`);
+          continue;
+        }
+
+        if (row.difficulty === undefined || row.difficulty === null || row.difficulty === '') {
+          errors.push(`Row ${rowNumber}: Missing "difficulty" field`);
+          continue;
+        }
+
+        // Ensure tags field exists (default to empty string)
+        const tagsString = row.tags || '';
+        
+        const validated = QuestionRowSchemaText.parse({
+          text: row.text.trim(),
+          tags: tagsString,
+          difficulty: row.difficulty,
+        });
+
+        const tags = validated.tags
+          .split(',')
+          .map((tag) => tag.trim())
+          .filter((tag) => tag.length > 0);
+
+        questions.push({
+          text: validated.text,
+          tags,
+          difficulty: validated.difficulty,
+        });
+      }
     } catch (error) {
       console.error(`Error parsing row ${rowNumber}:`, row, error);
       if (error instanceof z.ZodError) {
@@ -124,10 +163,10 @@ export function parseCSV(csvContent: string): ParsedQuestion[] {
 }
 
 export function parseJSON(jsonContent: string): ParsedQuestion[] {
-  let data: any[];
+  let data: unknown;
   try {
     data = JSON.parse(jsonContent);
-  } catch (error) {
+  } catch {
     throw new Error('Invalid JSON format');
   }
 
@@ -138,33 +177,35 @@ export function parseJSON(jsonContent: string): ParsedQuestion[] {
   const questions: ParsedQuestion[] = [];
 
   for (const item of data) {
+    const questionItem = item as Record<string, unknown>;
+    
     try {
       // Handle tags as either array or comma-separated string
       let tags: string[];
-      if (Array.isArray(item.tags)) {
-        tags = item.tags.map((tag: any) => String(tag).trim()).filter((tag: string) => tag.length > 0);
+      if (Array.isArray(questionItem.tags)) {
+        tags = questionItem.tags.map((tag: unknown) => String(tag).trim()).filter((tag: string) => tag.length > 0);
       } else {
-        tags = String(item.tags || '')
+        tags = String(questionItem.tags || '')
           .split(',')
           .map((tag) => tag.trim())
           .filter((tag) => tag.length > 0);
       }
 
-      const difficulty = typeof item.difficulty === 'number' 
-        ? item.difficulty 
-        : parseInt(String(item.difficulty), 10);
+      const difficulty = typeof questionItem.difficulty === 'number' 
+        ? questionItem.difficulty 
+        : parseInt(String(questionItem.difficulty), 10);
 
       if (isNaN(difficulty) || difficulty < 1 || difficulty > 5) {
         throw new Error('Difficulty must be between 1 and 5');
       }
 
       questions.push({
-        text: String(item.text),
+        text: String(questionItem.text),
         tags,
         difficulty,
       });
     } catch (error) {
-      console.error('Error parsing item:', item, error);
+      console.error('Error parsing item:', questionItem, error);
       throw new Error(`Invalid item: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   }
