@@ -17,7 +17,8 @@
     "db:push": "prisma db push",
     "db:studio": "prisma studio",
     "postinstall": "prisma generate",
-    "prepare": "husky"
+    "prepare": "husky",
+    "generate-vapid-keys": "node scripts/generate-vapid-keys.js"
   },
   "lint-staged": {
     "*.{ts,tsx}": [
@@ -44,6 +45,7 @@
     "react": "19.2.0",
     "react-dom": "19.2.0",
     "recharts": "^3.3.0",
+    "web-push": "^3.6.7",
     "zod": "^4.1.12"
   },
   "devDependencies": {
@@ -54,6 +56,7 @@
     "@types/papaparse": "^5.3.16",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "@types/web-push": "^3.6.4",
     "@vitest/ui": "^3.2.4",
     "eslint": "^9",
     "eslint-config-next": "16.0.1",

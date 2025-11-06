@@ -376,7 +376,19 @@ export default function PracticePage() {
 										)}
 									</p>
 								</div>
-								<div className="mt-2 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+								<div className="mt-3 flex gap-2 flex-wrap">
+									<button
+										onClick={(e) => {
+											e.stopPropagation();
+											router.push(`/practice/session/${session.id}`);
+										}}
+										className="px-3 py-1.5 bg-blue-500 text-white rounded text-sm hover:bg-blue-600 transition-colors font-medium"
+										title="Continue or restart this session"
+									>
+										{session.isCompleted
+											? "🔄 Restart Session"
+											: "▶️ Continue Session"}
+									</button>
 									{session.isCompleted && session.bankId && (
 										<button
 											onClick={(e) => {
@@ -384,7 +396,7 @@ export default function PracticePage() {
 												handlePracticeWeakTopics(session.id, session.bankId);
 											}}
 											disabled={creatingWeakTopicsSession === session.id}
-											className="px-3 py-1 bg-amber-500 text-white rounded text-sm hover:bg-amber-600 disabled:bg-amber-400 transition-colors"
+											className="px-3 py-1.5 bg-amber-500 text-white rounded text-sm hover:bg-amber-600 disabled:bg-amber-400 transition-colors font-medium"
 											title="Practice weak topics from this session"
 										>
 											{creatingWeakTopicsSession === session.id
@@ -397,10 +409,10 @@ export default function PracticePage() {
 											e.stopPropagation();
 											setDeletingSessionId(session.id);
 										}}
-										className="px-3 py-1 bg-red-500 text-white rounded text-sm hover:bg-red-600 transition-colors"
+										className="px-3 py-1.5 bg-red-500 text-white rounded text-sm hover:bg-red-600 transition-colors font-medium"
 										title="Delete session"
 									>
-										Delete
+										🗑️ Delete
 									</button>
 								</div>
 							</div>

@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth-context';
 import { AuthGuard } from '@/components/AuthGuard';
+import { SmartNotifications } from '@/components/SmartNotifications';
 
 export default function DashboardLayout({
   children,
@@ -21,6 +22,7 @@ export default function DashboardLayout({
 
   return (
     <AuthGuard>
+      <SmartNotifications />
       <div className="min-h-screen bg-slate-50 dark:bg-slate-900 transition-colors">
         <nav className="bg-white dark:bg-slate-800 shadow-sm border-b border-slate-200 dark:border-slate-700">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">

@@ -40,6 +40,11 @@ interface Config {
 	jwt: {
 		secret: string;
 	};
+	vapid: {
+		publicKey: string;
+		privateKey: string;
+		subject: string;
+	};
 }
 
 function validateEnvVar(name: string): string {
@@ -91,6 +96,11 @@ export function getConfig(): Config {
 			nodeEnv: getOptionalEnvVar("NODE_ENV"),
 			admin: { email: process.env.ADMIN_EMAIL || "" },
 			jwt: { secret: process.env.JWT_SECRET || "" },
+			vapid: {
+				publicKey: process.env.VAPID_PUBLIC_KEY || "",
+				privateKey: process.env.VAPID_PRIVATE_KEY || "",
+				subject: process.env.VAPID_SUBJECT || "mailto:your-email@example.com",
+			},
 		};
 		return config;
 	}
@@ -124,6 +134,11 @@ export function getConfig(): Config {
 			nodeEnv: getOptionalEnvVar("NODE_ENV"),
 			admin: { email: validateEnvVar("ADMIN_EMAIL") },
 			jwt: { secret: validateEnvVar("JWT_SECRET") },
+			vapid: {
+				publicKey: process.env.VAPID_PUBLIC_KEY || "",
+				privateKey: process.env.VAPID_PRIVATE_KEY || "",
+				subject: process.env.VAPID_SUBJECT || "mailto:your-email@example.com",
+			},
 		};
 		return config;
 	} catch (error) {
@@ -153,6 +168,11 @@ export function getConfig(): Config {
 				nodeEnv: "development",
 				admin: { email: process.env.ADMIN_EMAIL || "" },
 				jwt: { secret: process.env.JWT_SECRET || "" },
+				vapid: {
+					publicKey: process.env.VAPID_PUBLIC_KEY || "",
+					privateKey: process.env.VAPID_PRIVATE_KEY || "",
+					subject: process.env.VAPID_SUBJECT || "mailto:your-email@example.com",
+				},
 			};
 			return config;
 		} else {

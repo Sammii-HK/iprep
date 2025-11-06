@@ -137,52 +137,64 @@ export function LearningSummary({ sessionId }: { sessionId: string }) {
       )}
 
       {/* What to Review Next - Most Prominent */}
-      {needsReview.length > 0 && (
+      {(needsReview.length > 0 || summary.weakTags.length > 0) && (
         <div className="bg-amber-50 dark:bg-amber-900/20 rounded-lg p-5 border-2 border-amber-200 dark:border-amber-800">
-          <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
             <h3 className="text-lg font-bold text-amber-900 dark:text-amber-100 flex items-center gap-2">
               <span>📚</span>
               <span>What to Review Next</span>
             </h3>
-            {bankId && (summary.weakTags.length > 0 || needsReview.length > 0) && (
+            {bankId ? (
               <button
                 onClick={handlePracticeWeakTopics}
                 disabled={creatingSession}
-                className="px-4 py-2 bg-amber-600 hover:bg-amber-700 disabled:bg-amber-400 text-white rounded-lg text-sm font-medium transition-colors"
+                className="px-4 py-2 bg-amber-600 hover:bg-amber-700 disabled:bg-amber-400 text-white rounded-lg text-sm font-medium transition-colors whitespace-nowrap"
               >
                 {creatingSession ? 'Creating...' : '🎯 Practice Weak Topics'}
               </button>
+            ) : (
+              <p className="text-xs text-amber-700 dark:text-amber-300">
+                Complete the session to practice weak topics
+              </p>
             )}
           </div>
-          <p className="text-sm text-amber-800 dark:text-amber-200 mb-4">
-            These topics need the most attention based on your performance:
-          </p>
-          <div className="space-y-3">
-            {needsReview.map(([tag, data], idx) => (
-              <div key={tag} className="bg-white dark:bg-slate-700 rounded-lg p-3 border border-amber-200 dark:border-amber-700">
-                <div className="flex items-center justify-between mb-1">
-                  <span className="font-semibold text-gray-900 dark:text-gray-100">
-                    {idx + 1}. {tag}
-                  </span>
-                  <span className={`text-sm font-medium ${
-                    data.avgScore < 2.5 
-                      ? 'text-red-600 dark:text-red-400' 
-                      : data.avgScore < 3 
-                      ? 'text-orange-600 dark:text-orange-400'
-                      : 'text-amber-600 dark:text-amber-400'
-                  }`}>
-                    {data.avgScore.toFixed(1)} / 5.0
-                  </span>
-                </div>
-                <div className="text-xs text-gray-600 dark:text-gray-400">
-                  {data.count} question{data.count !== 1 ? 's' : ''} • 
-                  {data.avgScore < 2.5 && ' Needs significant review'}
-                  {data.avgScore >= 2.5 && data.avgScore < 3 && ' Needs practice'}
-                  {data.avgScore >= 3 && data.avgScore < 3.5 && ' Could improve'}
-                </div>
+          {needsReview.length > 0 ? (
+            <>
+              <p className="text-sm text-amber-800 dark:text-amber-200 mb-4">
+                These topics need the most attention based on your performance:
+              </p>
+              <div className="space-y-3">
+                {needsReview.map(([tag, data], idx) => (
+                  <div key={tag} className="bg-white dark:bg-slate-700 rounded-lg p-3 border border-amber-200 dark:border-amber-700">
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="font-semibold text-gray-900 dark:text-gray-100">
+                        {idx + 1}. {tag}
+                      </span>
+                      <span className={`text-sm font-medium ${
+                        data.avgScore < 2.5 
+                          ? 'text-red-600 dark:text-red-400' 
+                          : data.avgScore < 3 
+                          ? 'text-orange-600 dark:text-orange-400'
+                          : 'text-amber-600 dark:text-amber-400'
+                      }`}>
+                        {data.avgScore.toFixed(1)} / 5.0
+                      </span>
+                    </div>
+                    <div className="text-xs text-gray-600 dark:text-gray-400">
+                      {data.count} question{data.count !== 1 ? 's' : ''} • 
+                      {data.avgScore < 2.5 && ' Needs significant review'}
+                      {data.avgScore >= 2.5 && data.avgScore < 3 && ' Needs practice'}
+                      {data.avgScore >= 3 && data.avgScore < 3.5 && ' Could improve'}
+                    </div>
+                  </div>
+                ))}
               </div>
-            ))}
-          </div>
+            </>
+          ) : summary.weakTags.length > 0 ? (
+            <p className="text-sm text-amber-800 dark:text-amber-200 mb-4">
+              Focus on these weak areas: {summary.weakTags.join(', ')}
+            </p>
+          ) : null}
         </div>
       )}
 

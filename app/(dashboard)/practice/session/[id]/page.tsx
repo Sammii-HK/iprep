@@ -195,8 +195,8 @@ export default function PracticeSessionPage() {
   const isLastQuestion = currentQuestionIndex === questions.length - 1;
 
 	// Show learning summary if session is completed
-	if (sessionCompleted) {
-		return (
+  if (sessionCompleted) {
+    return (
       <div className="px-4 py-6">
         <div className="max-w-4xl mx-auto">
           <div className="mb-6">
@@ -205,18 +205,6 @@ export default function PracticeSessionPage() {
           </div>
           <LearningSummary sessionId={sessionId} />
           <div className="mt-6 flex gap-4 flex-wrap">
-            <button
-              onClick={() => router.push('/practice')}
-              className="px-6 py-3 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
-            >
-              Back to Practice Sessions
-            </button>
-            <button
-              onClick={() => router.push('/learning')}
-              className="px-6 py-3 bg-slate-200 dark:bg-slate-700 text-slate-900 dark:text-slate-100 rounded-lg hover:bg-slate-300 dark:hover:bg-slate-600 transition-colors"
-            >
-              View All Learning Insights
-            </button>
             <button
               onClick={() => {
                 // Reset session state and allow practicing again
@@ -227,9 +215,21 @@ export default function PracticeSessionPage() {
                 // Scroll to top
                 window.scrollTo(0, 0);
               }}
-              className="px-6 py-3 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors"
+              className="px-6 py-3 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors font-semibold"
             >
-              Practice Again
+              🔄 Practice Again
+            </button>
+            <button
+              onClick={() => router.push('/practice')}
+              className="px-6 py-3 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors font-semibold"
+            >
+              ← Back to Practice Sessions
+            </button>
+            <button
+              onClick={() => router.push('/learning')}
+              className="px-6 py-3 bg-slate-200 dark:bg-slate-700 text-slate-900 dark:text-slate-100 rounded-lg hover:bg-slate-300 dark:hover:bg-slate-600 transition-colors"
+            >
+              View All Learning Insights
             </button>
           </div>
         </div>

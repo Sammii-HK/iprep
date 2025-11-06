@@ -1,211 +1,115 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { subscribeToPushNotifications, getPushSubscription, unsubscribeFromPushNotifications } from '@/lib/push-notifications';
 
-interface NotificationSettingsProps {
-  onSettingsChange?: (enabled: boolean, time: string) => void;
+export function NotificationSettings() {
+	const [isSupported, setIsSupported] = useState(false);
+	const [isSubscribed, setIsSubscribed] = useState(false);
+	const [isLoading, setIsLoading] = useState(false);
+	const [permission, setPermission] = useState<NotificationPermission>('default');
+
+	useEffect(() => {
+		// Check if notifications are supported
+		if (typeof window !== 'undefined') {
+			setIsSupported('Notification' in window && 'serviceWorker' in navigator && 'PushManager' in window);
+			
+			if ('Notification' in window) {
+				setPermission(Notification.permission);
+			}
+
+			// Check if already subscribed
+			checkSubscription();
+		}
+	}, []);
+
+	const checkSubscription = async () => {
+		try {
+			const subscription = await getPushSubscription();
+			setIsSubscribed(!!subscription);
+		} catch (error) {
+			console.error('Error checking subscription:', error);
+		}
+	};
+
+	const handleSubscribe = async () => {
+		setIsLoading(true);
+		try {
+			await subscribeToPushNotifications();
+			setIsSubscribed(true);
+			setPermission('granted');
+			alert('Notifications enabled! You will receive study reminders.');
+		} catch (error) {
+			console.error('Error subscribing:', error);
+			alert(error instanceof Error ? error.message : 'Failed to enable notifications');
+		} finally {
+			setIsLoading(false);
+		}
+	};
+
+	const handleUnsubscribe = async () => {
+		setIsLoading(true);
+		try {
+			await unsubscribeFromPushNotifications();
+			setIsSubscribed(false);
+			alert('Notifications disabled');
+		} catch (error) {
+			console.error('Error unsubscribing:', error);
+			alert('Failed to disable notifications');
+		} finally {
+			setIsLoading(false);
+		}
+	};
+
+	if (!isSupported) {
+		return (
+			<div className="p-4 bg-yellow-50 dark:bg-yellow-900/20 rounded-lg border border-yellow-200 dark:border-yellow-800">
+				<p className="text-sm text-yellow-800 dark:text-yellow-200">
+					Push notifications are not supported in this browser.
+				</p>
+			</div>
+		);
+	}
+
+	if (permission === 'denied') {
+		return (
+			<div className="p-4 bg-red-50 dark:bg-red-900/20 rounded-lg border border-red-200 dark:border-red-800">
+				<p className="text-sm text-red-800 dark:text-red-200">
+					Notification permission was denied. Please enable it in your browser settings.
+				</p>
+			</div>
+		);
+	}
+
+	return (
+		<div className="p-4 bg-white dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700">
+			<div className="flex items-center justify-between">
+				<div>
+					<h3 className="font-semibold text-slate-900 dark:text-slate-100 mb-1">
+						Push Notifications
+					</h3>
+					<p className="text-sm text-slate-600 dark:text-slate-400">
+						{isSubscribed
+							? 'You will receive study reminders'
+							: 'Enable to receive study reminders'}
+					</p>
+				</div>
+				<button
+					onClick={isSubscribed ? handleUnsubscribe : handleSubscribe}
+					disabled={isLoading}
+					className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+						isSubscribed
+							? 'bg-red-500 hover:bg-red-600 text-white'
+							: 'bg-blue-500 hover:bg-blue-600 text-white'
+					} disabled:opacity-50 disabled:cursor-not-allowed`}
+				>
+					{isLoading
+						? 'Loading...'
+						: isSubscribed
+						? 'Disable'
+						: 'Enable'}
+				</button>
+			</div>
+		</div>
+	);
 }
-
-export function NotificationSettings({ onSettingsChange }: NotificationSettingsProps) {
-  // Initialize state directly to avoid setState in useEffect
-  const getInitialPermission = (): NotificationPermission => {
-    if (typeof window !== 'undefined' && 'Notification' in window) {
-      return Notification.permission;
-    }
-    return 'default';
-  };
-
-  const getInitialEnabled = (): boolean => {
-    if (typeof window !== 'undefined') {
-      return localStorage.getItem('notificationsEnabled') === 'true';
-    }
-    return false;
-  };
-
-  const getInitialTime = (): string => {
-    if (typeof window !== 'undefined') {
-      return localStorage.getItem('reminderTime') || '09:00';
-    }
-    return '09:00';
-  };
-
-  const [enabled, setEnabled] = useState(getInitialEnabled);
-  const [permission, setPermission] = useState<NotificationPermission>(getInitialPermission);
-  const [reminderTime, setReminderTime] = useState(getInitialTime);
-
-  const requestPermission = async () => {
-    if (!('Notification' in window)) {
-      alert('This browser does not support notifications');
-      return;
-    }
-
-    const permission = await Notification.requestPermission();
-    setPermission(permission);
-
-    if (permission === 'granted') {
-      setEnabled(true);
-      localStorage.setItem('notificationsEnabled', 'true');
-      onSettingsChange?.(true, reminderTime);
-      
-      // Register service worker for push notifications
-      if ('serviceWorker' in navigator) {
-        try {
-          await navigator.serviceWorker.ready;
-          console.log('Service Worker ready for notifications');
-        } catch (error) {
-          console.error('Service Worker registration failed:', error);
-        }
-      }
-    }
-  };
-
-  const handleToggle = (newEnabled: boolean) => {
-    if (newEnabled && permission !== 'granted') {
-      requestPermission();
-      return;
-    }
-
-    setEnabled(newEnabled);
-    localStorage.setItem('notificationsEnabled', newEnabled.toString());
-    onSettingsChange?.(newEnabled, reminderTime);
-    
-    if (newEnabled) {
-      scheduleReminder(reminderTime);
-    } else {
-      cancelReminders();
-    }
-  };
-
-  const handleTimeChange = (newTime: string) => {
-    setReminderTime(newTime);
-    localStorage.setItem('reminderTime', newTime);
-    onSettingsChange?.(enabled, newTime);
-    
-    if (enabled) {
-      scheduleReminder(newTime);
-    }
-  };
-
-  const scheduleReminder = (time: string) => {
-    if (!('serviceWorker' in navigator)) return;
-
-    const [hours, minutes] = time.split(':').map(Number);
-    const now = new Date();
-    const scheduledTime = new Date();
-    scheduledTime.setHours(hours, minutes, 0, 0);
-
-    // If time has passed today, schedule for tomorrow
-    if (scheduledTime < now) {
-      scheduledTime.setDate(scheduledTime.getDate() + 1);
-    }
-
-    const timeUntilReminder = scheduledTime.getTime() - now.getTime();
-
-    // Schedule daily reminder
-    setTimeout(() => {
-      showReminderNotification();
-      // Schedule next day's reminder
-      setInterval(() => {
-        showReminderNotification();
-      }, 24 * 60 * 60 * 1000); // 24 hours
-    }, timeUntilReminder);
-  };
-
-  const showReminderNotification = () => {
-    if (permission === 'granted' && 'serviceWorker' in navigator) {
-      navigator.serviceWorker.ready.then((registration) => {
-        // Use service worker notification which supports actions
-        registration.showNotification('Time to Practice! 📚', {
-          body: 'Keep improving your interview skills. Practice makes perfect!',
-          icon: '/icon-192.png',
-          badge: '/icon-192.png',
-          tag: 'study-reminder',
-          requireInteraction: false,
-          data: {
-            url: '/practice',
-          },
-        } as NotificationOptions);
-      });
-    }
-  };
-
-  const cancelReminders = () => {
-    // Notifications are handled by service worker, so we just update state
-    // The service worker will respect the enabled flag
-  };
-
-
-  if (!('Notification' in window)) {
-    return (
-      <div className="bg-white dark:bg-slate-800 rounded-lg shadow-md p-6 border border-slate-200 dark:border-slate-700">
-        <p className="text-slate-600 dark:text-slate-400">
-          Notifications are not supported in this browser.
-        </p>
-      </div>
-    );
-  }
-
-  return (
-    <div className="bg-white dark:bg-slate-800 rounded-lg shadow-md p-6 border border-slate-200 dark:border-slate-700">
-      <h3 className="text-lg font-semibold mb-4 text-slate-900 dark:text-slate-100">
-        Study Reminders
-      </h3>
-
-      <div className="space-y-4">
-        <div className="flex items-center justify-between">
-          <div>
-            <label className="text-sm font-medium text-slate-900 dark:text-slate-100">
-              Enable Daily Reminders
-            </label>
-            <p className="text-xs text-slate-600 dark:text-slate-400">
-              Get notified to practice your interview skills
-            </p>
-          </div>
-          <button
-            onClick={() => handleToggle(!enabled)}
-            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-              enabled ? 'bg-blue-600' : 'bg-gray-300 dark:bg-gray-600'
-            }`}
-          >
-            <span
-              className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                enabled ? 'translate-x-6' : 'translate-x-1'
-              }`}
-            />
-          </button>
-        </div>
-
-        {permission === 'denied' && (
-          <div className="p-3 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg">
-            <p className="text-sm text-yellow-800 dark:text-yellow-200">
-              Notifications are blocked. Please enable them in your browser settings.
-            </p>
-          </div>
-        )}
-
-        {permission !== 'granted' && permission !== 'denied' && (
-          <div className="p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
-            <p className="text-sm text-blue-800 dark:text-blue-200 mb-2">
-              Click the toggle to enable notifications. You&apos;ll need to allow notifications in your browser.
-            </p>
-          </div>
-        )}
-
-        {enabled && permission === 'granted' && (
-          <div className="flex items-center gap-4">
-            <label className="text-sm font-medium text-slate-900 dark:text-slate-100">
-              Reminder Time:
-            </label>
-            <input
-              type="time"
-              value={reminderTime}
-              onChange={(e) => handleTimeChange(e.target.value)}
-              className="px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100"
-            />
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
-
