@@ -204,19 +204,30 @@ export async function POST(request: NextRequest) {
 
     // OPTIMIZE: Start AI analysis immediately (this is the slowest operation)
     // We already have all the metrics it needs
+    
+    // Validate transcript before analysis
+    const trimmedTranscript = transcript.trim();
+    if (!trimmedTranscript || trimmedTranscript.length === 0) {
+      throw new ValidationError('Transcript is empty after trimming. Cannot analyze.');
+    }
+    
     console.log('Starting AI analysis...', {
       transcriptLength: transcript.length,
+      trimmedLength: trimmedTranscript.length,
       wordCount,
       questionTags,
       hasQuestionText: !!question.text,
       hasQuestionHint: !!question.hint,
+      transcriptPreview: trimmedTranscript.substring(0, 200),
+      transcriptEnd: trimmedTranscript.substring(Math.max(0, trimmedTranscript.length - 100)),
     });
 
     let analysis;
     try {
+      // Pass the trimmed transcript to ensure it's clean
       analysis = await Promise.race([
         analyzeTranscriptOptimized(
-          transcript,
+          trimmedTranscript, // Use trimmed transcript
           question.id, // questionId for caching
           questionTags,
           undefined, // role - will use from preferences
@@ -233,7 +244,7 @@ export async function POST(request: NextRequest) {
           }
         ),
         new Promise<never>((_, reject) =>
-          setTimeout(() => reject(new Error('Analysis timeout after 30s')), 30000)
+          setTimeout(() => reject(new Error('Analysis timeout after 45s')), 45000) // Increased timeout for iPad/network issues
         ),
       ]);
       
@@ -254,7 +265,21 @@ export async function POST(request: NextRequest) {
         stack: error instanceof Error ? error.stack : undefined,
         transcriptLength: transcript.length,
         transcriptPreview: transcript.substring(0, 200),
+        audioType: audioFile.type,
+        audioSize: audioBlob.size,
+        questionId: question.id,
+        questionTags,
+        hasPreferences: !!preferences,
       });
+      
+      // Log the full error for debugging
+      if (error instanceof Error) {
+        console.error('Full error object:', {
+          name: error.name,
+          message: error.message,
+          stack: error.stack,
+        });
+      }
       
       // Don't throw - return fallback analysis instead
       const wordCount = countWords(transcript);
