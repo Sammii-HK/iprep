@@ -62,9 +62,17 @@ export async function POST(request: NextRequest) {
     let preferences: Partial<CoachingPreferences> | undefined;
     if (preferencesJson) {
       try {
-        preferences = JSON.parse(preferencesJson);
-      } catch {
-        // Ignore invalid JSON
+        // Limit JSON size to prevent DoS
+        if (preferencesJson.length > 10000) {
+          console.warn('Preferences JSON too large, ignoring');
+        } else {
+          preferences = JSON.parse(preferencesJson);
+        }
+      } catch (error) {
+        // Ignore invalid JSON - log in development
+        if (process.env.NODE_ENV !== 'production') {
+          console.warn('Invalid preferences JSON:', error);
+        }
       }
     }
 
@@ -284,7 +292,6 @@ export async function POST(request: NextRequest) {
         transcriptEnd: trimmedTranscript.substring(Math.max(0, trimmedTranscript.length - 100)),
       });
 
-      let analysis;
       try {
         // Pass the trimmed transcript to ensure it's clean
         analysis = await Promise.race([
@@ -387,10 +394,16 @@ export async function POST(request: NextRequest) {
     let sessionItemId: string;
     try {
       // Wait for upload to complete (with timeout)
-      await Promise.race([
-        uploadPromise,
-        new Promise<void>((resolve) => setTimeout(() => resolve(), 5000)), // 5s timeout for upload
-      ]);
+      // Don't fail if upload times out - we can save without audioUrl
+      try {
+        await Promise.race([
+          uploadPromise,
+          new Promise<void>((resolve) => setTimeout(() => resolve(), 10000)), // 10s timeout for upload
+        ]);
+      } catch (uploadError) {
+        console.warn('Audio upload timeout or failed (non-critical):', uploadError);
+        // Continue without audioUrl - transcription and analysis are more important
+      }
 
       const sessionItem = await prisma.sessionItem.create({
         data: {
