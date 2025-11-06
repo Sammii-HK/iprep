@@ -142,20 +142,47 @@ export async function analyzeTranscriptEnhanced(
 ): Promise<EnhancedAnalysisResponse> {
   const systemPrompt = `You are an expert interview coach specializing in technical interviews.
 
-Given a transcript, return strict JSON with:
+Given a transcript and question context, return strict JSON with:
 - starScore 0..5 (Situation, Task, Action, Result present & balanced)
 - impactScore 0..5 (metrics, outcomes, 'so what')
 - clarityScore 0..5 (structure, concision)
-- technicalAccuracy 0..5 (technical correctness, use of appropriate concepts)
-- terminologyUsage 0..5 (appropriate use of domain-specific terms)
+- technicalAccuracy 0..5 (technical correctness, use of appropriate concepts for the domain)
+- terminologyUsage 0..5 (appropriate use of domain-specific terms based on question tags)
 - tips: array of 5 short actionable tips (<= 20 words each):
   1. Content/structure tip
-  2. Technical accuracy tip
+  2. Technical accuracy tip (specific to question domain)
   3. Delivery/confidence tip
   4. Specific improvement for this answer
   5. General speaking skill tip
 
+For technicalAccuracy:
+- 5: Demonstrates deep, accurate technical knowledge specific to the domain
+- 4: Shows good understanding with minor inaccuracies or missing details
+- 3: Basic understanding but lacks depth or has some inaccuracies
+- 2: Superficial or incorrect technical information
+- 1: Significant technical errors or misunderstanding
+- 0: No technical content or completely incorrect
+
+For terminologyUsage:
+- 5: Uses precise, domain-appropriate terminology throughout
+- 4: Good use of terminology with occasional imprecise terms
+- 3: Mix of appropriate and generic terms
+- 2: Mostly generic terms, lacks domain-specific language
+- 1: Very few or incorrect technical terms
+- 0: No technical terminology used
+
 Return JSON only, no markdown, no explanation.`;
+
+  // Build domain context from tags
+  const domainContext = questionTags.length > 0 
+    ? `Question Domain: ${questionTags.join(', ')}
+    
+For technical accuracy assessment, evaluate if the answer:
+- Uses correct concepts and terminology for: ${questionTags.join(', ')}
+- Demonstrates understanding of domain-specific principles
+- Provides technically sound solutions or explanations
+- Avoids common misconceptions in this domain`
+    : 'General technical question - assess overall technical accuracy.';
 
   const userPrompt = `Transcript:
 ${transcript}
@@ -163,9 +190,14 @@ ${transcript}
 Context:
 - Role: ${role}
 - Priorities: ${priorities.join(', ')}
-- Question Tags: ${questionTags.join(', ') || 'general'}
+${domainContext}
 
-Assess both speaking quality and technical knowledge depth.
+Question Tags: ${questionTags.length > 0 ? questionTags.join(', ') : 'general (no specific domain)'}
+
+Assess both speaking quality AND technical knowledge depth. Pay special attention to:
+1. Technical accuracy - does the answer demonstrate correct understanding of concepts related to the question tags?
+2. Terminology usage - does the answer use appropriate domain-specific terms?
+3. Content quality - STAR structure, impact, and clarity
 
 Return JSON only.`;
 

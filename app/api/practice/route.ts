@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { uploadAudio, getAudioUrl } from '@/lib/r2';
-import { transcribeAudio, analyzeTranscript } from '@/lib/ai';
+import { transcribeAudio, analyzeTranscriptEnhanced } from '@/lib/ai';
 import {
   countWords,
   countFillers,
@@ -69,10 +69,13 @@ export async function POST(request: NextRequest) {
       throw new ValidationError(audioValidation.error || 'Invalid audio file');
     }
 
-    // Check if session and question exist
+    // Check if session and question exist (with question text for context)
     const [session, question] = await Promise.all([
       prisma.session.findUnique({ where: { id: sessionId } }),
-      prisma.question.findUnique({ where: { id: questionId } }),
+      prisma.question.findUnique({ 
+        where: { id: questionId },
+        include: { bank: true },
+      }),
     ]);
 
     if (!session) {
@@ -146,11 +149,20 @@ export async function POST(request: NextRequest) {
     );
     const intonationScore = analyzeIntonationFromTranscript(transcript, wordCount);
 
-    // Analyze content with GPT with timeout
+    // Analyze content with enhanced GPT analysis (includes technical accuracy based on question tags)
     let analysis;
     try {
+      // Use question tags for better technical accuracy assessment
+      const questionTags = question.tags || [];
+      const questionText = question.text;
+      
       analysis = await Promise.race([
-        analyzeTranscript(transcript),
+        analyzeTranscriptEnhanced(
+          transcript,
+          questionTags,
+          'Senior Design Engineer / Design Engineering Leader',
+          ['clarity', 'impact statements', 'technical accuracy', 'resilience', 'performance']
+        ),
         new Promise<never>((_, reject) =>
           setTimeout(() => reject(new Error('Analysis timeout')), 30000)
         ),
@@ -177,6 +189,8 @@ export async function POST(request: NextRequest) {
         impactScore: analysis.impactScore,
         clarityScore: analysis.clarityScore,
         aiFeedback: analysis.tips.join(' | '),
+        // Note: technicalAccuracy and terminologyUsage are available in enhanced analysis
+        // but not stored in SessionItem schema yet - can be added in v2
       },
       include: {
         question: true,
@@ -201,6 +215,9 @@ export async function POST(request: NextRequest) {
         star: sessionItem.starScore,
         impact: sessionItem.impactScore,
         clarity: sessionItem.clarityScore,
+        // Enhanced scores from technical analysis
+        technicalAccuracy: analysis.technicalAccuracy,
+        terminologyUsage: analysis.terminologyUsage,
       },
       tips: analysis.tips,
     });

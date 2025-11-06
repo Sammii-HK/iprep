@@ -15,21 +15,64 @@ export function MicRecorder({
 }: MicRecorderProps) {
   const [isRecording, setIsRecording] = useState(false);
   const [duration, setDuration] = useState(0);
+  const [audioLevel, setAudioLevel] = useState(0);
+  const [micConnected, setMicConnected] = useState(false);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const audioContextRef = useRef<AudioContext | null>(null);
+  const analyserRef = useRef<AnalyserNode | null>(null);
+  const streamRef = useRef<MediaStream | null>(null);
   const chunksRef = useRef<Blob[]>([]);
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
+  const levelCheckRef = useRef<number | null>(null);
 
   useEffect(() => {
     return () => {
       if (intervalRef.current) {
         clearInterval(intervalRef.current);
       }
+      if (levelCheckRef.current) {
+        cancelAnimationFrame(levelCheckRef.current);
+      }
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach((track) => track.stop());
+      }
+      if (audioContextRef.current) {
+        audioContextRef.current.close();
+      }
     };
   }, []);
+
+  // Check audio levels for visualization
+  const checkAudioLevel = () => {
+    if (!analyserRef.current || !isRecording) return;
+
+    const dataArray = new Uint8Array(analyserRef.current.frequencyBinCount);
+    analyserRef.current.getByteFrequencyData(dataArray);
+    
+    // Calculate average volume level
+    const average = dataArray.reduce((sum, value) => sum + value, 0) / dataArray.length;
+    const normalizedLevel = Math.min(100, (average / 255) * 100);
+    setAudioLevel(normalizedLevel);
+
+    levelCheckRef.current = requestAnimationFrame(checkAudioLevel);
+  };
 
   const startRecording = async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      streamRef.current = stream;
+      setMicConnected(true);
+
+      // Set up audio analysis for level detection
+      const audioContext = new AudioContext();
+      const analyser = audioContext.createAnalyser();
+      const source = audioContext.createMediaStreamSource(stream);
+      source.connect(analyser);
+      analyser.fftSize = 256;
+      
+      audioContextRef.current = audioContext;
+      analyserRef.current = analyser;
+
       const mediaRecorder = new MediaRecorder(stream, {
         mimeType: 'audio/webm',
       });
@@ -45,6 +88,16 @@ export function MicRecorder({
         chunksRef.current = [];
         onRecordingComplete(blob);
         stream.getTracks().forEach((track) => track.stop());
+        setMicConnected(false);
+        setAudioLevel(0);
+        if (audioContextRef.current) {
+          audioContextRef.current.close();
+          audioContextRef.current = null;
+        }
+        if (levelCheckRef.current) {
+          cancelAnimationFrame(levelCheckRef.current);
+          levelCheckRef.current = null;
+        }
       };
 
       mediaRecorderRef.current = mediaRecorder;
@@ -57,9 +110,13 @@ export function MicRecorder({
       intervalRef.current = setInterval(() => {
         setDuration((prev) => prev + 1);
       }, 1000);
+
+      // Start audio level monitoring
+      checkAudioLevel();
     } catch (error) {
       console.error('Error accessing microphone:', error);
       alert('Unable to access microphone. Please check permissions.');
+      setMicConnected(false);
     }
   };
 
@@ -67,9 +124,14 @@ export function MicRecorder({
     if (mediaRecorderRef.current && isRecording) {
       mediaRecorderRef.current.stop();
       setIsRecording(false);
+      setAudioLevel(0);
       if (intervalRef.current) {
         clearInterval(intervalRef.current);
         intervalRef.current = null;
+      }
+      if (levelCheckRef.current) {
+        cancelAnimationFrame(levelCheckRef.current);
+        levelCheckRef.current = null;
       }
       onStop?.();
     }
@@ -93,11 +155,47 @@ export function MicRecorder({
       >
         {isRecording ? 'Stop' : 'Record'}
       </button>
+      
+      {/* Audio Level Indicator */}
+      {isRecording && (
+        <div className="w-full max-w-xs">
+          <div className="flex items-center justify-between mb-1">
+            <span className="text-xs text-gray-600">Audio Level</span>
+            <span className="text-xs text-gray-600">{Math.round(audioLevel)}%</span>
+          </div>
+          <div className="w-full h-2 bg-gray-200 rounded-full overflow-hidden">
+            <div
+              className={`h-full transition-all duration-75 ${
+                audioLevel > 70
+                  ? 'bg-green-500'
+                  : audioLevel > 30
+                  ? 'bg-yellow-500'
+                  : audioLevel > 0
+                  ? 'bg-red-500'
+                  : 'bg-gray-300'
+              }`}
+              style={{ width: `${audioLevel}%` }}
+            />
+          </div>
+          {audioLevel < 5 && (
+            <p className="text-xs text-red-500 mt-1 text-center">
+              ⚠️ No audio detected - check your microphone
+            </p>
+          )}
+        </div>
+      )}
+
       {isRecording && (
         <div className="text-lg font-mono">{formatTime(duration)}</div>
       )}
       {isRecording && (
         <div className="w-3 h-3 bg-red-500 rounded-full animate-pulse" />
+      )}
+      
+      {!isRecording && !micConnected && (
+        <p className="text-sm text-gray-500 text-center max-w-xs">
+          Click Record to start. Make sure your microphone is enabled.
+        </p>
       )}
     </div>
   );
