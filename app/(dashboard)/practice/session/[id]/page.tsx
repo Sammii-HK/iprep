@@ -17,6 +17,7 @@ interface Question {
 
 interface SessionItem {
   id: string;
+  questionId?: string;
   audioUrl: string | null;
   transcript: string | null;
   metrics: {
@@ -220,33 +221,40 @@ export default function PracticeSessionPage() {
             </div>
           )}
 
-          {/* Previous Attempts */}
-          {sessionItems.length > 0 && (
-            <div className="mt-6 bg-white dark:bg-slate-800 rounded-lg shadow-md p-6 border border-slate-200 dark:border-slate-700">
-              <h3 className="font-semibold mb-3 text-slate-900 dark:text-slate-100">Previous Attempts</h3>
-              <div className="space-y-2">
-                {sessionItems.slice(0, 5).map((item) => (
-                  <div
-                    key={item.id}
-                    className="p-3 bg-slate-50 dark:bg-slate-700 rounded cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-600 border border-slate-200 dark:border-slate-600"
-                    onClick={() => setScorecard(item)}
-                  >
-                    <p className="text-sm text-slate-700 dark:text-slate-300">
-                      {item.transcript?.substring(0, 50)}...
-                    </p>
-                    <div className="flex gap-2 mt-1">
-                      <span className="text-xs text-slate-600 dark:text-slate-400">
-                        WPM: {item.metrics.wpm}
-                      </span>
-                      <span className="text-xs text-slate-600 dark:text-slate-400">
-                        Confidence: {item.scores.confidence}/5
-                      </span>
+          {/* Previous Attempts - Only show attempts for current question */}
+          {currentQuestion && (() => {
+            const currentQuestionAttempts = sessionItems.filter(
+              item => item.questionId === currentQuestion.id
+            );
+            return currentQuestionAttempts.length > 0 ? (
+              <div className="mt-6 bg-white dark:bg-slate-800 rounded-lg shadow-md p-6 border border-slate-200 dark:border-slate-700">
+                <h3 className="font-semibold mb-3 text-slate-900 dark:text-slate-100">
+                  Previous Attempts for This Question ({currentQuestionAttempts.length})
+                </h3>
+                <div className="space-y-2">
+                  {currentQuestionAttempts.slice(0, 5).map((item) => (
+                    <div
+                      key={item.id}
+                      className="p-3 bg-slate-50 dark:bg-slate-700 rounded cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-600 border border-slate-200 dark:border-slate-600"
+                      onClick={() => setScorecard(item)}
+                    >
+                      <p className="text-sm text-slate-700 dark:text-slate-300">
+                        {item.transcript?.substring(0, 50)}...
+                      </p>
+                      <div className="flex gap-2 mt-1">
+                        <span className="text-xs text-slate-600 dark:text-slate-400">
+                          WPM: {item.metrics.wpm}
+                        </span>
+                        <span className="text-xs text-slate-600 dark:text-slate-400">
+                          Confidence: {item.scores.confidence}/5
+                        </span>
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  ))}
+                </div>
               </div>
-            </div>
-          )}
+            ) : null;
+          })()}
         </div>
       </div>
     </div>

@@ -48,6 +48,7 @@ export async function GET(
     }
     const items = session.items.map((item: {
       id: string;
+      questionId: string;
       audioUrl: string | null;
       transcript: string | null;
       words: number | null;
@@ -60,9 +61,17 @@ export async function GET(
       starScore: number | null;
       impactScore: number | null;
       clarityScore: number | null;
+      technicalAccuracy: number | null;
+      terminologyUsage: number | null;
+      questionAnswered: boolean | null;
+      answerQuality: number | null;
+      whatWasRight: string[];
+      whatWasWrong: string[];
+      betterWording: string[];
       aiFeedback: string | null;
     }) => ({
       id: item.id,
+      questionId: item.questionId,
       audioUrl: item.audioUrl,
       transcript: item.transcript,
       metrics: {
@@ -78,8 +87,15 @@ export async function GET(
         star: item.starScore,
         impact: item.impactScore,
         clarity: item.clarityScore,
+        technicalAccuracy: item.technicalAccuracy,
+        terminologyUsage: item.terminologyUsage,
       },
       tips: item.aiFeedback ? item.aiFeedback.split(' | ') : [],
+      questionAnswered: item.questionAnswered,
+      answerQuality: item.answerQuality,
+      whatWasRight: item.whatWasRight,
+      whatWasWrong: item.whatWasWrong,
+      betterWording: item.betterWording,
     }));
 
     return NextResponse.json({

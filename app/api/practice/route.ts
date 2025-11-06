@@ -289,9 +289,14 @@ export async function POST(request: NextRequest) {
         starScore: analysis.starScore,
         impactScore: analysis.impactScore,
         clarityScore: analysis.clarityScore,
+        technicalAccuracy: analysis.technicalAccuracy,
+        terminologyUsage: analysis.terminologyUsage,
+        questionAnswered: analysis.questionAnswered,
+        answerQuality: analysis.answerQuality,
+        whatWasRight: analysis.whatWasRight,
+        whatWasWrong: analysis.whatWasWrong,
+        betterWording: analysis.betterWording,
         aiFeedback: analysis.tips.join(' | '),
-        // Note: technicalAccuracy and terminologyUsage are available in enhanced analysis
-        // but not stored in SessionItem schema yet - can be added in v2
       },
       include: {
         question: true,

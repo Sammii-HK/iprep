@@ -248,12 +248,17 @@ Given a transcript and question context, return strict JSON with:
 - whatWasWrong: array of strings (2-4 items) - Specific things that were incorrect, missing, or could be improved
 - betterWording: array of strings (2-3 items) - Specific suggestions for better wording, phrasing, or structure
 - starScore 0..5 (Situation, Task, Action, Result present & balanced)
-  * 5: All four components present, balanced, well-structured with clear transitions
-  * 4: All components present but one is weaker or transitions need work
-  * 3: Three components present, missing or weak in one area
-  * 2: Two components present, missing significant parts
-  * 1: One component present, mostly unstructured
-  * 0: No clear structure, rambling
+  **IMPORTANT**: STAR method is appropriate for behavioral/experience questions (e.g., "Tell me about a time when...", "Describe a situation where...", "Give an example of..."). 
+  For factual/definition questions (e.g., "What is X?", "Explain Y", "Define Z"), flash card style questions, or technical concept questions, STAR is NOT appropriate. 
+  In those cases, assess structure/clarity instead:
+  * For behavioral questions: Use STAR scoring (0-5 based on Situation, Task, Action, Result)
+  * For factual/definition questions: Score based on clarity, completeness, and organization (0-5)
+    * 5: Clear, complete, well-organized answer with good structure
+    * 4: Mostly clear and complete, minor organization issues
+    * 3: Generally clear but missing some details or organization
+    * 2: Unclear or incomplete, poor organization
+    * 1: Very unclear or mostly incorrect
+    * 0: No coherent answer
 - impactScore 0..5 (metrics, outcomes, 'so what')
   * 5: Multiple specific metrics, clear business outcomes, strong "so what"
   * 4: Good metrics and outcomes, could be more specific
@@ -284,9 +289,12 @@ Given a transcript and question context, return strict JSON with:
   * 0: No technical terminology used
 - tips: array of exactly 5 actionable tips (each tip can be up to 60 words, MUST include concrete examples):
   1. Question relevance tip - Did you answer the question? What's missing or off-topic? If they read the question, acknowledge that and suggest how to expand.
-  2. Content/structure tip - specific to what's missing or weak in this answer (STAR, metrics, organization) WITH EXAMPLES (e.g., "Add metrics like 'reduced latency by 60%' or 'handled 1M requests/day'")
+  2. Content/structure tip - specific to what's missing or weak in this answer:
+     - For behavioral questions: Focus on STAR structure (Situation, Task, Action, Result) WITH EXAMPLES
+     - For factual/definition questions: Focus on clarity, completeness, and organization WITH EXAMPLES
+     - Include metrics where appropriate (e.g., "Add metrics like 'reduced latency by 60%' or 'handled 1M requests/day'")
   3. Technical accuracy tip - specific to the question domain WITH EXAMPLES (e.g., "Instead of 'database', say 'PostgreSQL with read replicas' or 'Redis cache with 5-minute TTL'")
-  4. Delivery/confidence tip - address filler words, pacing, or confidence issues observed (specific counts/rates) WITH EXAMPLES (e.g., "Replace 'um' with a 1-2 second pause")
+  4. Delivery/confidence tip - address filler words, pacing, or confidence issues observed (specific counts/rates) WITH EXAMPLES (e.g., "Replace 'um'/'erm' with a 1-2 second pause")
   5. Specific improvement for this answer - what to change in this exact response (concrete, actionable) WITH BEFORE/AFTER EXAMPLES (e.g., "Instead of '[their vague phrase]', say '[specific example]'")
 
 CRITICAL: You MUST return all required fields. The JSON must include:
@@ -408,12 +416,19 @@ When providing tips, be specific, actionable, and reference the transcript. Use 
 - If filler rate 2-5%: "You have some filler words ([X] instances). Practice replacing 'um'/'like' with brief pauses to sound more confident."
 - If filler rate <2%: "Good job minimizing filler words! Your speech is clear and confident."
 
-**For STAR structure (identify which components are missing/weak):**
+**For STAR structure (ONLY for behavioral/experience questions - "Tell me about a time when...", "Describe a situation...", etc.):**
+**If the question is factual/definitional (e.g., "What is X?", "Explain Y", "Define Z"), DO NOT use STAR feedback. Instead, focus on clarity, completeness, and organization.**
+
 - Missing Situation: "Your answer jumps into action without context. Start with: 'In my previous role at [Company], we faced [specific problem] that was impacting [business metric].'"
 - Missing Task: "Clarify what needed to be accomplished. State: 'I was tasked with [specific objective] within [constraints].'"
 - Missing Action: "Detail what YOU specifically did. Use 'I' statements: 'I implemented [solution] by [method], I analyzed [data], I collaborated with [team] to [action].' Avoid 'we' - focus on your contributions."
 - Missing Result: "End with measurable outcomes: 'This resulted in [specific metric], which [business impact].' Examples: reduced latency by 60%, increased conversion by 15%, saved $50K annually."
 - Weak transitions: "Your STAR components are present but transitions are unclear. Use: 'The situation was...', 'My task was to...', 'To accomplish this, I...', 'The results were...'"
+
+**For factual/definition questions (NOT behavioral):**
+- Focus on clarity: "Organize your answer with: (1) Definition/overview, (2) Key characteristics or components, (3) Examples or use cases, (4) Conclusion or summary."
+- Focus on completeness: "Your answer covers [X] but is missing [Y]. Add: [specific missing element]."
+- Focus on structure: "Use signposts: 'First, X is...', 'Second, it has these characteristics...', 'For example...', 'In summary...'"
 
 **For metrics & impact (check for numbers and business connection - ALWAYS provide examples):**
 - No metrics: "Your answer lacks quantifiable impact. Include specific examples: percentages (e.g., 'reduced error rate by 60%'), time (e.g., 'reduced page load from 2s to 0.5s'), money (e.g., 'saved $50K annually'), scale (e.g., 'handled 1M requests/day'), or user impact (e.g., 'improved NPS from 40 to 65')."

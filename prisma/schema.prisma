@@ -56,25 +56,32 @@ model Session {
 }
 
 model SessionItem {
-  id             String   @id @default(cuid())
-  sessionId      String
-  questionId     String
-  audioUrl       String?
-  transcript     String?
-  words          Int?
-  wpm            Int?
-  fillerCount    Int?
-  fillerRate     Float?   // per 100 words
-  longPauses     Int?     // >800ms
-  confidenceScore Int?    // 0..5 (vocal confidence)
-  intonationScore Int?    // 0..5 (pitch variation, expressiveness)
-  starScore      Int?     // 0..5
-  impactScore    Int?     // 0..5
-  clarityScore   Int?     // 0..5
-  aiFeedback     String?
-  createdAt      DateTime @default(now())
-  session        Session  @relation(fields: [sessionId], references: [id])
-  question       Question @relation(fields: [questionId], references: [id])
+  id                String   @id @default(cuid())
+  sessionId         String
+  questionId        String
+  audioUrl          String?
+  transcript        String?
+  words             Int?
+  wpm               Int?
+  fillerCount       Int?
+  fillerRate        Float?   // per 100 words
+  longPauses        Int?     // >800ms
+  confidenceScore   Int?     // 0..5 (vocal confidence)
+  intonationScore   Int?     // 0..5 (pitch variation, expressiveness)
+  starScore         Int?     // 0..5
+  impactScore       Int?     // 0..5
+  clarityScore      Int?     // 0..5
+  technicalAccuracy Int?     // 0..5
+  terminologyUsage  Int?     // 0..5
+  questionAnswered  Boolean? // Did the answer address the question?
+  answerQuality     Int?     // 0..5 overall answer quality
+  whatWasRight      String[] // Array of what was right
+  whatWasWrong      String[] // Array of what needs improvement
+  betterWording     String[] // Array of better wording suggestions
+  aiFeedback        String?
+  createdAt         DateTime @default(now())
+  session           Session  @relation(fields: [sessionId], references: [id])
+  question          Question @relation(fields: [questionId], references: [id])
 }
 
 model Quiz {

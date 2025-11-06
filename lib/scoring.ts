@@ -1,9 +1,16 @@
 // Filler word patterns (case-insensitive) - expanded list
+// Note: Some patterns use word boundaries, others match standalone to catch variations
 const FILLER_PATTERNS = [
   /\buh\b/gi,
   /\bum\b/gi,
   /\buhm\b/gi,
   /\buhh\b/gi,
+  /\ber\b/gi, // British "er" - standalone
+  /\berm\b/gi, // British "erm" - standalone
+  /\ber\s/gi, // "er " (with space after)
+  /\berm\s/gi, // "erm " (with space after)
+  /\serm\b/gi, // " erm" (with space before)
+  /\ser\b/gi, // " er" (with space before)
   /\blike\b/gi,
   /\byou know\b/gi,
   /\bya know\b/gi,
@@ -23,8 +30,6 @@ const FILLER_PATTERNS = [
   /\bright\b/gi, // "right?" as filler
   /\bokay\b/gi, // "okay" as filler
   /\bok\b/gi, // "ok" as filler
-  /\ber\b/gi, // British "er"
-  /\berm\b/gi, // British "erm"
 ];
 
 export function countFillers(transcript: string): number {
@@ -32,8 +37,14 @@ export function countFillers(transcript: string): number {
     return 0;
   }
   
-  // Normalize transcript - lowercase for matching
-  const normalized = transcript.toLowerCase();
+  // Normalize transcript - lowercase and add spaces around punctuation for better matching
+  // This helps catch fillers that might be transcribed with punctuation (e.g., "erm," or "er.")
+  const normalized = transcript
+    .toLowerCase()
+    .replace(/[.,!?;:]/g, ' ') // Replace punctuation with spaces
+    .replace(/\s+/g, ' ') // Normalize multiple spaces to single space
+    .trim();
+  
   let count = 0;
   
   for (const pattern of FILLER_PATTERNS) {
