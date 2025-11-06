@@ -112,6 +112,8 @@ export async function GET(
 		return NextResponse.json({
 			id: session.id,
 			title: session.title,
+			isCompleted: session.isCompleted,
+			completedAt: session.completedAt,
 			questions,
 			items,
 		});

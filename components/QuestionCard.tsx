@@ -17,6 +17,8 @@ interface QuestionCardProps {
   hasNext?: boolean;
   hasPrevious?: boolean;
   onRetryWithHint?: () => void;
+  currentQuestionNumber?: number; // e.g., 1
+  totalQuestions?: number; // e.g., 20
 }
 
 export function QuestionCard({
@@ -26,6 +28,8 @@ export function QuestionCard({
   hasNext = false,
   hasPrevious = false,
   onRetryWithHint,
+  currentQuestionNumber,
+  totalQuestions,
 }: QuestionCardProps) {
   // Store hint state keyed by question ID to automatically reset when question changes
   const [hintStates, setHintStates] = useState<Record<string, boolean>>({});
@@ -51,6 +55,13 @@ export function QuestionCard({
   return (
     <div className="bg-white dark:bg-slate-800 rounded-lg shadow-md p-6 border border-slate-200 dark:border-slate-700">
       <div className="mb-4">
+        {(currentQuestionNumber !== undefined && totalQuestions !== undefined) && (
+          <div className="mb-3">
+            <span className="text-sm font-semibold text-slate-700 dark:text-slate-300">
+              Question {currentQuestionNumber} of {totalQuestions}
+            </span>
+          </div>
+        )}
         <div className="flex items-center gap-2 mb-2">
           <span
             className={`px-2 py-1 rounded text-xs font-semibold ${

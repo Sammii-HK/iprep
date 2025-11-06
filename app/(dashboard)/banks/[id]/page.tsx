@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
+import { BankSummary } from '@/components/BankSummary';
 
 interface Question {
   id: string;
@@ -26,6 +27,7 @@ export default function BankDetailPage() {
   const [isEditing, setIsEditing] = useState(false);
   const [editingTitle, setEditingTitle] = useState('');
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [showSummary, setShowSummary] = useState(false);
   const router = useRouter();
 
   const fetchBank = async () => {
@@ -167,6 +169,12 @@ export default function BankDetailPage() {
           {!isEditing && (
             <div className="flex gap-2">
               <button
+                onClick={() => setShowSummary(!showSummary)}
+                className="px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors"
+              >
+                {showSummary ? 'Hide' : 'View'} Practice Summary
+              </button>
+              <button
                 onClick={handleEditStart}
                 className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
               >
@@ -205,6 +213,12 @@ export default function BankDetailPage() {
               </button>
             </div>
           </div>
+        </div>
+      )}
+
+      {showSummary && (
+        <div className="mb-6">
+          <BankSummary bankId={bankId} />
         </div>
       )}
 

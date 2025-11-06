@@ -30,7 +30,8 @@ const EnhancedAnalysisResponseSchema = z.object({
 	questionAnswered: z.boolean(),
 	answerQuality: z.number().int().min(0).max(5),
 	whatWasRight: z.array(z.string()).min(2).max(4),
-	betterWording: z.array(z.string()).min(2).max(3),
+	betterWording: z.array(z.string()).min(2).max(3), // Each should include: definition, example, clarity
+	dontForget: z.array(z.string()).min(1).max(4), // Important points they forgot to mention
 	starScore: z.number().int().min(0).max(5),
 	impactScore: z.number().int().min(0).max(5),
 	clarityScore: z.number().int().min(0).max(5),
@@ -69,6 +70,7 @@ You MUST return a valid JSON object with ALL required fields. Use this exact str
   "answerQuality": 0-5,
   "whatWasRight": ["item1", "item2", "item3", "item4"],
   "betterWording": ["suggestion1", "suggestion2", "suggestion3"],
+  "dontForget": ["point1", "point2", "point3"],
   "starScore": 0-5,
   "impactScore": 0-5,
   "clarityScore": 0-5,
@@ -77,9 +79,25 @@ You MUST return a valid JSON object with ALL required fields. Use this exact str
   "tips": ["tip1", "tip2", "tip3", "tip4", "tip5"]
 }
 
-Scoring (0-5): questionAnswered (boolean), answerQuality, starScore (STAR/behavioral, clarity/factual), impactScore, clarityScore, technicalAccuracy, terminologyUsage.
+CRITICAL FORMATTING REQUIREMENTS:
 
-Output: whatWasRight (2-4 items), betterWording (2-3 items), tips (exactly 5 items with examples).
+1. betterWording (2-3 items): Each item MUST reference their ACTUAL transcript. Help improve:
+   - English clarity, grammar, and professional phrasing
+   - Technical accuracy and terminology
+   - How to express ideas more clearly and concisely
+   Format: "You said: '[exact quote from transcript]'. Instead, say: '[improved version]' because [reason - e.g., 'more clear', 'more professional', 'more technically precise']. Example: [concrete example]"
+   
+   IMPORTANT: Focus on improving HOW they said things - grammar, clarity, phrasing, word choice - not just what they said. Help them sound more professional and articulate.
+
+2. dontForget (1-4 items): ONLY include points that were ACTUALLY MISSING from their answer. Compare their answer to the question requirements and expected topics. If they covered everything adequately, return an empty array []. Only list specific missing points, not generic reminders.
+
+3. whatWasRight (2-4 items): Specific things they got right.
+
+4. tips (exactly 5 items): Actionable tips with examples.
+
+Scoring (0-5): questionAnswered (boolean), answerQuality, starScore (ONLY for behavioral/STAR questions, use clarityScore for technical), impactScore (ONLY if business impact relevant), clarityScore, technicalAccuracy, terminologyUsage.
+
+IMPORTANT: For pure technical questions (no behavioral/STAR format needed), set starScore and impactScore to 3 (neutral) and focus on technicalAccuracy, clarityScore, and terminologyUsage.
 
 Context: ${coachingPrefs.priorities
 		.slice(0, 3)
@@ -141,17 +159,28 @@ function buildOptimizedUserPrompt(
 		prompt += `Q: ${questionText}\n`;
 	}
 	if (questionHint) {
-		prompt += `Expected: ${questionHint.substring(0, 200)}\n`; // Truncate hint if too long
+		prompt += `Expected Answer/Key Points: ${questionHint}\n`; // Use full hint for better suggestions
+		prompt += `CRITICAL: Compare their transcript to this expected answer. Suggest specific wording improvements that align with these key points.\n`;
 	}
 	if (questionTags.length > 0) {
 		prompt += `Domain: ${questionTags.slice(0, 5).join(", ")}\n`; // Limit to 5 tags
 	}
 
-	prompt += `\nAnswer: ${processedTranscript}\n\n`;
+	prompt += `\nTheir Answer (Transcript): ${processedTranscript}\n\n`;
 	prompt += `Metrics: ${wordCount}w, ${fillerCount}f (${fillerRate.toFixed(
 		1
 	)}%), ${wpm}wpm, ${longPauses}p.\n`;
-	prompt += `Score: relevance, quality, STAR/clarity, impact, technical, terminology. Tips with examples.`;
+	prompt += `CRITICAL INSTRUCTIONS:
+- For betterWording: Quote EXACT phrases from their transcript and show how to reword them for:
+  * Better English clarity and grammar
+  * More professional and articulate phrasing
+  * Technical accuracy and precise terminology
+  * Clearer and more concise expression
+- Reference specific sentences they said and provide better alternatives
+- Help them improve HOW they express ideas, not just what they say
+- Compare their wording to the expected answer and suggest improvements
+- For technical questions, focus on technical accuracy and clarity, not STAR/behavioral format
+- Score: relevance, quality, clarity, technical accuracy, terminology. Skip STAR/Impact for pure technical questions.`;
 
 	return prompt;
 }
@@ -390,6 +419,10 @@ export async function analyzeTranscriptOptimized(
 						"Try speaking for 2-3 minutes with clear structure",
 						"Use the STAR method: Situation, Task, Action, Result",
 						"Include specific metrics and examples",
+					],
+					dontForget: [
+						"Review the question requirements carefully",
+						"Include relevant technical details",
 					],
 					starScore: 2,
 					impactScore: 2,

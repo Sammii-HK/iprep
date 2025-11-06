@@ -174,6 +174,8 @@ export default function QuizPage() {
           {currentQuestion ? (
             <QuestionCard
               question={currentQuestion}
+              currentQuestionNumber={currentQuestionIndex + 1}
+              totalQuestions={quiz.questions.length}
               onNext={() => {
                 if (currentQuestionIndex < quiz.questions.length - 1) {
                   setCurrentQuestionIndex(currentQuestionIndex + 1);

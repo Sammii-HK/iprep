@@ -24,6 +24,8 @@ interface ScorecardProps {
 	whatWasRight?: string[];
 	whatWasWrong?: string[];
 	betterWording?: string[];
+	dontForget?: string[];
+	questionTags?: string[]; // To determine if question is technical
 }
 
 // Move ScoreBar outside to avoid creating components during render
@@ -57,6 +59,24 @@ function ScoreBar({ label, value }: { label: string; value: number | null }) {
 	);
 }
 
+// Helper to determine if question is technical (not behavioral/STAR)
+function isTechnicalQuestion(tags?: string[]): boolean {
+	if (!tags || tags.length === 0) return true; // Default to technical if no tags
+	// Behavioral tags that indicate STAR format needed
+	const behavioralTags = [
+		"behavioral",
+		"star",
+		"situation",
+		"leadership",
+		"teamwork",
+		"conflict",
+		"challenge",
+	];
+	return !tags.some((tag) =>
+		behavioralTags.some((bt) => tag.toLowerCase().includes(bt.toLowerCase()))
+	);
+}
+
 export function Scorecard({
 	metrics,
 	scores,
@@ -66,7 +86,10 @@ export function Scorecard({
 	whatWasRight,
 	whatWasWrong,
 	betterWording,
+	dontForget,
+	questionTags,
 }: ScorecardProps) {
+	const isTechnical = isTechnicalQuestion(questionTags);
 	// tips removed from display but kept in interface for future session recap feature
 
 	return (
@@ -80,7 +103,8 @@ export function Scorecard({
 				answerQuality !== undefined ||
 				whatWasRight ||
 				whatWasWrong ||
-				betterWording) && (
+				betterWording ||
+				dontForget) && (
 				<div className="mb-6 p-4 rounded-lg border-2 border-slate-200 dark:border-slate-700">
 					<h3 className="text-lg font-semibold mb-3 text-slate-900 dark:text-slate-100">
 						Answer Feedback
@@ -129,12 +153,27 @@ export function Scorecard({
 					)}
 
 					{betterWording && betterWording.length > 0 && (
-						<div>
+						<div className="mb-3">
 							<h4 className="text-sm font-semibold text-blue-700 dark:text-blue-300 mb-2">
 								💡 Better Wording Suggestions:
 							</h4>
-							<ul className="list-disc list-inside space-y-1 text-sm text-slate-700 dark:text-slate-300">
+							<ul className="list-disc list-inside space-y-2 text-sm text-slate-700 dark:text-slate-300">
 								{betterWording.map((item, index) => (
+									<li key={index} className="leading-relaxed">
+										{item}
+									</li>
+								))}
+							</ul>
+						</div>
+					)}
+
+					{dontForget && dontForget.length > 0 && (
+						<div className="mb-3 p-3 bg-amber-50 dark:bg-amber-900/20 rounded-lg border border-amber-200 dark:border-amber-800">
+							<h4 className="text-sm font-semibold text-amber-700 dark:text-amber-300 mb-2">
+								📌 Don&apos;t Forget:
+							</h4>
+							<ul className="list-disc list-inside space-y-1 text-sm text-slate-700 dark:text-slate-300">
+								{dontForget.map((item, index) => (
 									<li key={index}>{item}</li>
 								))}
 							</ul>
@@ -193,8 +232,12 @@ export function Scorecard({
 				<h3 className="text-lg font-semibold mb-3 text-slate-900 dark:text-slate-100">
 					Content Scores
 				</h3>
-				<ScoreBar label="STAR" value={scores.star} />
-				<ScoreBar label="Impact" value={scores.impact} />
+				{!isTechnical && (
+					<>
+						<ScoreBar label="STAR" value={scores.star} />
+						<ScoreBar label="Impact" value={scores.impact} />
+					</>
+				)}
 				<ScoreBar label="Clarity" value={scores.clarity} />
 			</div>
 
@@ -221,8 +264,21 @@ export function Scorecard({
 				<h3 className="text-lg font-semibold mb-3 text-slate-900 dark:text-slate-100">
 					Delivery
 				</h3>
-				<ScoreBar label="Confidence" value={scores.confidence} />
-				<ScoreBar label="Intonation" value={scores.intonation} />
+				<div className="mb-2">
+					<ScoreBar label="Confidence" value={scores.confidence} />
+					<p className="text-xs text-slate-600 dark:text-slate-400 mt-1">
+						Based on: sentence completion, filler usage (
+						{metrics.fillerRate?.toFixed(1) ?? 0}%), long pauses (
+						{metrics.longPauses ?? 0}), and strong declarative statements
+					</p>
+				</div>
+				<div className="mb-2">
+					<ScoreBar label="Intonation" value={scores.intonation} />
+					<p className="text-xs text-slate-600 dark:text-slate-400 mt-1">
+						Based on: sentence length variation, emphasis words, expressiveness
+						(exclamations/questions), and natural speech patterns
+					</p>
+				</div>
 			</div>
 
 			{/* Audio Playback */}

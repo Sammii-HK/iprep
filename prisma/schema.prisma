@@ -95,7 +95,8 @@ model SessionItem {
   answerQuality     Int?     // 0..5 overall answer quality
   whatWasRight      String[] // Array of what was right
   whatWasWrong      String[] // Array of what needs improvement
-  betterWording     String[] // Array of better wording suggestions
+  betterWording     String[] // Array of better wording suggestions (with definitions, examples, clarity)
+  dontForget        String[] // Array of important points they forgot to mention
   aiFeedback        String?
   createdAt         DateTime @default(now())
   session           Session  @relation(fields: [sessionId], references: [id])

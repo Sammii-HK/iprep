@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { uploadAudio, getAudioUrl } from '@/lib/r2';
 import { transcribeAudio } from '@/lib/ai';
-import { analyzeTranscriptOptimized } from '@/lib/ai-optimized';
+import { analyzeTranscriptOptimized, type EnhancedAnalysisResponse } from '@/lib/ai-optimized';
 import {
   countWords,
   countFillers,
@@ -208,116 +208,179 @@ export async function POST(request: NextRequest) {
       wordCount,
       longPauses
     );
-    const intonationScore = analyzeIntonationFromTranscript(transcript, wordCount);
 
-    // OPTIMIZE: Start AI analysis immediately (this is the slowest operation)
-    // We already have all the metrics it needs
-    
-    // Validate transcript before analysis
-    const trimmedTranscript = transcript.trim();
-    if (!trimmedTranscript || trimmedTranscript.length === 0) {
-      throw new ValidationError('Transcript is empty after trimming. Cannot analyze.');
-    }
-    
-    console.log('Starting AI analysis...', {
-      transcriptLength: transcript.length,
-      trimmedLength: trimmedTranscript.length,
-      wordCount,
-      questionTags,
-      hasQuestionText: !!question.text,
-      hasQuestionHint: !!question.hint,
-      transcriptPreview: trimmedTranscript.substring(0, 200),
-      transcriptEnd: trimmedTranscript.substring(Math.max(0, trimmedTranscript.length - 100)),
+    // OPTIMIZE: Check past attempts for the same question before calling AI
+    // If there are similar past attempts, reuse their suggestions to avoid repeating AI calls
+    let analysis: EnhancedAnalysisResponse | undefined;
+    const pastAttempts = await prisma.sessionItem.findMany({
+      where: {
+        questionId: question.id,
+        sessionId: { not: sessionId }, // Exclude current session
+        session: {
+          userId: user.id, // Only user's own attempts
+        },
+        betterWording: { isEmpty: false }, // Has suggestions
+      },
+      orderBy: { createdAt: 'desc' },
+      take: 3, // Get most recent 3 attempts
+      select: {
+        betterWording: true,
+        dontForget: true,
+        whatWasRight: true,
+        transcript: true,
+      },
     });
 
-    let analysis;
-    try {
-      // Pass the trimmed transcript to ensure it's clean
-      analysis = await Promise.race([
-        analyzeTranscriptOptimized(
-          trimmedTranscript, // Use trimmed transcript
-          question.id, // questionId for caching
-          questionTags,
-          undefined, // role - will use from preferences
-          undefined, // priorities - will use from preferences
-          question.text,
-          question.hint,
-          preferences,
-          {
-            wordCount,
-            fillerCount,
-            fillerRate,
-            wpm,
-            longPauses,
-          }
-        ),
-        new Promise<never>((_, reject) =>
-          setTimeout(() => reject(new Error('Analysis timeout after 45s')), 45000) // Increased timeout for iPad/network issues
-        ),
-      ]);
-      
-      console.log('AI analysis completed successfully', {
-        questionAnswered: analysis.questionAnswered,
-        answerQuality: analysis.answerQuality,
-        tipsCount: analysis.tips.length,
-        starScore: analysis.starScore,
-        impactScore: analysis.impactScore,
-        clarityScore: analysis.clarityScore,
-        technicalAccuracy: analysis.technicalAccuracy,
-        terminologyUsage: analysis.terminologyUsage,
-      });
-    } catch (error) {
-      console.error('Error in AI analysis:', error);
-      console.error('Error details:', {
-        message: error instanceof Error ? error.message : 'Unknown error',
-        stack: error instanceof Error ? error.stack : undefined,
-        transcriptLength: transcript.length,
-        transcriptPreview: transcript.substring(0, 200),
-        audioType: audioFile.type,
-        audioSize: audioBlob.size,
-        questionId: question.id,
-        questionTags,
-        hasPreferences: !!preferences,
-      });
-      
-      // Log the full error for debugging
-      if (error instanceof Error) {
-        console.error('Full error object:', {
-          name: error.name,
-          message: error.message,
-          stack: error.stack,
-        });
-      }
-      
-      // Don't throw - return fallback analysis instead
-      const wordCount = countWords(transcript);
+    // If we have past attempts, check if current transcript is similar
+    // Simple similarity check: if transcript length and word count are similar (±30%)
+    const shouldReusePastAttempt = pastAttempts.length > 0 && pastAttempts.some((attempt) => {
+      if (!attempt.transcript) return false;
+      const pastWordCount = countWords(attempt.transcript);
+      const similarity = Math.abs(pastWordCount - wordCount) / Math.max(pastWordCount, wordCount);
+      return similarity < 0.3; // Within 30% word count
+    });
+
+    if (shouldReusePastAttempt && pastAttempts[0]) {
+      // Reuse suggestions from most recent similar attempt
+      console.log('Reusing suggestions from past attempt to avoid duplicate AI call');
+      const pastAttempt = pastAttempts[0];
       analysis = {
         questionAnswered: wordCount > 20,
-        answerQuality: 2,
-        whatWasRight: [
-          'Your response was recorded successfully',
-          'You provided some content',
-        ],
-        // whatWasWrong removed - not in schema anymore
-        betterWording: [
-          'Try speaking for 2-3 minutes with clear structure',
-          'Use the STAR method: Situation, Task, Action, Result',
-          'Include specific metrics and examples',
-        ],
-        starScore: 2,
-        impactScore: 2,
-        clarityScore: 2,
-        technicalAccuracy: 2,
-        terminologyUsage: 2,
+        answerQuality: 3, // Default quality since we're reusing
+        whatWasRight: pastAttempt.whatWasRight.length > 0 ? pastAttempt.whatWasRight : ['Your response was recorded'],
+        betterWording: pastAttempt.betterWording.length > 0 ? pastAttempt.betterWording : ['Continue practicing'],
+        dontForget: pastAttempt.dontForget?.length > 0 ? pastAttempt.dontForget : [],
+        starScore: 3,
+        impactScore: 3,
+        clarityScore: 3,
+        technicalAccuracy: 3,
+        terminologyUsage: 3,
         tips: [
-          `AI analysis error: ${error instanceof Error ? error.message : 'Unknown error'}`,
-          'Your response was recorded successfully',
-          'Review your transcript and practice speaking more clearly',
+          'Consider reviewing past attempts for this question',
+          'Focus on incorporating previous feedback',
+          'Practice speaking more clearly',
           'Use the STAR method: Situation, Task, Action, Result',
-          'Include specific metrics and outcomes when possible',
+          'Include specific metrics and outcomes',
         ],
       };
+    } else {
+      // OPTIMIZE: Start AI analysis immediately (this is the slowest operation)
+      // We already have all the metrics it needs
+      
+      // Validate transcript before analysis
+      const trimmedTranscript = transcript.trim();
+      if (!trimmedTranscript || trimmedTranscript.length === 0) {
+        throw new ValidationError('Transcript is empty after trimming. Cannot analyze.');
+      }
+      
+      console.log('Starting AI analysis...', {
+        transcriptLength: transcript.length,
+        trimmedLength: trimmedTranscript.length,
+        wordCount,
+        questionTags,
+        hasQuestionText: !!question.text,
+        hasQuestionHint: !!question.hint,
+        transcriptPreview: trimmedTranscript.substring(0, 200),
+        transcriptEnd: trimmedTranscript.substring(Math.max(0, trimmedTranscript.length - 100)),
+      });
+
+      let analysis;
+      try {
+        // Pass the trimmed transcript to ensure it's clean
+        analysis = await Promise.race([
+          analyzeTranscriptOptimized(
+            trimmedTranscript, // Use trimmed transcript
+            question.id, // questionId for caching
+            questionTags,
+            undefined, // role - will use from preferences
+            undefined, // priorities - will use from preferences
+            question.text,
+            question.hint,
+            preferences,
+            {
+              wordCount,
+              fillerCount,
+              fillerRate,
+              wpm,
+              longPauses,
+            }
+          ),
+          new Promise<never>((_, reject) =>
+            setTimeout(() => reject(new Error('Analysis timeout after 45s')), 45000) // Increased timeout for iPad/network issues
+          ),
+        ]);
+        
+        console.log('AI analysis completed successfully', {
+          questionAnswered: analysis.questionAnswered,
+          answerQuality: analysis.answerQuality,
+          tipsCount: analysis.tips.length,
+          starScore: analysis.starScore,
+          impactScore: analysis.impactScore,
+          clarityScore: analysis.clarityScore,
+          technicalAccuracy: analysis.technicalAccuracy,
+          terminologyUsage: analysis.terminologyUsage,
+        });
+      } catch (error) {
+        console.error('Error in AI analysis:', error);
+        console.error('Error details:', {
+          message: error instanceof Error ? error.message : 'Unknown error',
+          stack: error instanceof Error ? error.stack : undefined,
+          transcriptLength: transcript.length,
+          transcriptPreview: transcript.substring(0, 200),
+          audioType: audioFile.type,
+          audioSize: audioBlob.size,
+          questionId: question.id,
+          questionTags,
+          hasPreferences: !!preferences,
+        });
+        
+        // Log the full error for debugging
+        if (error instanceof Error) {
+          console.error('Full error object:', {
+            name: error.name,
+            message: error.message,
+            stack: error.stack,
+          });
+        }
+        
+        // Don't throw - return fallback analysis instead
+        const wordCount = countWords(transcript);
+        analysis = {
+          questionAnswered: wordCount > 20,
+          answerQuality: 2,
+          whatWasRight: [
+            'Your response was recorded successfully',
+            'You provided some content',
+          ],
+          betterWording: [
+            'Try speaking for 2-3 minutes with clear structure',
+            'Use the STAR method: Situation, Task, Action, Result',
+            'Include specific metrics and examples',
+          ],
+          dontForget: [],
+          starScore: 2,
+          impactScore: 2,
+          clarityScore: 2,
+          technicalAccuracy: 2,
+          terminologyUsage: 2,
+          tips: [
+            `AI analysis error: ${error instanceof Error ? error.message : 'Unknown error'}`,
+            'Your response was recorded successfully',
+            'Review your transcript and practice speaking more clearly',
+            'Use the STAR method: Situation, Task, Action, Result',
+            'Include specific metrics and outcomes when possible',
+          ],
+        };
+      }
     }
+
+    // Ensure analysis is defined (should always be set by this point)
+    if (!analysis) {
+      throw new ValidationError('Analysis failed - no result available');
+    }
+
+    // Calculate intonation score if not already done (for when we reuse past attempts)
+    const intonationScore = analyzeIntonationFromTranscript(transcript, wordCount);
 
     // OPTIMIZE: Return response immediately, save to DB in background
     // This reduces perceived latency significantly
@@ -344,6 +407,7 @@ export async function POST(request: NextRequest) {
       answerQuality: analysis.answerQuality,
       whatWasRight: analysis.whatWasRight,
       betterWording: analysis.betterWording,
+      dontForget: analysis.dontForget || [],
       audioUrl: null as string | null, // Will be updated when upload completes
     };
 
@@ -374,6 +438,7 @@ export async function POST(request: NextRequest) {
               answerQuality: analysis.answerQuality,
               whatWasRight: analysis.whatWasRight,
               betterWording: analysis.betterWording,
+              dontForget: analysis.dontForget || [],
               aiFeedback: analysis.tips.join(' | '),
             },
           });

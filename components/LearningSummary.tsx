@@ -57,7 +57,12 @@ export function LearningSummary({ sessionId }: { sessionId: string }) {
 
   return (
     <div className="bg-white dark:bg-slate-800 rounded-lg shadow p-6 space-y-6">
-      <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-100">Session Summary</h2>
+      <div>
+        <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-100">Session Summary</h2>
+        <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+          Analysis based on answers from this practice session only
+        </p>
+      </div>
 
       {summary.overallScore !== null && (
         <div className="bg-blue-50 dark:bg-blue-900/20 rounded-lg p-4">

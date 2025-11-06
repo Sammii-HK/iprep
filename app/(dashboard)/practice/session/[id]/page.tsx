@@ -6,6 +6,8 @@ import { MicRecorder } from '@/components/MicRecorder';
 import { LiveCaption } from '@/components/LiveCaption';
 import { QuestionCard } from '@/components/QuestionCard';
 import { Scorecard } from '@/components/Scorecard';
+import { LearningSummary } from '@/components/LearningSummary';
+import { useRouter } from 'next/navigation';
 
 interface Question {
   id: string;
@@ -40,10 +42,12 @@ interface SessionItem {
   whatWasRight?: string[];
   whatWasWrong?: string[];
   betterWording?: string[];
+  dontForget?: string[];
 }
 
 export default function PracticeSessionPage() {
   const params = useParams();
+  const router = useRouter();
   const sessionId = params.id as string;
 
   const [questions, setQuestions] = useState<Question[]>([]);
@@ -52,6 +56,8 @@ export default function PracticeSessionPage() {
   const [loading, setLoading] = useState(false);
   const [scorecard, setScorecard] = useState<SessionItem | null>(null);
   const [sessionItems, setSessionItems] = useState<SessionItem[]>([]);
+  const [isCompleting, setIsCompleting] = useState(false);
+  const [sessionCompleted, setSessionCompleted] = useState(false);
   const prevQuestionIndexRef = useRef<number>(0);
 
   const fetchSessionData = useCallback(async () => {
@@ -75,6 +81,11 @@ export default function PracticeSessionPage() {
         }
         setQuestions(questions);
         setSessionItems(data.items || []);
+        
+        // Check if session is already completed
+        if (data.isCompleted) {
+          setSessionCompleted(true);
+        }
       }
     } catch (error) {
       console.error('Error fetching session:', error);
@@ -139,6 +150,7 @@ export default function PracticeSessionPage() {
           whatWasRight: result.whatWasRight,
           whatWasWrong: result.whatWasWrong,
           betterWording: result.betterWording,
+          dontForget: result.dontForget,
         });
         fetchSessionData(); // Refresh to get new session item
       } else {
@@ -153,7 +165,63 @@ export default function PracticeSessionPage() {
     }
   };
 
+  const handleFinishSession = async () => {
+    if (sessionItems.length === 0) {
+      alert('Please answer at least one question before finishing the session.');
+      return;
+    }
+
+    setIsCompleting(true);
+    try {
+      const response = await fetch(`/api/sessions/${sessionId}/complete`, {
+        method: 'POST',
+      });
+
+      if (response.ok) {
+        setSessionCompleted(true);
+      } else {
+        const error = await response.json();
+        alert(`Error: ${error.error}`);
+      }
+    } catch (error) {
+      console.error('Error completing session:', error);
+      alert('Failed to complete session');
+    } finally {
+      setIsCompleting(false);
+    }
+  };
+
   const currentQuestion = questions[currentQuestionIndex];
+  const isLastQuestion = currentQuestionIndex === questions.length - 1;
+
+  // Show learning summary if session is completed
+  if (sessionCompleted) {
+    return (
+      <div className="px-4 py-6">
+        <div className="max-w-4xl mx-auto">
+          <div className="mb-6">
+            <h1 className="text-3xl font-bold mb-2 text-slate-900 dark:text-slate-100">Session Complete!</h1>
+            <p className="text-slate-600 dark:text-slate-400">Here&apos;s your learning summary</p>
+          </div>
+          <LearningSummary sessionId={sessionId} />
+          <div className="mt-6 flex gap-4">
+            <button
+              onClick={() => router.push('/practice')}
+              className="px-6 py-3 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
+            >
+              Back to Practice Sessions
+            </button>
+            <button
+              onClick={() => router.push('/learning')}
+              className="px-6 py-3 bg-slate-200 dark:bg-slate-700 text-slate-900 dark:text-slate-100 rounded-lg hover:bg-slate-300 dark:hover:bg-slate-600 transition-colors"
+            >
+              View All Learning Insights
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="px-4 py-6">
@@ -161,29 +229,50 @@ export default function PracticeSessionPage() {
         {/* Left Column - Question */}
         <div className="lg:col-span-1">
           {currentQuestion ? (
-            <QuestionCard
-              question={currentQuestion}
-              onNext={() => {
-                if (currentQuestionIndex < questions.length - 1) {
-                  setCurrentQuestionIndex(currentQuestionIndex + 1);
-                  setScorecard(null);
-                  // Reset question visibility when moving to next
-                }
-              }}
-              onPrevious={() => {
-                if (currentQuestionIndex > 0) {
-                  setCurrentQuestionIndex(currentQuestionIndex - 1);
-                  setScorecard(null);
-                  // Reset question visibility when going back
-                }
-              }}
-              hasNext={currentQuestionIndex < questions.length - 1}
-              hasPrevious={currentQuestionIndex > 0}
-              onRetryWithHint={() => {
-                // TODO: Implement retry with hint
-                alert('Retry with hint feature coming soon!');
-              }}
-            />
+            <div className="space-y-4">
+              <QuestionCard
+                question={currentQuestion}
+                currentQuestionNumber={currentQuestionIndex + 1}
+                totalQuestions={questions.length}
+                onNext={() => {
+                  if (currentQuestionIndex < questions.length - 1) {
+                    setCurrentQuestionIndex(currentQuestionIndex + 1);
+                    setScorecard(null);
+                    // Reset question visibility when moving to next
+                  }
+                }}
+                onPrevious={() => {
+                  if (currentQuestionIndex > 0) {
+                    setCurrentQuestionIndex(currentQuestionIndex - 1);
+                    setScorecard(null);
+                    // Reset question visibility when going back
+                  }
+                }}
+                hasNext={currentQuestionIndex < questions.length - 1}
+                hasPrevious={currentQuestionIndex > 0}
+                onRetryWithHint={() => {
+                  // TODO: Implement retry with hint
+                  alert('Retry with hint feature coming soon!');
+                }}
+              />
+              {/* Finish Session Button - Show on last question */}
+              {isLastQuestion && (
+                <div className="bg-white dark:bg-slate-800 rounded-lg shadow-md p-6 border border-slate-200 dark:border-slate-700">
+                  <p className="text-sm text-slate-600 dark:text-slate-400 mb-4">
+                    {sessionItems.length > 0
+                      ? "You&apos;ve answered questions in this session. Finish to see your learning summary."
+                      : 'Answer at least one question, then finish the session to see your learning summary.'}
+                  </p>
+                  <button
+                    onClick={handleFinishSession}
+                    disabled={isCompleting || sessionItems.length === 0}
+                    className="w-full px-6 py-3 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed font-semibold"
+                  >
+                    {isCompleting ? 'Completing Session...' : 'Finish Session & View Summary'}
+                  </button>
+                </div>
+              )}
+            </div>
           ) : (
             <div className="bg-white dark:bg-slate-800 rounded-lg shadow-md p-6 border border-slate-200 dark:border-slate-700">
               <p className="text-slate-600 dark:text-slate-400">No questions available for this session.</p>
@@ -221,6 +310,8 @@ export default function PracticeSessionPage() {
             whatWasRight={scorecard.whatWasRight}
             whatWasWrong={scorecard.whatWasWrong}
             betterWording={scorecard.betterWording}
+            dontForget={scorecard.dontForget}
+            questionTags={questions[currentQuestionIndex]?.tags}
           />
           ) : (
             <div className="bg-white dark:bg-slate-800 rounded-lg shadow-md p-6 border border-slate-200 dark:border-slate-700">
