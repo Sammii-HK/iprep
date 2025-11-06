@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useParams } from 'next/navigation';
 import { MicRecorder } from '@/components/MicRecorder';
 import { LiveCaption } from '@/components/LiveCaption';
@@ -46,24 +46,38 @@ export default function PracticeSessionPage() {
   const [scorecard, setScorecard] = useState<SessionItem | null>(null);
   const [sessionItems, setSessionItems] = useState<SessionItem[]>([]);
 
-  useEffect(() => {
-    if (sessionId) {
-      fetchSessionData();
-    }
-  }, [sessionId]);
-
-  const fetchSessionData = async () => {
+  const fetchSessionData = useCallback(async () => {
     try {
-      const response = await fetch(`/api/sessions/${sessionId}`);
+      // Get maxQuestions from localStorage if set during creation
+      const storedMaxQuestions = localStorage.getItem(`session_${sessionId}_maxQuestions`);
+      const maxQuestions = storedMaxQuestions ? parseInt(storedMaxQuestions, 10) : undefined;
+      
+      // Build URL with maxQuestions query param if it exists
+      const url = maxQuestions && maxQuestions > 0 
+        ? `/api/sessions/${sessionId}?maxQuestions=${maxQuestions}`
+        : `/api/sessions/${sessionId}`;
+      
+      const response = await fetch(url);
       if (response.ok) {
         const data = await response.json();
-        setQuestions(data.questions || []);
+        // Limit questions on frontend if maxQuestions is set
+        let questions = data.questions || [];
+        if (maxQuestions && maxQuestions > 0 && questions.length > maxQuestions) {
+          questions = questions.slice(0, maxQuestions);
+        }
+        setQuestions(questions);
         setSessionItems(data.items || []);
       }
     } catch (error) {
       console.error('Error fetching session:', error);
     }
-  };
+  }, [sessionId]);
+
+  useEffect(() => {
+    if (sessionId) {
+      fetchSessionData();
+    }
+  }, [sessionId, fetchSessionData]);
 
   const handleRecordingComplete = async (blob: Blob) => {
     if (questions.length === 0) return;
@@ -134,8 +148,8 @@ export default function PracticeSessionPage() {
               }}
             />
           ) : (
-            <div className="bg-white rounded-lg shadow-md p-6">
-              <p className="text-gray-500">No questions available for this session.</p>
+            <div className="bg-white dark:bg-slate-800 rounded-lg shadow-md p-6 border border-slate-200 dark:border-slate-700">
+              <p className="text-slate-600 dark:text-slate-400">No questions available for this session.</p>
             </div>
           )}
         </div>
@@ -151,7 +165,7 @@ export default function PracticeSessionPage() {
           {loading && (
             <div className="text-center py-4">
               <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
-              <p className="mt-2 text-gray-600">Processing...</p>
+              <p className="mt-2 text-slate-700 dark:text-slate-300">Processing...</p>
             </div>
           )}
         </div>
@@ -166,8 +180,8 @@ export default function PracticeSessionPage() {
               audioUrl={scorecard.audioUrl}
             />
           ) : (
-            <div className="bg-white rounded-lg shadow-md p-6">
-              <p className="text-gray-500 text-center">
+            <div className="bg-white dark:bg-slate-800 rounded-lg shadow-md p-6 border border-slate-200 dark:border-slate-700">
+              <p className="text-slate-600 dark:text-slate-400 text-center">
                 Record an answer to see your scorecard here.
               </p>
             </div>
@@ -175,23 +189,23 @@ export default function PracticeSessionPage() {
 
           {/* Previous Attempts */}
           {sessionItems.length > 0 && (
-            <div className="mt-6 bg-white rounded-lg shadow-md p-6">
-              <h3 className="font-semibold mb-3">Previous Attempts</h3>
+            <div className="mt-6 bg-white dark:bg-slate-800 rounded-lg shadow-md p-6 border border-slate-200 dark:border-slate-700">
+              <h3 className="font-semibold mb-3 text-slate-900 dark:text-slate-100">Previous Attempts</h3>
               <div className="space-y-2">
                 {sessionItems.slice(0, 5).map((item) => (
                   <div
                     key={item.id}
-                    className="p-3 bg-gray-50 rounded cursor-pointer hover:bg-gray-100"
+                    className="p-3 bg-slate-50 dark:bg-slate-700 rounded cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-600 border border-slate-200 dark:border-slate-600"
                     onClick={() => setScorecard(item)}
                   >
-                    <p className="text-sm text-gray-600">
+                    <p className="text-sm text-slate-700 dark:text-slate-300">
                       {item.transcript?.substring(0, 50)}...
                     </p>
                     <div className="flex gap-2 mt-1">
-                      <span className="text-xs text-gray-500">
+                      <span className="text-xs text-slate-600 dark:text-slate-400">
                         WPM: {item.metrics.wpm}
                       </span>
-                      <span className="text-xs text-gray-500">
+                      <span className="text-xs text-slate-600 dark:text-slate-400">
                         Confidence: {item.scores.confidence}/5
                       </span>
                     </div>

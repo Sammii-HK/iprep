@@ -1,10 +1,9 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useParams } from 'next/navigation';
 import { MicRecorder } from '@/components/MicRecorder';
 import { QuestionCard } from '@/components/QuestionCard';
-import { Scorecard } from '@/components/Scorecard';
 
 interface Question {
   id: string;
@@ -26,29 +25,46 @@ export default function QuizPage() {
 
   const [quiz, setQuiz] = useState<Quiz | null>(null);
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
-  const [isRecording, setIsRecording] = useState(false);
   const [loading, setLoading] = useState(false);
   const [writtenAnswer, setWrittenAnswer] = useState('');
-  const [scorecard, setScorecard] = useState<any>(null);
+  const [scorecard, setScorecard] = useState<{
+    answer?: string;
+    audioUrl?: string;
+    score?: number;
+    feedback?: string[];
+  } | null>(null);
   const [completedQuestions, setCompletedQuestions] = useState<Set<string>>(new Set());
 
-  useEffect(() => {
-    if (quizId) {
-      fetchQuiz();
-    }
-  }, [quizId]);
-
-  const fetchQuiz = async () => {
+  const fetchQuiz = useCallback(async () => {
     try {
-      const response = await fetch(`/api/quizzes/${quizId}`);
+      // Get maxQuestions from localStorage if set during creation
+      const storedMaxQuestions = localStorage.getItem(`quiz_${quizId}_maxQuestions`);
+      const maxQuestions = storedMaxQuestions ? parseInt(storedMaxQuestions, 10) : undefined;
+      
+      // Build URL with maxQuestions query param if it exists
+      const url = maxQuestions && maxQuestions > 0 
+        ? `/api/quizzes/${quizId}?maxQuestions=${maxQuestions}`
+        : `/api/quizzes/${quizId}`;
+      
+      const response = await fetch(url);
       if (response.ok) {
         const data = await response.json();
+        // Limit questions on frontend if maxQuestions is set
+        if (maxQuestions && maxQuestions > 0 && data.questions && data.questions.length > maxQuestions) {
+          data.questions = data.questions.slice(0, maxQuestions);
+        }
         setQuiz(data);
       }
     } catch (error) {
       console.error('Error fetching quiz:', error);
     }
-  };
+  }, [quizId]);
+
+  useEffect(() => {
+    if (quizId) {
+      fetchQuiz();
+    }
+  }, [quizId, fetchQuiz]);
 
   const handleRecordingComplete = async (blob: Blob) => {
     if (!quiz || quiz.type !== 'SPOKEN') return;
@@ -139,13 +155,13 @@ export default function QuizPage() {
       <div className="mb-6">
         <h1 className="text-3xl font-bold mb-2">{quiz.title}</h1>
         <div className="flex items-center gap-4">
-          <div className="flex-1 bg-gray-200 rounded-full h-2">
+          <div className="flex-1 bg-slate-200 dark:bg-slate-700 rounded-full h-2">
             <div
               className="bg-blue-500 h-2 rounded-full transition-all"
               style={{ width: `${progress}%` }}
             />
           </div>
-          <span className="text-sm text-gray-600">
+          <span className="text-sm text-slate-700 dark:text-slate-300">
             {completedQuestions.size} / {quiz.questions.length} completed
           </span>
         </div>
@@ -175,8 +191,8 @@ export default function QuizPage() {
               hasPrevious={currentQuestionIndex > 0}
             />
           ) : (
-            <div className="bg-white rounded-lg shadow-md p-6">
-              <p className="text-gray-500">No questions available.</p>
+            <div className="bg-white dark:bg-slate-800 rounded-lg shadow-md p-6 border border-slate-200 dark:border-slate-700">
+              <p className="text-slate-600 dark:text-slate-400">No questions available.</p>
             </div>
           )}
         </div>
@@ -187,23 +203,23 @@ export default function QuizPage() {
             <>
               <MicRecorder
                 onRecordingComplete={handleRecordingComplete}
-                onStart={() => setIsRecording(true)}
-                onStop={() => setIsRecording(false)}
+                onStart={() => {}}
+                onStop={() => {}}
               />
               {loading && (
                 <div className="text-center py-4">
                   <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
-                  <p className="mt-2 text-gray-600">Processing...</p>
+                  <p className="mt-2 text-slate-700 dark:text-slate-300">Processing...</p>
                 </div>
               )}
             </>
           ) : (
             <div className="w-full">
-              <label className="block text-sm font-medium mb-2">Your Answer</label>
+              <label className="block text-sm font-medium mb-2 text-slate-900 dark:text-slate-100">Your Answer</label>
               <textarea
                 value={writtenAnswer}
                 onChange={(e) => setWrittenAnswer(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg min-h-[200px]"
+                className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 placeholder:text-slate-500 dark:placeholder:text-slate-400 min-h-[200px]"
                 placeholder="Type your answer here..."
               />
               <button
@@ -220,14 +236,14 @@ export default function QuizPage() {
         {/* Right Column - Scorecard */}
         <div className="lg:col-span-1">
           {scorecard ? (
-            <div className="bg-white rounded-lg shadow-md p-6">
-              <h2 className="text-2xl font-bold mb-4">Results</h2>
+            <div className="bg-white dark:bg-slate-800 rounded-lg shadow-md p-6 border border-slate-200 dark:border-slate-700">
+              <h2 className="text-2xl font-bold mb-4 text-slate-900 dark:text-slate-100">Results</h2>
               {scorecard.score !== null && (
                 <div className="mb-4">
-                  <div className="text-4xl font-bold text-blue-600 mb-2">
+                  <div className="text-4xl font-bold text-blue-600 dark:text-blue-400 mb-2">
                     {scorecard.score}/100
                   </div>
-                  <div className="w-full bg-gray-200 rounded-full h-2">
+                  <div className="w-full bg-slate-200 dark:bg-slate-700 rounded-full h-2">
                     <div
                       className="bg-blue-500 h-2 rounded-full transition-all"
                       style={{ width: `${scorecard.score}%` }}
@@ -237,16 +253,16 @@ export default function QuizPage() {
               )}
               {scorecard.answer && (
                 <div className="mb-4">
-                  <h3 className="font-semibold mb-2">Your Answer:</h3>
-                  <p className="text-gray-700">{scorecard.answer}</p>
+                  <h3 className="font-semibold mb-2 text-slate-900 dark:text-slate-100">Your Answer:</h3>
+                  <p className="text-slate-700 dark:text-slate-300">{scorecard.answer}</p>
                 </div>
               )}
               {scorecard.feedback && scorecard.feedback.length > 0 && (
                 <div>
-                  <h3 className="font-semibold mb-2">Feedback:</h3>
+                  <h3 className="font-semibold mb-2 text-slate-900 dark:text-slate-100">Feedback:</h3>
                   <ul className="list-disc list-inside space-y-1 text-sm">
                     {scorecard.feedback.map((tip: string, index: number) => (
-                      <li key={index} className="text-gray-700">
+                      <li key={index} className="text-slate-700 dark:text-slate-300">
                         {tip}
                       </li>
                     ))}
@@ -262,8 +278,8 @@ export default function QuizPage() {
               )}
             </div>
           ) : (
-            <div className="bg-white rounded-lg shadow-md p-6">
-              <p className="text-gray-500 text-center">
+            <div className="bg-white dark:bg-slate-800 rounded-lg shadow-md p-6 border border-slate-200 dark:border-slate-700">
+              <p className="text-slate-600 dark:text-slate-400 text-center">
                 {quiz.type === 'SPOKEN'
                   ? 'Record an answer to see your results here.'
                   : 'Submit an answer to see your results here.'}

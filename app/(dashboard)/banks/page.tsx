@@ -136,25 +136,25 @@ export default function BanksPage() {
       </div>
 
       {showImport && (
-        <div className="bg-white rounded-lg shadow-md p-6 mb-6">
-          <h2 className="text-xl font-semibold mb-4">Import Question Bank</h2>
+        <div className="bg-white dark:bg-slate-800 rounded-lg shadow-md p-6 mb-6 border border-slate-200 dark:border-slate-700">
+          <h2 className="text-xl font-semibold mb-4 text-slate-900 dark:text-slate-100">Import Question Bank</h2>
           <form onSubmit={handleImport}>
             <div className="mb-4">
-              <label className="block text-sm font-medium mb-2">Bank Title</label>
+              <label className="block text-sm font-medium mb-2 text-slate-900 dark:text-slate-100">Bank Title</label>
               <input
                 type="text"
                 value={importTitle}
                 onChange={(e) => setImportTitle(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 placeholder:text-slate-500 dark:placeholder:text-slate-400 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 placeholder="e.g., Software Engineering Interviews"
                 required
               />
-              <p className="text-xs text-gray-500 mt-1">
+              <p className="text-xs text-slate-600 dark:text-slate-400 mt-1">
                 Title is auto-filled from filename, but you can edit it
               </p>
             </div>
             <div className="mb-4">
-              <label className="block text-sm font-medium mb-2">CSV/JSON File</label>
+              <label className="block text-sm font-medium mb-2 text-slate-900 dark:text-slate-100">CSV/JSON File</label>
               
               {/* Drag and Drop Zone */}
               <div
@@ -178,8 +178,8 @@ export default function BanksPage() {
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
                       </svg>
                     </div>
-                    <p className="font-medium text-gray-700">{importFile.name}</p>
-                    <p className="text-sm text-gray-500">
+                    <p className="font-medium text-slate-900 dark:text-slate-100">{importFile.name}</p>
+                    <p className="text-sm text-slate-600 dark:text-slate-400">
                       {(importFile.size / 1024).toFixed(2)} KB
                     </p>
                     <button
@@ -204,10 +204,10 @@ export default function BanksPage() {
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
                       </svg>
                     </div>
-                    <p className="text-gray-600">
-                      <span className="font-medium text-blue-600">Click to upload</span> or drag and drop
+                    <p className="text-slate-700 dark:text-slate-300">
+                      <span className="font-medium text-blue-600 dark:text-blue-400">Click to upload</span> or drag and drop
                     </p>
-                    <p className="text-sm text-gray-500">CSV or JSON files only</p>
+                    <p className="text-sm text-slate-600 dark:text-slate-400">CSV or JSON files only</p>
                   </div>
                 )}
               </div>
@@ -221,7 +221,7 @@ export default function BanksPage() {
                 className="hidden"
               />
 
-              <p className="text-sm text-gray-500 mt-2">
+              <p className="text-sm text-slate-600 dark:text-slate-400 mt-2">
                 CSV format: front,back (front = question, back = optional - can be empty)
               </p>
             </div>
@@ -256,7 +256,7 @@ export default function BanksPage() {
       {loading ? (
         <div className="text-center py-12">Loading...</div>
       ) : banks.length === 0 ? (
-        <div className="text-center py-12 text-gray-500">
+        <div className="text-center py-12 text-slate-600 dark:text-slate-400">
           No question banks yet. Import one to get started!
         </div>
       ) : (
@@ -265,13 +265,13 @@ export default function BanksPage() {
             <Link
               key={bank.id}
               href={`/banks/${bank.id}`}
-              className="bg-white rounded-lg shadow-md p-6 hover:shadow-lg transition-shadow"
+              className="bg-white dark:bg-slate-800 rounded-lg shadow-md p-6 hover:shadow-lg transition-shadow border border-slate-200 dark:border-slate-700"
             >
-              <h3 className="text-xl font-semibold mb-2">{bank.title}</h3>
-              <p className="text-gray-600 text-sm">
+              <h3 className="text-xl font-semibold mb-2 text-slate-900 dark:text-slate-100">{bank.title}</h3>
+              <p className="text-slate-700 dark:text-slate-300 text-sm">
                 {bank._count.questions} questions
               </p>
-              <p className="text-gray-400 text-xs mt-2">
+              <p className="text-slate-600 dark:text-slate-400 text-xs mt-2">
                 Created {new Date(bank.createdAt).toLocaleDateString()}
               </p>
             </Link>

@@ -4,7 +4,8 @@ import { z } from 'zod';
 
 const CreateSessionSchema = z.object({
   title: z.string().min(1),
-  bankId: z.string().optional(),
+  bankId: z.string().cuid('Question bank is required for practice sessions.'),
+  maxQuestions: z.number().int().min(1).max(50).optional(),
 });
 
 export async function POST(request: NextRequest) {
@@ -12,10 +13,30 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const validated = CreateSessionSchema.parse(body);
 
+    // Validate bank exists
+    const bank = await prisma.questionBank.findUnique({
+      where: { id: validated.bankId },
+      include: { questions: true },
+    });
+
+    if (!bank) {
+      return NextResponse.json(
+        { error: 'Question bank not found' },
+        { status: 404 }
+      );
+    }
+
+    if (bank.questions.length === 0) {
+      return NextResponse.json(
+        { error: 'Question bank has no questions' },
+        { status: 400 }
+      );
+    }
+
     const session = await prisma.session.create({
       data: {
         title: validated.title,
-        bankId: validated.bankId || null,
+        bankId: validated.bankId,
       },
     });
 

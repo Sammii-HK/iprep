@@ -7,6 +7,10 @@ export async function GET(
 ) {
   try {
     const { id } = await params;
+    const { searchParams } = new URL(request.url);
+    const maxQuestionsParam = searchParams.get('maxQuestions');
+    const maxQuestions = maxQuestionsParam ? parseInt(maxQuestionsParam, 10) : undefined;
+    
     const session = await prisma.session.findUnique({
       where: {
         id,
@@ -36,9 +40,27 @@ export async function GET(
       return NextResponse.json({ error: 'Session not found' }, { status: 404 });
     }
 
-    // Format response
-    const questions = session.bank?.questions || [];
-    const items = session.items.map((item: any) => ({
+    // Limit questions based on maxQuestions query param
+    let questions = session.bank?.questions || [];
+    if (maxQuestions && maxQuestions > 0 && questions.length > maxQuestions) {
+      questions = questions.slice(0, maxQuestions);
+    }
+    const items = session.items.map((item: {
+      id: string;
+      audioUrl: string | null;
+      transcript: string | null;
+      words: number | null;
+      wpm: number | null;
+      fillerCount: number | null;
+      fillerRate: number | null;
+      longPauses: number | null;
+      confidenceScore: number | null;
+      intonationScore: number | null;
+      starScore: number | null;
+      impactScore: number | null;
+      clarityScore: number | null;
+      aiFeedback: string | null;
+    }) => ({
       id: item.id,
       audioUrl: item.audioUrl,
       transcript: item.transcript,

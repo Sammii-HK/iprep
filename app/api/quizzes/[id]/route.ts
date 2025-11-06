@@ -8,6 +8,10 @@ export async function GET(
 ) {
   try {
     const { id } = await params;
+    const { searchParams } = new URL(request.url);
+    const maxQuestionsParam = searchParams.get('maxQuestions');
+    const maxQuestions = maxQuestionsParam ? parseInt(maxQuestionsParam, 10) : undefined;
+    
     const quiz = await prisma.quiz.findUnique({
       where: { id },
       include: {
@@ -35,12 +39,18 @@ export async function GET(
       throw new NotFoundError('Quiz', id);
     }
 
+    // Limit questions based on maxQuestions query param
+    let questions = quiz.bank?.questions || [];
+    if (maxQuestions && maxQuestions > 0 && questions.length > maxQuestions) {
+      questions = questions.slice(0, maxQuestions);
+    }
+    
     return NextResponse.json({
       id: quiz.id,
       title: quiz.title,
       description: quiz.description,
       type: quiz.type,
-      questions: quiz.bank?.questions || [],
+      questions,
       attempts: quiz.attempts,
       createdAt: quiz.createdAt,
     });

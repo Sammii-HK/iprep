@@ -7,7 +7,8 @@ const CreateQuizSchema = z.object({
   title: z.string().min(1, 'Title is required').max(200),
   description: z.string().max(500).optional(),
   type: z.enum(['SPOKEN', 'WRITTEN']),
-  bankId: z.string().cuid().optional(),
+  bankId: z.string().cuid('Question bank is required. Quizzes must be built from a CSV question bank.'),
+  maxQuestions: z.number().int().min(1).max(50).optional(),
 });
 
 export async function POST(request: NextRequest) {
@@ -15,20 +16,18 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const validated = CreateQuizSchema.parse(body);
 
-    // Validate bank exists if provided
-    if (validated.bankId) {
-      const bank = await prisma.questionBank.findUnique({
-        where: { id: validated.bankId },
-        include: { questions: true },
-      });
+    // Validate bank exists (required for quizzes)
+    const bank = await prisma.questionBank.findUnique({
+      where: { id: validated.bankId },
+      include: { questions: true },
+    });
 
-      if (!bank) {
-        throw new NotFoundError('QuestionBank', validated.bankId);
-      }
+    if (!bank) {
+      throw new NotFoundError('QuestionBank', validated.bankId);
+    }
 
-      if (bank.questions.length === 0) {
-        throw new ValidationError('Question bank has no questions');
-      }
+    if (bank.questions.length === 0) {
+      throw new ValidationError('Question bank has no questions');
     }
 
     const quiz = await prisma.quiz.create({
@@ -36,7 +35,7 @@ export async function POST(request: NextRequest) {
         title: validated.title,
         description: validated.description,
         type: validated.type,
-        bankId: validated.bankId || null,
+        bankId: validated.bankId,
       },
       include: {
         bank: {
