@@ -7,7 +7,11 @@ import { z } from 'zod';
 export const AudioFileSchema = z.object({
   size: z.number().max(50 * 1024 * 1024, 'Audio file too large (max 50MB)'),
   type: z.string().refine(
-    (type) => type.startsWith('audio/') || type === 'video/webm',
+    (type) => {
+      // Extract base MIME type (without codec parameters like "; codecs=mp4a.40.2")
+      const baseType = type.split(';')[0].trim();
+      return baseType.startsWith('audio/') || baseType === 'video/webm';
+    },
     'Invalid file type. Must be audio file.'
   ),
 });
@@ -71,7 +75,8 @@ export function validateAudioFile(file: File): { valid: boolean; error?: string 
   }
 
   // Check file type (including iOS-compatible formats)
-  const validTypes = [
+  // Handle MIME types with codec parameters (e.g., "audio/mp4; codecs=mp4a.40.2")
+  const validBaseTypes = [
     'audio/webm',
     'audio/mp4', // iOS Safari
     'audio/m4a', // iOS Safari
@@ -82,10 +87,13 @@ export function validateAudioFile(file: File): { valid: boolean; error?: string 
     'video/webm', // Some browsers record as video/webm
   ];
 
-  if (!validTypes.includes(file.type)) {
+  // Extract base MIME type (without codec parameters)
+  const baseMimeType = file.type.split(';')[0].trim();
+  
+  if (!validBaseTypes.includes(baseMimeType)) {
     return {
       valid: false,
-      error: `Invalid file type: ${file.type}. Supported types: ${validTypes.join(', ')}`,
+      error: `Invalid file type: ${file.type}. Supported types: ${validBaseTypes.join(', ')}`,
     };
   }
 
