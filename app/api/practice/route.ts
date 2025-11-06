@@ -112,16 +112,32 @@ export async function POST(request: NextRequest) {
     
     // Start transcription (critical path - must complete)
     try {
+      console.log('Starting audio transcription...', {
+        audioSize: audioBlob.size,
+        audioType: audioFile.type,
+      });
+      
       const transcriptionResult = await Promise.race([
         transcribeAudio(audioBlob),
         new Promise<never>((_, reject) =>
-          setTimeout(() => reject(new Error('Transcription timeout')), 60000)
+          setTimeout(() => reject(new Error('Transcription timeout after 60s')), 60000)
         ),
       ]);
       transcript = transcriptionResult.transcript;
       wordTimestamps = transcriptionResult.words;
-    } catch {
-      throw new ExternalServiceError('OpenAI Whisper', 'Failed to transcribe audio');
+      
+      console.log('Transcription completed', {
+        transcriptLength: transcript.length,
+        wordCount: countWords(transcript),
+        hasWordTimestamps: !!wordTimestamps && wordTimestamps.length > 0,
+      });
+    } catch (error) {
+      console.error('Transcription failed:', error);
+      console.error('Error details:', {
+        message: error instanceof Error ? error.message : 'Unknown error',
+        audioSize: audioBlob.size,
+      });
+      throw new ExternalServiceError('OpenAI Whisper', `Failed to transcribe audio: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
 
     // Start audio upload in background (non-blocking)
@@ -180,6 +196,14 @@ export async function POST(request: NextRequest) {
       // For now, use defaults or get from localStorage on client side
       // In a real app, you'd get this from the user's session/database
       
+      console.log('Starting AI analysis...', {
+        transcriptLength: transcript.length,
+        wordCount: countWords(transcript),
+        questionTags,
+        hasQuestionText: !!question.text,
+        hasQuestionHint: !!question.hint,
+      });
+      
       analysis = await Promise.race([
         analyzeTranscriptEnhanced(
           transcript,
@@ -191,11 +215,24 @@ export async function POST(request: NextRequest) {
           preferences
         ),
         new Promise<never>((_, reject) =>
-          setTimeout(() => reject(new Error('Analysis timeout')), 30000)
+          setTimeout(() => reject(new Error('Analysis timeout after 30s')), 30000)
         ),
       ]);
+      
+      console.log('AI analysis completed successfully', {
+        questionAnswered: analysis.questionAnswered,
+        answerQuality: analysis.answerQuality,
+        tipsCount: analysis.tips.length,
+      });
     } catch (error) {
       console.error('Error in AI analysis:', error);
+      console.error('Error details:', {
+        message: error instanceof Error ? error.message : 'Unknown error',
+        stack: error instanceof Error ? error.stack : undefined,
+        transcriptLength: transcript.length,
+        transcriptPreview: transcript.substring(0, 200),
+      });
+      
       // Don't throw - return fallback analysis instead
       const wordCount = countWords(transcript);
       analysis = {
@@ -206,7 +243,7 @@ export async function POST(request: NextRequest) {
           'You provided some content',
         ],
         whatWasWrong: [
-          'AI analysis temporarily unavailable - unable to assess answer quality',
+          `AI analysis failed: ${error instanceof Error ? error.message : 'Unknown error'}. Please check server logs.`,
           'Unable to verify if question was fully answered',
         ],
         betterWording: [
@@ -220,7 +257,7 @@ export async function POST(request: NextRequest) {
         technicalAccuracy: 2,
         terminologyUsage: 2,
         tips: [
-          'AI analysis temporarily unavailable',
+          `AI analysis error: ${error instanceof Error ? error.message : 'Unknown error'}`,
           'Your response was recorded successfully',
           'Review your transcript and practice speaking more clearly',
           'Use the STAR method: Situation, Task, Action, Result',

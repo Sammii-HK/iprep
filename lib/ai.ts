@@ -9,9 +9,19 @@ import {
   getFeedbackDepthInstructions,
 } from './coaching-config';
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
+// Initialize OpenAI client with validation
+const getOpenAIClient = () => {
+  const apiKey = process.env.OPENAI_API_KEY;
+  if (!apiKey) {
+    console.error('OPENAI_API_KEY is not set!');
+    throw new Error('OPENAI_API_KEY environment variable is required');
+  }
+  return new OpenAI({
+    apiKey,
+  });
+};
+
+const openai = getOpenAIClient();
 
 const AnalysisResponseSchema = z.object({
   starScore: z.number().int().min(0).max(5),
@@ -126,15 +136,15 @@ Return JSON only.`;
 const EnhancedAnalysisResponseSchema = z.object({
   questionAnswered: z.boolean(),
   answerQuality: z.number().int().min(0).max(5),
-  whatWasRight: z.array(z.string().max(50)).min(2).max(4),
-  whatWasWrong: z.array(z.string().max(50)).min(2).max(4),
-  betterWording: z.array(z.string().max(50)).min(2).max(3),
+  whatWasRight: z.array(z.string()).min(2).max(4), // Removed max(50) to allow longer strings
+  whatWasWrong: z.array(z.string()).min(2).max(4), // Removed max(50) to allow longer strings
+  betterWording: z.array(z.string()).min(2).max(3), // Removed max(50) to allow longer strings
   starScore: z.number().int().min(0).max(5),
   impactScore: z.number().int().min(0).max(5),
   clarityScore: z.number().int().min(0).max(5),
   technicalAccuracy: z.number().int().min(0).max(5),
   terminologyUsage: z.number().int().min(0).max(5),
-  tips: z.array(z.string().max(20)).length(5),
+  tips: z.array(z.string()).length(5), // Removed max(20) to allow longer tips
 });
 
 export type EnhancedAnalysisResponse = z.infer<typeof EnhancedAnalysisResponseSchema>;
@@ -234,12 +244,21 @@ Given a transcript and question context, return strict JSON with:
   * 2: Mostly generic terms, lacks domain-specific language
   * 1: Very few or incorrect technical terms
   * 0: No technical terminology used
-- tips: array of 5 actionable tips ${depthInstructions}:
+- tips: array of exactly 5 actionable tips (each tip can be up to 50 words):
   1. Question relevance tip - Did you answer the question? What's missing or off-topic?
   2. Content/structure tip - specific to what's missing or weak in this answer (STAR, metrics, organization)
   3. Technical accuracy tip - specific to the question domain and expected answer (correctness, depth, concepts)
   4. Delivery/confidence tip - address filler words, pacing, or confidence issues observed (specific counts/rates)
   5. Specific improvement for this answer - what to change in this exact response (concrete, actionable)
+
+CRITICAL: You MUST return all required fields. The JSON must include:
+- questionAnswered (boolean)
+- answerQuality (number 0-5)
+- whatWasRight (array of 2-4 strings)
+- whatWasWrong (array of 2-4 strings)
+- betterWording (array of 2-3 strings)
+- starScore, impactScore, clarityScore, technicalAccuracy, terminologyUsage (all numbers 0-5)
+- tips (array of exactly 5 strings)
 
 For technicalAccuracy:
 - 5: Demonstrates deep, accurate technical knowledge specific to the domain
@@ -397,6 +416,9 @@ Return JSON only.`;
 
   while (attempts < maxAttempts) {
     try {
+      console.log(`AI analysis attempt ${attempts + 1}/${maxAttempts}...`);
+      console.log('Prompt length:', userPrompt.length, 'System prompt length:', systemPrompt.length);
+      
       const completion = await openai.chat.completions.create({
         model: 'gpt-4o-mini',
         messages: [
@@ -407,15 +429,19 @@ Return JSON only.`;
         temperature: 0.3,
         max_tokens: 2500, // Increased for more detailed analysis (questionAnswered, whatWasRight/Wrong, betterWording)
       });
+      
+      console.log('OpenAI API call successful');
 
       const content = completion.choices[0]?.message?.content;
       if (!content) {
-        throw new Error('No content in response');
+        console.error('OpenAI returned empty content');
+        throw new Error('No content in response from OpenAI');
       }
 
       // Log for debugging (truncate if too long)
       const logContent = content.length > 500 ? content.substring(0, 500) + '...' : content;
-      console.log('OpenAI response (first 500 chars):', logContent);
+      console.log('OpenAI response received (first 500 chars):', logContent);
+      console.log('Full response length:', content.length);
 
       let parsed;
       try {
@@ -429,19 +455,35 @@ Return JSON only.`;
       // Validate with schema
       try {
         const validated = EnhancedAnalysisResponseSchema.parse(parsed);
+        console.log('Schema validation passed');
         return validated;
       } catch (validationError) {
         console.error('Schema validation error:', validationError);
-        console.error('Parsed content:', JSON.stringify(parsed, null, 2));
+        console.error('Parsed content keys:', Object.keys(parsed || {}));
+        console.error('Parsed content:', JSON.stringify(parsed, null, 2).substring(0, 2000));
+        
+        // Try to provide helpful error message
+        if (validationError instanceof z.ZodError) {
+          const missingFields = validationError.issues.map(issue => issue.path.join('.')).join(', ');
+          console.error('Missing or invalid fields:', missingFields);
+          throw new Error(`Schema validation failed. Missing/invalid fields: ${missingFields}. Full error: ${validationError.message}`);
+        }
         throw new Error(`Schema validation failed: ${validationError instanceof Error ? validationError.message : 'Unknown error'}`);
       }
     } catch (error) {
-      console.error(`Analysis attempt ${attempts + 1} failed:`, error);
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      const errorStack = error instanceof Error ? error.stack : undefined;
+      console.error(`Analysis attempt ${attempts + 1} failed:`, errorMessage);
+      if (errorStack) {
+        console.error('Error stack:', errorStack);
+      }
       attempts++;
       
       if (attempts >= maxAttempts) {
         // Log the error for debugging
-        console.error('All analysis attempts failed. Last error:', error);
+        console.error('All analysis attempts failed. Last error:', errorMessage);
+        console.error('Transcript length:', transcript.length);
+        console.error('Transcript preview:', transcript.substring(0, 300));
         
         // Return more helpful fallback based on transcript length
         const hasContent = transcript.trim().length > 10;
