@@ -160,10 +160,10 @@ export function MicRecorder({
       {isRecording && (
         <div className="w-full max-w-xs">
           <div className="flex items-center justify-between mb-1">
-            <span className="text-xs text-gray-600">Audio Level</span>
-            <span className="text-xs text-gray-600">{Math.round(audioLevel)}%</span>
+            <span className="text-xs text-slate-700 dark:text-slate-300">Audio Level</span>
+            <span className="text-xs text-slate-700 dark:text-slate-300">{Math.round(audioLevel)}%</span>
           </div>
-          <div className="w-full h-2 bg-gray-200 rounded-full overflow-hidden">
+          <div className="w-full h-2 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden">
             <div
               className={`h-full transition-all duration-75 ${
                 audioLevel > 70
@@ -172,13 +172,13 @@ export function MicRecorder({
                   ? 'bg-yellow-500'
                   : audioLevel > 0
                   ? 'bg-red-500'
-                  : 'bg-gray-300'
+                  : 'bg-slate-300 dark:bg-slate-600'
               }`}
               style={{ width: `${audioLevel}%` }}
             />
           </div>
           {audioLevel < 5 && (
-            <p className="text-xs text-red-500 mt-1 text-center">
+            <p className="text-xs text-red-500 dark:text-red-400 mt-1 text-center">
               ⚠️ No audio detected - check your microphone
             </p>
           )}
@@ -186,14 +186,14 @@ export function MicRecorder({
       )}
 
       {isRecording && (
-        <div className="text-lg font-mono">{formatTime(duration)}</div>
+        <div className="text-lg font-mono text-slate-900 dark:text-slate-100">{formatTime(duration)}</div>
       )}
       {isRecording && (
         <div className="w-3 h-3 bg-red-500 rounded-full animate-pulse" />
       )}
       
       {!isRecording && !micConnected && (
-        <p className="text-sm text-gray-500 text-center max-w-xs">
+        <p className="text-sm text-slate-600 dark:text-slate-400 text-center max-w-xs">
           Click Record to start. Make sure your microphone is enabled.
         </p>
       )}

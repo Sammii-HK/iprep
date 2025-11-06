@@ -11,7 +11,7 @@ interface TrendChartProps {
 export function TrendChart({ data, label, color = '#3b82f6' }: TrendChartProps) {
   if (data.length === 0) {
     return (
-      <div className="flex items-center justify-center h-64 text-gray-400">
+      <div className="flex items-center justify-center h-64 text-slate-500 dark:text-slate-400">
         No data available
       </div>
     );

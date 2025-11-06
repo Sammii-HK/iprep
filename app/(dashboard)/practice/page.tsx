@@ -98,7 +98,12 @@ export default function PracticePage() {
 
   return (
     <div className="px-4 py-6">
-      <h1 className="text-3xl font-bold mb-6">Practice</h1>
+      <div className="mb-6">
+        <h1 className="text-3xl font-bold mb-2">Practice</h1>
+        <p className="text-slate-600 dark:text-slate-400 text-lg">
+          Free-form practice sessions where you can retry questions, view previous attempts, and improve through repetition. Perfect for learning and skill development.
+        </p>
+      </div>
 
       {showNewSession ? (
         <div className="bg-white dark:bg-slate-800 rounded-lg shadow-md p-6 mb-6 border border-slate-200 dark:border-slate-700">
@@ -192,12 +197,19 @@ export default function PracticePage() {
           </div>
         </div>
       ) : (
-        <button
-          onClick={() => setShowNewSession(true)}
-          className="mb-6 px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
-        >
-          New Practice Session
-        </button>
+        <div className="mb-6">
+          <button
+            onClick={() => setShowNewSession(true)}
+            className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
+          >
+            New Practice Session
+          </button>
+          <div className="mt-4 p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
+            <p className="text-sm text-slate-700 dark:text-slate-300">
+              <strong className="font-semibold">Practice Mode:</strong> Retry questions multiple times, view all your previous attempts, and navigate freely between questions. Great for learning and improvement.
+            </p>
+          </div>
+        </div>
       )}
 
       {sessions.length > 0 && (

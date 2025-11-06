@@ -1,13 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { handleApiError, NotFoundError } from '@/lib/errors';
-import { transcribeAudio, analyzeTranscript } from '@/lib/ai';
+import { transcribeAudio, analyzeTranscriptEnhanced } from '@/lib/ai';
 import { uploadAudio, getAudioUrl } from '@/lib/r2';
 import {
   countWords,
   countFillers,
-  calculateWPM,
-  calculateFillerRate,
   detectLongPauses,
 } from '@/lib/scoring';
 import {
@@ -46,7 +44,7 @@ export async function POST(request: NextRequest) {
       throw new NotFoundError('Quiz', quizId);
     }
 
-    const question = quiz.bank?.questions.find((q: any) => q.id === questionId);
+    const question = quiz.bank?.questions.find((q: { id: string }) => q.id === questionId);
     if (!question) {
       throw new NotFoundError('Question', questionId);
     }
@@ -81,16 +79,16 @@ export async function POST(request: NextRequest) {
       // Calculate metrics
       const wordCount = countWords(transcript);
       const fillerCount = countFillers(transcript);
-      const fillerRate = calculateFillerRate(fillerCount, wordCount);
       const longPauses = wordTimestamps ? detectLongPauses(wordTimestamps) : 0;
-      const duration =
-        wordTimestamps && wordTimestamps.length > 0
-          ? wordTimestamps[wordTimestamps.length - 1].end
-          : Math.max(30, wordCount / 2);
-      const wpm = calculateWPM(wordCount, duration);
 
-      // Analyze content
-      const analysis = await analyzeTranscript(transcript);
+      // Use enhanced analysis with technical accuracy (same as practice)
+      const questionTags = question.tags || [];
+      const analysis = await analyzeTranscriptEnhanced(
+        transcript,
+        questionTags,
+        'Senior Design Engineer / Design Engineering Leader',
+        ['clarity', 'impact statements', 'technical accuracy', 'resilience', 'performance']
+      );
       const confidenceScore = analyzeConfidenceFromTranscript(
         transcript,
         fillerCount,
@@ -99,14 +97,16 @@ export async function POST(request: NextRequest) {
       );
       const intonationScore = analyzeIntonationFromTranscript(transcript, wordCount);
 
-      // Calculate score (average of all metrics)
+      // Calculate score (average of all metrics including technical accuracy)
       score =
         (analysis.starScore +
           analysis.impactScore +
           analysis.clarityScore +
+          analysis.technicalAccuracy +
+          analysis.terminologyUsage +
           confidenceScore +
           intonationScore) /
-        5;
+        7;
 
       feedback = analysis.tips.join(' | ');
     } else {
@@ -119,10 +119,23 @@ export async function POST(request: NextRequest) {
       }
 
       try {
-        const analysis = await analyzeTranscript(answerText);
-        score = (analysis.starScore + analysis.impactScore + analysis.clarityScore) / 3;
+        // Use enhanced analysis for written answers too
+        const questionTags = question.tags || [];
+        const analysis = await analyzeTranscriptEnhanced(
+          answerText,
+          questionTags,
+          'Senior Design Engineer / Design Engineering Leader',
+          ['clarity', 'impact statements', 'technical accuracy', 'resilience', 'performance']
+        );
+        score =
+          (analysis.starScore +
+            analysis.impactScore +
+            analysis.clarityScore +
+            analysis.technicalAccuracy +
+            analysis.terminologyUsage) /
+          5;
         feedback = analysis.tips.join(' | ');
-      } catch (error) {
+      } catch {
         // If analysis fails, still save the attempt
         score = null;
         feedback = 'Could not analyze answer. Please try again.';

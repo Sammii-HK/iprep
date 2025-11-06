@@ -115,8 +115,15 @@ export default function QuizzesPage() {
 
   return (
     <div className="px-4 py-6">
-      <div className="flex justify-between items-center mb-6">
-        <h1 className="text-3xl font-bold">Quizzes</h1>
+      <div className="mb-6">
+        <div className="flex justify-between items-start mb-2">
+          <h1 className="text-3xl font-bold">Quizzes</h1>
+        </div>
+        <p className="text-slate-600 dark:text-slate-400 text-lg">
+          Structured assessments with completion tracking and scoring. Each question answered once to measure your performance. Supports both spoken (voice) and written answer formats.
+        </p>
+      </div>
+      <div className="flex justify-end mb-6">
         <button
           onClick={() => setShowCreateQuiz(!showCreateQuiz)}
           className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
@@ -128,6 +135,11 @@ export default function QuizzesPage() {
       {showCreateQuiz && (
         <div className="bg-white dark:bg-slate-800 rounded-lg shadow-md p-6 mb-6 border border-slate-200 dark:border-slate-700">
           <h2 className="text-xl font-semibold mb-4 text-slate-900 dark:text-slate-100">Create New Quiz</h2>
+          <div className="mb-4 p-3 bg-purple-50 dark:bg-purple-900/20 rounded-lg border border-purple-200 dark:border-purple-800">
+            <p className="text-sm text-slate-700 dark:text-slate-300">
+              <strong className="font-semibold">Quiz Mode:</strong> One-time assessment with completion tracking. Each question answered once. Supports both spoken and written formats. Perfect for testing your skills.
+            </p>
+          </div>
           <div className="space-y-4">
             <div>
               <label className="block text-sm font-medium mb-2 text-slate-900 dark:text-slate-100">Quiz Title</label>

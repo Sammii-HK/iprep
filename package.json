@@ -16,11 +16,11 @@
   },
   "lint-staged": {
     "*.{ts,tsx}": [
-      "eslint --fix --max-warnings=0",
+      "eslint --fix",
       "bash -c 'tsc --noEmit --skipLibCheck'"
     ],
     "*.{js,jsx}": [
-      "eslint --fix --max-warnings=0"
+      "eslint --fix"
     ]
   },
   "dependencies": {
