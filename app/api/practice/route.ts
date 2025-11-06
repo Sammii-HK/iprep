@@ -8,6 +8,7 @@ import {
   calculateWPM,
   calculateFillerRate,
   detectLongPauses,
+  detectLongPausesFromTranscript,
 } from '@/lib/scoring';
 import {
   analyzeConfidenceFromTranscript,
@@ -102,24 +103,14 @@ export async function POST(request: NextRequest) {
       type: audioFile.type,
     });
 
-    // Upload audio to R2 with timeout
-    let audioKey: string;
-    let audioUrl: string;
-    try {
-      audioKey = await Promise.race([
-        uploadAudio(audioBlob, audioFile.type),
-        new Promise<never>((_, reject) =>
-          setTimeout(() => reject(new Error('Upload timeout')), 30000)
-        ),
-      ]);
-      audioUrl = getAudioUrl(audioKey);
-    } catch {
-      throw new ExternalServiceError('R2', 'Failed to upload audio file');
-    }
-
-    // Transcribe with Whisper with timeout
+    // Optimize: Start transcription first (critical), then start upload in parallel
+    // We'll wait for upload only when we need to save
     let transcript: string;
     let wordTimestamps: Array<{ word: string; start: number; end: number }> | undefined;
+    const audioKey: string | null = null;
+    let audioUrl: string | null = null;
+    
+    // Start transcription (critical path - must complete)
     try {
       const transcriptionResult = await Promise.race([
         transcribeAudio(audioBlob),
@@ -133,6 +124,20 @@ export async function POST(request: NextRequest) {
       throw new ExternalServiceError('OpenAI Whisper', 'Failed to transcribe audio');
     }
 
+    // Start audio upload in background (non-blocking)
+    // We'll await it only when we need to save the audioUrl
+    const uploadPromise = Promise.race([
+      uploadAudio(audioBlob, audioFile.type),
+      new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error('Upload timeout')), 30000))
+    ]).then((key) => {
+      audioUrl = getAudioUrl(key);
+    }).catch((error) => {
+      // Log but don't fail - transcription and analysis are more important
+      console.error('Failed to upload audio to R2 (non-critical):', error);
+      audioUrl = null;
+    });
+
     // Validate transcript is not empty
     if (!transcript || transcript.trim().length === 0) {
       throw new ValidationError('Transcript is empty. Please ensure audio contains speech.');
@@ -142,13 +147,17 @@ export async function POST(request: NextRequest) {
     const wordCount = countWords(transcript);
     const fillerCount = countFillers(transcript);
     const fillerRate = calculateFillerRate(fillerCount, wordCount);
-    const longPauses = wordTimestamps ? detectLongPauses(wordTimestamps) : 0;
-
+    
     // Estimate duration from timestamps or use default
     const duration =
       wordTimestamps && wordTimestamps.length > 0
         ? wordTimestamps[wordTimestamps.length - 1].end
         : Math.max(30, wordCount / 2); // Rough estimate: 2 words per second
+    
+    // Detect long pauses - use timestamps if available, otherwise estimate from transcript
+    const longPauses = wordTimestamps && wordTimestamps.length > 0
+      ? detectLongPauses(wordTimestamps)
+      : detectLongPausesFromTranscript(transcript, duration);
 
     const wpm = calculateWPM(wordCount, duration);
 
@@ -188,7 +197,23 @@ export async function POST(request: NextRequest) {
     } catch (error) {
       console.error('Error in AI analysis:', error);
       // Don't throw - return fallback analysis instead
+      const wordCount = countWords(transcript);
       analysis = {
+        questionAnswered: wordCount > 20,
+        answerQuality: 2,
+        whatWasRight: [
+          'Your response was recorded successfully',
+          'You provided some content',
+        ],
+        whatWasWrong: [
+          'AI analysis temporarily unavailable - unable to assess answer quality',
+          'Unable to verify if question was fully answered',
+        ],
+        betterWording: [
+          'Try speaking for 2-3 minutes with clear structure',
+          'Use the STAR method: Situation, Task, Action, Result',
+          'Include specific metrics and examples',
+        ],
         starScore: 2,
         impactScore: 2,
         clarityScore: 2,
@@ -204,12 +229,15 @@ export async function POST(request: NextRequest) {
       };
     }
 
+    // Wait for audio upload to complete (or fail) before saving
+    await uploadPromise;
+    
     // Save SessionItem
     const sessionItem = await prisma.sessionItem.create({
       data: {
         sessionId,
         questionId,
-        audioUrl,
+        audioUrl: audioUrl || null,
         transcript,
         words: wordCount,
         wpm,
@@ -253,6 +281,11 @@ export async function POST(request: NextRequest) {
         terminologyUsage: analysis.terminologyUsage,
       },
       tips: analysis.tips,
+      questionAnswered: analysis.questionAnswered,
+      answerQuality: analysis.answerQuality,
+      whatWasRight: analysis.whatWasRight,
+      whatWasWrong: analysis.whatWasWrong,
+      betterWording: analysis.betterWording,
     });
   } catch (error) {
     const errorResponse = handleApiError(error);

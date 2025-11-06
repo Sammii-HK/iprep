@@ -34,6 +34,11 @@ interface SessionItem {
     clarity: number | null;
   };
   tips: string[];
+  questionAnswered?: boolean | null;
+  answerQuality?: number | null;
+  whatWasRight?: string[];
+  whatWasWrong?: string[];
+  betterWording?: string[];
 }
 
 export default function PracticeSessionPage() {
@@ -119,6 +124,11 @@ export default function PracticeSessionPage() {
           metrics: result.metrics,
           scores: result.scores,
           tips: result.tips,
+          questionAnswered: result.questionAnswered,
+          answerQuality: result.answerQuality,
+          whatWasRight: result.whatWasRight,
+          whatWasWrong: result.whatWasWrong,
+          betterWording: result.betterWording,
         });
         fetchSessionData(); // Refresh to get new session item
       } else {
@@ -191,12 +201,17 @@ export default function PracticeSessionPage() {
         {/* Right Column - Scorecard */}
         <div className="lg:col-span-1">
           {scorecard ? (
-            <Scorecard
-              metrics={scorecard.metrics}
-              scores={scorecard.scores}
-              tips={scorecard.tips}
-              audioUrl={scorecard.audioUrl}
-            />
+          <Scorecard
+            metrics={scorecard.metrics}
+            scores={scorecard.scores}
+            tips={scorecard.tips}
+            audioUrl={scorecard.audioUrl}
+            questionAnswered={scorecard.questionAnswered}
+            answerQuality={scorecard.answerQuality}
+            whatWasRight={scorecard.whatWasRight}
+            whatWasWrong={scorecard.whatWasWrong}
+            betterWording={scorecard.betterWording}
+          />
           ) : (
             <div className="bg-white dark:bg-slate-800 rounded-lg shadow-md p-6 border border-slate-200 dark:border-slate-700">
               <p className="text-slate-600 dark:text-slate-400 text-center">

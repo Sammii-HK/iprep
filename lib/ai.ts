@@ -124,6 +124,11 @@ Return JSON only.`;
 }
 
 const EnhancedAnalysisResponseSchema = z.object({
+  questionAnswered: z.boolean(),
+  answerQuality: z.number().int().min(0).max(5),
+  whatWasRight: z.array(z.string().max(50)).min(2).max(4),
+  whatWasWrong: z.array(z.string().max(50)).min(2).max(4),
+  betterWording: z.array(z.string().max(50)).min(2).max(3),
   starScore: z.number().int().min(0).max(5),
   impactScore: z.number().int().min(0).max(5),
   clarityScore: z.number().int().min(0).max(5),
@@ -183,6 +188,17 @@ IMPORTANT: When analyzing the transcript, pay special attention to:
 - Delivery: Assess confidence indicators (filler rate, pauses, word choice) and intonation patterns.
 
 Given a transcript and question context, return strict JSON with:
+- questionAnswered: boolean - Does the answer actually address the question asked? Check if key concepts from the question are covered.
+- answerQuality: number 0..5 - Overall quality of the answer
+  * 5: Fully answers question, accurate, well-structured, comprehensive
+  * 4: Answers question well with minor gaps or inaccuracies
+  * 3: Partially answers question but missing key points
+  * 2: Tangentially related but doesn't directly answer
+  * 1: Barely addresses the question
+  * 0: Doesn't answer the question at all
+- whatWasRight: array of strings (2-4 items) - Specific things the candidate got right or did well
+- whatWasWrong: array of strings (2-4 items) - Specific things that were incorrect, missing, or could be improved
+- betterWording: array of strings (2-3 items) - Specific suggestions for better wording, phrasing, or structure
 - starScore 0..5 (Situation, Task, Action, Result present & balanced)
   * 5: All four components present, balanced, well-structured with clear transitions
   * 4: All components present but one is weaker or transitions need work
@@ -219,11 +235,11 @@ Given a transcript and question context, return strict JSON with:
   * 1: Very few or incorrect technical terms
   * 0: No technical terminology used
 - tips: array of 5 actionable tips ${depthInstructions}:
-  1. Content/structure tip - specific to what's missing or weak in this answer (STAR, metrics, organization)
-  2. Technical accuracy tip - specific to the question domain and expected answer (correctness, depth, concepts)
-  3. Delivery/confidence tip - address filler words, pacing, or confidence issues observed (specific counts/rates)
-  4. Specific improvement for this answer - what to change in this exact response (concrete, actionable)
-  5. General speaking skill tip - broader improvement for future answers (practice techniques, mindset)
+  1. Question relevance tip - Did you answer the question? What's missing or off-topic?
+  2. Content/structure tip - specific to what's missing or weak in this answer (STAR, metrics, organization)
+  3. Technical accuracy tip - specific to the question domain and expected answer (correctness, depth, concepts)
+  4. Delivery/confidence tip - address filler words, pacing, or confidence issues observed (specific counts/rates)
+  5. Specific improvement for this answer - what to change in this exact response (concrete, actionable)
 
 For technicalAccuracy:
 - 5: Demonstrates deep, accurate technical knowledge specific to the domain
@@ -287,14 +303,43 @@ Question Tags: ${questionTags.length > 0 ? questionTags.join(', ') : 'general (n
 ${depthInstructions}
 
 **Analysis Framework:**
-Assess both speaking quality AND technical knowledge depth. Pay special attention to:
+**CRITICAL: First, assess if the question was actually answered.**
 
-1. Technical accuracy - does the answer demonstrate correct understanding of concepts related to the question tags? Compare against the expected answer/hint if provided.
-2. Terminology usage - does the answer use appropriate domain-specific terms from the question tags?
-3. Content quality - STAR structure (Situation, Task, Action, Result), impact statements with metrics, and clarity
-4. Filler words - count and note excessive use of "um", "uh", "like", "you know", "actually", "basically", "so", "well", "I mean", etc.
-5. Pacing and pauses - assess if pauses are natural or indicate uncertainty. Note if the speaker is rushing or too slow.
-6. Structure - is the answer well-organized with clear beginning, middle, and end?
+1. Question Relevance: Does the answer address the specific question asked? Identify:
+   - Key concepts from the question that should be covered
+   - Whether the answer directly responds to what was asked
+   - If the answer is off-topic or only tangentially related
+   - What specific parts of the question were answered vs. missed
+
+2. What Was Right: Identify 2-4 specific things the candidate got right:
+   - Correct technical concepts or facts
+   - Good examples or explanations
+   - Appropriate use of terminology
+   - Well-structured parts of the answer
+   - Effective use of STAR method (if applicable)
+
+3. What Was Wrong: Identify 2-4 specific things that were incorrect or missing:
+   - Incorrect technical information
+   - Missing key concepts or points
+   - Weak or missing examples
+   - Poor structure or organization
+   - Vague or unclear explanations
+
+4. Better Wording: Provide 2-3 specific suggestions for better phrasing:
+   - Replace vague terms with specific ones
+   - Improve sentence structure
+   - Add missing transitions
+   - Clarify confusing statements
+   - Use more precise terminology
+
+Then assess speaking quality AND technical knowledge depth:
+
+5. Technical accuracy - does the answer demonstrate correct understanding of concepts related to the question tags? Compare against the expected answer/hint if provided.
+6. Terminology usage - does the answer use appropriate domain-specific terms from the question tags?
+7. Content quality - STAR structure (Situation, Task, Action, Result), impact statements with metrics, and clarity
+8. Filler words - count and note excessive use of "um", "uh", "like", "you know", "actually", "basically", "so", "well", "I mean", etc.
+9. Pacing and pauses - assess if pauses are natural or indicate uncertainty. Note if the speaker is rushing or too slow.
+10. Structure - is the answer well-organized with clear beginning, middle, and end?
 
 When providing tips, be specific, actionable, and reference the transcript. Use these feedback templates:
 
@@ -360,7 +405,7 @@ Return JSON only.`;
         ],
         response_format: { type: 'json_object' },
         temperature: 0.3,
-        max_tokens: 1000,
+        max_tokens: 2500, // Increased for more detailed analysis (questionAnswered, whatWasRight/Wrong, betterWording)
       });
 
       const content = completion.choices[0]?.message?.content;
@@ -368,20 +413,28 @@ Return JSON only.`;
         throw new Error('No content in response');
       }
 
-      // Log for debugging
-      console.log('OpenAI response:', content);
+      // Log for debugging (truncate if too long)
+      const logContent = content.length > 500 ? content.substring(0, 500) + '...' : content;
+      console.log('OpenAI response (first 500 chars):', logContent);
 
       let parsed;
       try {
         parsed = JSON.parse(content);
       } catch (parseError) {
-        console.error('JSON parse error:', parseError, 'Content:', content);
+        console.error('JSON parse error:', parseError);
+        console.error('Content that failed to parse:', content.substring(0, 1000));
         throw new Error(`Failed to parse JSON: ${parseError instanceof Error ? parseError.message : 'Unknown error'}`);
       }
 
       // Validate with schema
-      const validated = EnhancedAnalysisResponseSchema.parse(parsed);
-      return validated;
+      try {
+        const validated = EnhancedAnalysisResponseSchema.parse(parsed);
+        return validated;
+      } catch (validationError) {
+        console.error('Schema validation error:', validationError);
+        console.error('Parsed content:', JSON.stringify(parsed, null, 2));
+        throw new Error(`Schema validation failed: ${validationError instanceof Error ? validationError.message : 'Unknown error'}`);
+      }
     } catch (error) {
       console.error(`Analysis attempt ${attempts + 1} failed:`, error);
       attempts++;
@@ -392,7 +445,29 @@ Return JSON only.`;
         
         // Return more helpful fallback based on transcript length
         const hasContent = transcript.trim().length > 10;
+        const wordCount = transcript.trim().split(/\s+/).filter(w => w.length > 0).length;
         return {
+          questionAnswered: wordCount > 20, // Likely answered if substantial content
+          answerQuality: hasContent ? 2 : 1,
+          whatWasRight: hasContent ? [
+            'Your response was recorded successfully',
+            'You provided some content',
+          ] : [
+            'Recording was successful',
+            'Audio quality was good',
+          ],
+          whatWasWrong: hasContent ? [
+            'AI analysis temporarily unavailable - unable to assess answer quality',
+            'Unable to verify if question was fully answered',
+          ] : [
+            'Response is too brief to analyze',
+            'Please provide more detailed answer',
+          ],
+          betterWording: [
+            'Try speaking for 2-3 minutes with clear structure',
+            'Use the STAR method: Situation, Task, Action, Result',
+            'Include specific metrics and examples',
+          ],
           starScore: hasContent ? 2 : 1,
           impactScore: hasContent ? 2 : 1,
           clarityScore: hasContent ? 2 : 1,

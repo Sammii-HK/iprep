@@ -72,10 +72,45 @@ export function detectLongPauses(
     const gap = (words[i].start - words[i - 1].end) * 1000; // Convert to ms
     if (gap > thresholdMs) {
       longPauses++;
+      // Count very long pauses (>2s) as multiple pauses
+      if (gap > 2000) {
+        longPauses += Math.floor((gap - 2000) / 1000);
+      }
     }
   }
 
   return longPauses;
+}
+
+/**
+ * Detect pauses from transcript when word timestamps aren't available
+ * Uses punctuation and natural speech patterns to estimate pauses
+ */
+export function detectLongPausesFromTranscript(
+  transcript: string,
+  estimatedDurationSeconds: number
+): number {
+  if (!transcript || transcript.trim().length === 0) return 0;
+  
+  const wordCount = countWords(transcript);
+  if (wordCount === 0) return 0;
+  
+  // Estimate pauses based on:
+  // 1. Punctuation marks (periods, commas, question marks)
+  // 2. Ellipses and dashes (indicate hesitation)
+  // 3. Very short transcript relative to duration (suggests many pauses)
+  
+  const punctuationPauses = (transcript.match(/[.!?]/g) || []).length;
+  const hesitationMarkers = (transcript.match(/\.\.\.|--|—/g) || []).length;
+  
+  // If transcript is very short relative to duration, there are likely many pauses
+  const estimatedWPM = wordCount / (estimatedDurationSeconds / 60);
+  const pauseFromSlowSpeech = estimatedWPM < 100 ? Math.ceil((100 - estimatedWPM) / 20) : 0;
+  
+  // Combine indicators
+  const estimatedPauses = punctuationPauses + hesitationMarkers + pauseFromSlowSpeech;
+  
+  return Math.max(0, estimatedPauses);
 }
 
 export function countWords(text: string): number {
