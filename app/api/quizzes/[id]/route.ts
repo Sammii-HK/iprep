@@ -1,106 +1,121 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/db';
-import { handleApiError, NotFoundError } from '@/lib/errors';
+import { NextRequest, NextResponse } from "next/server";
+import { prisma } from "@/lib/db";
+import { requireAuth } from "@/lib/auth";
+import { handleApiError, NotFoundError, ValidationError } from "@/lib/errors";
 
 export async function GET(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+	request: NextRequest,
+	{ params }: { params: Promise<{ id: string }> }
 ) {
-  try {
-    const { id } = await params;
-    const { searchParams } = new URL(request.url);
-    const maxQuestionsParam = searchParams.get('maxQuestions');
-    const maxQuestions = maxQuestionsParam ? parseInt(maxQuestionsParam, 10) : undefined;
-    
-    const quiz = await prisma.quiz.findUnique({
-      where: { id },
-      include: {
-        bank: {
-          include: {
-            questions: {
-              orderBy: {
-                id: 'asc',
-              },
-            },
-          },
-        },
-        attempts: {
-          include: {
-            question: true,
-          },
-          orderBy: {
-            startedAt: 'desc',
-          },
-        },
-      },
-    });
+	try {
+		const user = await requireAuth(request);
+		const { id } = await params;
+		const { searchParams } = new URL(request.url);
+		const maxQuestionsParam = searchParams.get("maxQuestions");
+		const maxQuestions = maxQuestionsParam
+			? parseInt(maxQuestionsParam, 10)
+			: undefined;
 
-    if (!quiz) {
-      throw new NotFoundError('Quiz', id);
-    }
+		const quiz = await prisma.quiz.findUnique({
+			where: { id },
+			include: {
+				bank: {
+					include: {
+						questions: {
+							orderBy: {
+								id: "asc",
+							},
+						},
+					},
+				},
+				attempts: {
+					include: {
+						question: true,
+					},
+					orderBy: {
+						startedAt: "desc",
+					},
+				},
+			},
+		});
 
-    // Limit questions based on maxQuestions query param
-    let questions = quiz.bank?.questions || [];
-    if (maxQuestions && maxQuestions > 0 && questions.length > maxQuestions) {
-      questions = questions.slice(0, maxQuestions);
-    }
-    
-    return NextResponse.json({
-      id: quiz.id,
-      title: quiz.title,
-      description: quiz.description,
-      type: quiz.type,
-      questions,
-      attempts: quiz.attempts,
-      createdAt: quiz.createdAt,
-    });
-  } catch (error) {
-    const errorResponse = handleApiError(error);
-    return NextResponse.json(
-      { error: errorResponse.message },
-      { status: errorResponse.statusCode }
-    );
-  }
+		if (!quiz) {
+			throw new NotFoundError("Quiz", id);
+		}
+
+		// Verify user owns the quiz (unless admin)
+		if (quiz.userId && quiz.userId !== user.id && user.role !== "ADMIN") {
+			throw new ValidationError("You do not have access to this quiz");
+		}
+
+		// Limit questions based on maxQuestions query param
+		let questions = quiz.bank?.questions || [];
+		if (maxQuestions && maxQuestions > 0 && questions.length > maxQuestions) {
+			questions = questions.slice(0, maxQuestions);
+		}
+
+		return NextResponse.json({
+			id: quiz.id,
+			title: quiz.title,
+			description: quiz.description,
+			type: quiz.type,
+			questions,
+			attempts: quiz.attempts,
+			createdAt: quiz.createdAt,
+		});
+	} catch (error) {
+		const errorResponse = handleApiError(error);
+		return NextResponse.json(
+			{ error: errorResponse.message },
+			{ status: errorResponse.statusCode }
+		);
+	}
 }
 
 export async function DELETE(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+	request: NextRequest,
+	{ params }: { params: Promise<{ id: string }> }
 ) {
-  try {
-    const { id } = await params;
+	try {
+		const user = await requireAuth(request);
+		const { id } = await params;
 
-    const quiz = await prisma.quiz.findUnique({
-      where: { id },
-      include: {
-        _count: {
-          select: {
-            attempts: true,
-          },
-        },
-      },
-    });
+		const quiz = await prisma.quiz.findUnique({
+			where: { id },
+			include: {
+				_count: {
+					select: {
+						attempts: true,
+					},
+				},
+			},
+		});
 
-    if (!quiz) {
-      throw new NotFoundError('Quiz', id);
-    }
+		if (!quiz) {
+			throw new NotFoundError("Quiz", id);
+		}
 
-    // Delete the quiz (cascade will handle related attempts)
-    await prisma.quiz.delete({
-      where: { id },
-    });
+		// Verify user owns the quiz (unless admin)
+		if (quiz.userId && quiz.userId !== user.id && user.role !== "ADMIN") {
+			throw new ValidationError("You do not have access to this quiz");
+		}
 
-    return NextResponse.json({
-      message: 'Quiz deleted successfully',
-    });
-  } catch (error) {
-    const errorResponse = handleApiError(error);
-    return NextResponse.json(
-      {
-        error: errorResponse.message,
-        code: errorResponse.code,
-      },
-      { status: errorResponse.statusCode }
-    );
-  }
+		// Delete the quiz (cascade will handle related attempts)
+		await prisma.quiz.delete({
+			where: { id },
+		});
+
+		return NextResponse.json({
+			message: "Quiz deleted successfully",
+		});
+	} catch (error) {
+		const errorResponse = handleApiError(error);
+		return NextResponse.json(
+			{
+				error: errorResponse.message,
+				code: errorResponse.code,
+			},
+			{ status: errorResponse.statusCode }
+		);
+	}
 }

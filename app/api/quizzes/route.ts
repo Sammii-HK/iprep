@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
+import { requireAuth } from '@/lib/auth';
 import { handleApiError, ValidationError, NotFoundError } from '@/lib/errors';
 import { z } from 'zod';
 
@@ -13,10 +14,11 @@ const CreateQuizSchema = z.object({
 
 export async function POST(request: NextRequest) {
   try {
+    const user = await requireAuth(request);
     const body = await request.json();
     const validated = CreateQuizSchema.parse(body);
 
-    // Validate bank exists (required for quizzes)
+    // Validate bank exists and belongs to user (required for quizzes)
     const bank = await prisma.questionBank.findUnique({
       where: { id: validated.bankId },
       include: { questions: true },
@@ -24,6 +26,11 @@ export async function POST(request: NextRequest) {
 
     if (!bank) {
       throw new NotFoundError('QuestionBank', validated.bankId);
+    }
+
+    // Verify user owns the bank (unless admin)
+    if (bank.userId && bank.userId !== user.id && user.role !== 'ADMIN') {
+      throw new ValidationError('You do not have access to this question bank');
     }
 
     if (bank.questions.length === 0) {
@@ -36,6 +43,7 @@ export async function POST(request: NextRequest) {
         description: validated.description,
         type: validated.type,
         bankId: validated.bankId,
+        userId: user.id,
       },
       include: {
         bank: {
@@ -68,9 +76,14 @@ export async function POST(request: NextRequest) {
   }
 }
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
+    const user = await requireAuth(request);
+    
     const quizzes = await prisma.quiz.findMany({
+      where: {
+        userId: user.id,
+      },
       include: {
         bank: {
           include: {
