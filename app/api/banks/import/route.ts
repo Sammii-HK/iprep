@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { parseCSV, parseJSON } from '@/lib/csv';
+import { requireAuth } from '@/lib/auth';
 import { z } from 'zod';
+import { handleApiError, ValidationError } from '@/lib/errors';
 
 const ImportSchema = z.object({
   title: z.string().min(1),
@@ -9,12 +11,14 @@ const ImportSchema = z.object({
 
 export async function POST(request: NextRequest) {
   try {
+    const user = await requireAuth(request);
+    
     const formData = await request.formData();
     const title = formData.get('title') as string;
     const file = formData.get('file') as File;
 
     if (!file) {
-      return NextResponse.json({ error: 'No file provided' }, { status: 400 });
+      throw new ValidationError('No file provided');
     }
 
     // Validate title
@@ -31,23 +35,18 @@ export async function POST(request: NextRequest) {
     } else if (contentType.includes('json') || file.name.endsWith('.json')) {
       questions = parseJSON(content);
     } else {
-      return NextResponse.json(
-        { error: 'Unsupported file type. Use CSV or JSON.' },
-        { status: 400 }
-      );
+      throw new ValidationError('Unsupported file type. Use CSV or JSON.');
     }
 
     if (questions.length === 0) {
-      return NextResponse.json(
-        { error: 'No valid questions found in file. Please check the CSV format: text,tags,difficulty' },
-        { status: 400 }
-      );
+      throw new ValidationError('No valid questions found in file. Please check the CSV format: front,back');
     }
 
-    // Create bank and questions
+    // Create bank and questions (associate with user)
     const bank = await prisma.questionBank.create({
       data: {
         title: validated.title,
+        userId: user.id,
         questions: {
           create: questions,
         },
@@ -63,23 +62,10 @@ export async function POST(request: NextRequest) {
       questionCount: bank.questions.length,
     });
   } catch (error) {
-    console.error('Error importing bank:', error);
-    if (error instanceof z.ZodError) {
-      return NextResponse.json(
-        { error: 'Validation error', details: error.issues },
-        { status: 400 }
-      );
-    }
-    
-    // Provide more user-friendly error messages
-    const errorMessage = error instanceof Error ? error.message : 'Failed to import bank';
-    const friendlyMessage = errorMessage.includes('Row') 
-      ? errorMessage 
-      : `Import failed: ${errorMessage}. Please ensure your CSV has columns: front,back (back can be comma-separated tags or empty)`;
-    
+    const errorData = handleApiError(error);
     return NextResponse.json(
-      { error: friendlyMessage },
-      { status: 400 }
+      { error: errorData.message, code: errorData.code, details: errorData.details },
+      { status: errorData.statusCode }
     );
   }
 }

@@ -3,6 +3,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { PWAInstaller } from "@/components/PWAInstaller";
+import { AuthProvider } from "@/lib/auth-context";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -53,8 +54,10 @@ export default function RootLayout({
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
         <ErrorBoundary>
-          {children}
-          <PWAInstaller />
+          <AuthProvider>
+            {children}
+            <PWAInstaller />
+          </AuthProvider>
         </ErrorBoundary>
         <script
           dangerouslySetInnerHTML={{

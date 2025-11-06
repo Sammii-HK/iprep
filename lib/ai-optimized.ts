@@ -106,8 +106,7 @@ function buildOptimizedUserPrompt(
 		fillerRate: number;
 		wpm: number;
 		longPauses: number;
-	},
-	coachingPrefs?: CoachingPreferences
+	}
 ): string {
 	const wordCount =
 		metrics?.wordCount ||
@@ -228,8 +227,7 @@ export async function analyzeTranscriptOptimized(
 		questionText,
 		questionHint,
 		questionTags,
-		metrics,
-		coachingPrefs
+		metrics
 	);
 
 	console.log("Prompts built", {
@@ -311,7 +309,7 @@ export async function analyzeTranscriptOptimized(
 					} else {
 						throw parseError;
 					}
-				} catch (fallbackError) {
+				} catch {
 					throw new Error(
 						`Failed to parse JSON: ${
 							parseError instanceof Error ? parseError.message : "Unknown error"

@@ -1,17 +1,23 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
+import { requireAuth } from '@/lib/auth';
+import { handleApiError } from '@/lib/errors';
 
 export async function GET(request: NextRequest) {
   try {
+    const user = await requireAuth(request);
     const searchParams = request.nextUrl.searchParams;
     const range = parseInt(searchParams.get('range') || '30', 10);
 
     const startDate = new Date();
     startDate.setDate(startDate.getDate() - range);
 
-    // Get all session items in the date range
+    // Get all session items in the date range for this user
     const items = await prisma.sessionItem.findMany({
       where: {
+        session: {
+          userId: user.id,
+        },
         createdAt: {
           gte: startDate,
         },
@@ -39,25 +45,25 @@ export async function GET(request: NextRequest) {
     }
 
     // Calculate averages
-    const validWPM = items.filter((i: any) => i.wpm !== null).map((i: any) => i.wpm!);
+    const validWPM = items.filter((i) => i.wpm !== null).map((i) => i.wpm!);
     const validFillerRate = items
-      .filter((i: any) => i.fillerRate !== null)
-      .map((i: any) => i.fillerRate!);
+      .filter((i) => i.fillerRate !== null)
+      .map((i) => i.fillerRate!);
     const validConfidence = items
-      .filter((i: any) => i.confidenceScore !== null)
-      .map((i: any) => i.confidenceScore!);
+      .filter((i) => i.confidenceScore !== null)
+      .map((i) => i.confidenceScore!);
     const validIntonation = items
-      .filter((i: any) => i.intonationScore !== null)
-      .map((i: any) => i.intonationScore!);
+      .filter((i) => i.intonationScore !== null)
+      .map((i) => i.intonationScore!);
     const validStar = items
-      .filter((i: any) => i.starScore !== null)
-      .map((i: any) => i.starScore!);
+      .filter((i) => i.starScore !== null)
+      .map((i) => i.starScore!);
     const validImpact = items
-      .filter((i: any) => i.impactScore !== null)
-      .map((i: any) => i.impactScore!);
+      .filter((i) => i.impactScore !== null)
+      .map((i) => i.impactScore!);
     const validClarity = items
-      .filter((i: any) => i.clarityScore !== null)
-      .map((i: any) => i.clarityScore!);
+      .filter((i) => i.clarityScore !== null)
+      .map((i) => i.clarityScore!);
 
     const avgWPM =
       validWPM.length > 0
@@ -88,7 +94,7 @@ export async function GET(request: NextRequest) {
 
     // Calculate weakest tags (tags with lowest average scores)
     const tagScores: Record<string, number[]> = {};
-    items.forEach((item: any) => {
+    items.forEach((item) => {
       item.question.tags.forEach((tag: string) => {
         if (!tagScores[tag]) {
           tagScores[tag] = [];
@@ -116,7 +122,7 @@ export async function GET(request: NextRequest) {
 
     // Calculate daily trends (simplified - group by day)
     const dailyData: Record<string, { wpm: number[]; fillerRate: number[] }> = {};
-    items.forEach((item: any) => {
+    items.forEach((item) => {
       const date = item.createdAt.toISOString().split('T')[0];
       if (!dailyData[date]) {
         dailyData[date] = { wpm: [], fillerRate: [] };
@@ -158,10 +164,10 @@ export async function GET(request: NextRequest) {
       trends,
     });
   } catch (error) {
-    console.error('Error fetching analytics:', error);
+    const errorData = handleApiError(error);
     return NextResponse.json(
-      { error: 'Failed to fetch analytics' },
-      { status: 500 }
+      { error: errorData.message, code: errorData.code, details: errorData.details },
+      { status: errorData.statusCode }
     );
   }
 }

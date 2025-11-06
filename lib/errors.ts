@@ -91,6 +91,26 @@ export function handleApiError(error: unknown): {
 }
 
 /**
+ * Handle API errors and return NextResponse
+ */
+export function handleApiErrorResponse(error: unknown): Response {
+  const errorData = handleApiError(error);
+  return new Response(
+    JSON.stringify({
+      error: errorData.message,
+      code: errorData.code,
+      details: errorData.details,
+    }),
+    {
+      status: errorData.statusCode,
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    }
+  );
+}
+
+/**
  * Safe JSON parsing with error handling
  */
 export function safeJsonParse<T>(json: string, fallback: T): T {

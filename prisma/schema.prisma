@@ -10,14 +10,29 @@ generator client {
   provider = "prisma-client-js"
 }
 
+enum UserRole {
+  USER
+  ADMIN
+}
+
 model User {
-  id        String        @id @default(cuid())
-  email     String?       @unique
-  name      String?
-  createdAt DateTime      @default(now())
-  banks     QuestionBank[]
-  sessions  Session[]
-  quizzes   Quiz[]
+  id                    String        @id @default(cuid())
+  email                 String?       @unique
+  name                  String?
+  password              String?       // Hashed password (nullable for future OAuth)
+  role                  UserRole      @default(USER)
+  isPremium             Boolean       @default(false)
+  emailVerified         Boolean       @default(false)
+  emailVerificationToken String?
+  passwordResetToken    String?
+  passwordResetExpires  DateTime?
+  createdAt             DateTime      @default(now())
+  updatedAt             DateTime      @updatedAt
+  banks                 QuestionBank[]
+  sessions              Session[]
+  quizzes               Quiz[]
+  learningSummaries     LearningSummary[]
+  learningInsights      UserLearningInsight?
 }
 
 model QuestionBank {
@@ -45,14 +60,17 @@ model Question {
 }
 
 model Session {
-  id        String        @id @default(cuid())
-  userId    String?
-  title     String
-  bankId    String?
-  createdAt DateTime      @default(now())
-  user      User?         @relation(fields: [userId], references: [id])
-  bank      QuestionBank? @relation(fields: [bankId], references: [id])
-  items     SessionItem[]
+  id          String            @id @default(cuid())
+  userId      String?
+  title       String
+  bankId      String?
+  isCompleted Boolean           @default(false)
+  completedAt DateTime?
+  createdAt   DateTime          @default(now())
+  user        User?             @relation(fields: [userId], references: [id])
+  bank        QuestionBank?     @relation(fields: [bankId], references: [id])
+  items       SessionItem[]
+  summary     LearningSummary?
 }
 
 model SessionItem {
@@ -116,4 +134,32 @@ model QuizAttempt {
   completedAt DateTime?
   quiz        Quiz     @relation(fields: [quizId], references: [id])
   question    Question @relation(fields: [questionId], references: [id])
+}
+
+model LearningSummary {
+  id              String   @id @default(cuid())
+  userId          String
+  sessionId       String   @unique
+  bankId          String?
+  commonMistakes  Json     // Array of mistake patterns
+  weakTags        String[] // Tags with low scores
+  strongTags      String[] // Tags with high scores
+  recommendedFocus String[] // Tags to revisit
+  performanceByTag Json     // Tag -> avg score mapping
+  overallScore    Float?
+  createdAt       DateTime @default(now())
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  session         Session  @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+}
+
+model UserLearningInsight {
+  id                  String   @id @default(cuid())
+  userId              String   @unique
+  aggregatedWeakTags  String[] // Across all sessions
+  aggregatedStrongTags String[] // Across all sessions
+  topFocusAreas       String[] // Most recommended
+  totalSessions       Int      @default(0)
+  totalQuestions      Int      @default(0)
+  lastUpdated         DateTime @default(now()) @updatedAt
+  user                User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }

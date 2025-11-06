@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { uploadAudio, getAudioUrl } from '@/lib/r2';
-import { transcribeAudio, analyzeTranscriptEnhanced } from '@/lib/ai';
+import { transcribeAudio } from '@/lib/ai';
 import { analyzeTranscriptOptimized } from '@/lib/ai-optimized';
 import {
   countWords,
@@ -19,6 +19,7 @@ import { handleApiError, RateLimitError, ValidationError, NotFoundError, Externa
 import { validateAudioFile, validateId } from '@/lib/validation';
 import { getConfig } from '@/lib/config';
 import { CoachingPreferences } from '@/lib/coaching-config';
+import { requireAuth } from '@/lib/auth';
 
 // Simple in-memory rate limiting (upgrade to Redis in v2)
 const rateLimitMap = new Map<string, { count: number; resetTime: number }>();
@@ -83,6 +84,9 @@ export async function POST(request: NextRequest) {
       throw new ValidationError(audioValidation.error || 'Invalid audio file');
     }
 
+    // Require authentication
+    const user = await requireAuth(request);
+
     // Check if session and question exist (with question text for context)
     const [session, question] = await Promise.all([
       prisma.session.findUnique({ where: { id: sessionId } }),
@@ -99,6 +103,11 @@ export async function POST(request: NextRequest) {
       throw new NotFoundError('Question', questionId);
     }
 
+    // Verify user owns the session (unless admin)
+    if (session.userId && session.userId !== user.id && user.role !== 'ADMIN') {
+      throw new ValidationError('You do not have access to this session');
+    }
+
     // Convert File to Blob
     const audioBlob = new Blob([await audioFile.arrayBuffer()], {
       type: audioFile.type,
@@ -108,7 +117,6 @@ export async function POST(request: NextRequest) {
     // We'll wait for upload only when we need to save
     let transcript: string;
     let wordTimestamps: Array<{ word: string; start: number; end: number }> | undefined;
-    const audioKey: string | null = null;
     let audioUrl: string | null = null;
     
     // Start transcription (critical path - must complete)
