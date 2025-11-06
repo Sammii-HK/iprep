@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { uploadAudio, getAudioUrl } from '@/lib/r2';
 import { transcribeAudio, analyzeTranscriptEnhanced } from '@/lib/ai';
+import { analyzeTranscriptOptimized } from '@/lib/ai-optimized';
 import {
   countWords,
   countFillers,
@@ -207,9 +208,11 @@ export async function POST(request: NextRequest) {
         hasQuestionHint: !!question.hint,
       });
       
+      // Use optimized analysis (70% token reduction + caching)
       analysis = await Promise.race([
-        analyzeTranscriptEnhanced(
+        analyzeTranscriptOptimized(
           transcript,
+          question.id, // questionId for caching
           questionTags,
           undefined, // role - will use from preferences
           undefined, // priorities - will use from preferences
@@ -257,10 +260,7 @@ export async function POST(request: NextRequest) {
           'Your response was recorded successfully',
           'You provided some content',
         ],
-        whatWasWrong: [
-          `AI analysis failed: ${error instanceof Error ? error.message : 'Unknown error'}. Please check server logs.`,
-          'Unable to verify if question was fully answered',
-        ],
+        // whatWasWrong removed - not in schema anymore
         betterWording: [
           'Try speaking for 2-3 minutes with clear structure',
           'Use the STAR method: Situation, Task, Action, Result',
@@ -306,7 +306,7 @@ export async function POST(request: NextRequest) {
         questionAnswered: analysis.questionAnswered,
         answerQuality: analysis.answerQuality,
         whatWasRight: analysis.whatWasRight,
-        whatWasWrong: analysis.whatWasWrong,
+        // whatWasWrong removed - not in schema anymore
         betterWording: analysis.betterWording,
         aiFeedback: analysis.tips.join(' | '),
       },
@@ -341,7 +341,7 @@ export async function POST(request: NextRequest) {
       questionAnswered: analysis.questionAnswered,
       answerQuality: analysis.answerQuality,
       whatWasRight: analysis.whatWasRight,
-      whatWasWrong: analysis.whatWasWrong,
+      // whatWasWrong removed - not in schema anymore
       betterWording: analysis.betterWording,
     });
   } catch (error) {
