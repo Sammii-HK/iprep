@@ -1,111 +1,148 @@
-import OpenAI from 'openai';
-import { z } from 'zod';
+import OpenAI from "openai";
+import { z } from "zod";
 import {
-  CoachingPreferences,
-  DEFAULT_PREFERENCES,
-  getCoachingStylePrompt,
-  getExperienceLevelContext,
-  getFocusAreaContext,
-  getFeedbackDepthInstructions,
-} from './coaching-config';
+	CoachingPreferences,
+	DEFAULT_PREFERENCES,
+	getCoachingStylePrompt,
+	getExperienceLevelContext,
+	getFocusAreaContext,
+	getFeedbackDepthInstructions,
+} from "./coaching-config";
 
 // Initialize OpenAI client with validation
 const getOpenAIClient = () => {
-  const apiKey = process.env.OPENAI_API_KEY;
-  if (!apiKey) {
-    console.error('OPENAI_API_KEY is not set!');
-    throw new Error('OPENAI_API_KEY environment variable is required');
-  }
-  return new OpenAI({
-    apiKey,
-  });
+	const apiKey = process.env.OPENAI_API_KEY;
+	if (!apiKey) {
+		console.error("OPENAI_API_KEY is not set!");
+		throw new Error("OPENAI_API_KEY environment variable is required");
+	}
+	return new OpenAI({
+		apiKey,
+	});
 };
 
 const openai = getOpenAIClient();
 
 const AnalysisResponseSchema = z.object({
-  starScore: z.number().int().min(0).max(5),
-  impactScore: z.number().int().min(0).max(5),
-  clarityScore: z.number().int().min(0).max(5),
-  tips: z.array(z.string().max(16)).length(3),
+	starScore: z.number().int().min(0).max(5),
+	impactScore: z.number().int().min(0).max(5),
+	clarityScore: z.number().int().min(0).max(5),
+	tips: z.array(z.string().max(16)).length(3),
 });
 
 export type AnalysisResponse = z.infer<typeof AnalysisResponseSchema>;
 
 export async function transcribeAudio(
-  audioBlob: Blob,
-  context?: {
-    questionText?: string;
-    questionTags?: string[];
-  }
+	audioBlob: Blob,
+	context?: {
+		questionText?: string;
+		questionTags?: string[];
+	},
+	options?: {
+		includeWordTimestamps?: boolean; // Default: false for faster transcription
+	}
 ): Promise<{
-  transcript: string;
-  words?: Array<{ word: string; start: number; end: number }>;
+	transcript: string;
+	words?: Array<{ word: string; start: number; end: number }>;
 }> {
-  const file = new File([audioBlob], 'audio.webm', { type: 'audio/webm' });
+	const file = new File([audioBlob], "audio.webm", { type: "audio/webm" });
+	const includeTimestamps = options?.includeWordTimestamps ?? false;
 
-  // Build prompt with context to improve transcription accuracy
-  // Include technical terms and domain-specific vocabulary
-  let prompt = '';
-  if (context?.questionTags && context.questionTags.length > 0) {
-    prompt += `This is a technical interview answer. Common terms: ${context.questionTags.join(', ')}. `;
-  }
-  if (context?.questionText) {
-    // Extract key technical terms from question (capitalized words and acronyms)
-    const words = context.questionText.split(/\s+/);
-    const technicalTerms = words
-      .filter(word => {
-        const cleaned = word.replace(/[.,!?;:()]/g, ''); // Remove punctuation
-        return (
-          cleaned.length > 3 && (
-            /^[A-Z][a-z]+/.test(cleaned) || // Capitalized words (e.g., "React", "Docker")
-            /^[A-Z]{2,}$/.test(cleaned) || // Acronyms (e.g., "API", "SQL", "AWS")
-            /[A-Z]{2,}/.test(cleaned) // Words with multiple capitals (e.g., "JavaScript", "TypeScript")
-          )
-        );
-      })
-      .map(word => word.replace(/[.,!?;:()]/g, '')) // Clean punctuation
-      .filter((word, index, arr) => arr.indexOf(word) === index) // Remove duplicates
-      .slice(0, 15) // Limit to top 15 terms
-      .join(', ');
-    if (technicalTerms) {
-      prompt += `Technical vocabulary: ${technicalTerms}. `;
-    }
-  }
-  prompt += 'This is spoken English in a professional interview context. Include all filler words and hesitations (um, uh, erm, er, like, you know, etc.) exactly as spoken.';
+	// Build prompt with context to improve transcription accuracy
+	// PRIORITY: Filler words instruction must be included (Whisper tends to remove them by default)
+	// Whisper prompt max is ~200 chars, so we need to prioritize the filler word instruction
 
-  const response = await openai.audio.transcriptions.create({
-    file: file,
-    model: 'whisper-1',
-    language: 'en', // Specify English for better accuracy
-    response_format: 'verbose_json',
-    timestamp_granularities: ['word'],
-    ...(prompt ? { prompt: prompt.substring(0, 200) } : {}), // Whisper prompt max is ~200 chars
-  });
+	// Start with the most important instruction: include filler words
+	let prompt =
+		"CRITICAL: Include ALL filler words exactly as spoken: um, uh, erm, er, like, you know, actually, basically, so, well, I mean, etc. Do NOT remove or clean them. ";
 
-  return {
-    transcript: response.text,
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    words: (response as any).words?.map((w: any) => ({
-      word: w.word,
-      start: w.start,
-      end: w.end,
-    })),
-  };
+	// Add technical context if available (but keep it short to stay under 200 chars)
+	if (context?.questionTags && context.questionTags.length > 0) {
+		const tags = context.questionTags.slice(0, 5).join(", "); // Limit to 5 tags
+		prompt += `Technical terms: ${tags}. `;
+	}
+	if (context?.questionText) {
+		// Extract only the most important technical terms (limit to 3-4)
+		const words = context.questionText.split(/\s+/);
+		const technicalTerms = words
+			.filter((word) => {
+				const cleaned = word.replace(/[.,!?;:()]/g, "");
+				return (
+					cleaned.length > 3 &&
+					(/^[A-Z][a-z]+/.test(cleaned) || /^[A-Z]{2,}$/.test(cleaned))
+				);
+			})
+			.map((word) => word.replace(/[.,!?;:()]/g, ""))
+			.filter((word, index, arr) => arr.indexOf(word) === index)
+			.slice(0, 3) // Limit to top 3 terms to save space
+			.join(", ");
+		if (technicalTerms && prompt.length + technicalTerms.length < 180) {
+			prompt += `Vocab: ${technicalTerms}. `;
+		}
+	}
+
+	// Truncate to 200 chars max, but ensure filler word instruction is always included
+	const maxPromptLength = 200;
+	if (prompt.length > maxPromptLength) {
+		// Keep the first part (filler words instruction) and truncate the rest
+		const fillerInstruction =
+			"CRITICAL: Include ALL filler words exactly as spoken: um, uh, erm, er, like, you know, actually, basically, so, well, I mean, etc. Do NOT remove or clean them. ";
+		const remainingSpace = maxPromptLength - fillerInstruction.length;
+		if (remainingSpace > 0) {
+			prompt =
+				fillerInstruction +
+				prompt.substring(fillerInstruction.length, maxPromptLength);
+		} else {
+			prompt = fillerInstruction.substring(0, maxPromptLength);
+		}
+	}
+
+	// Optimize: Skip word timestamps for faster transcription (we can estimate pauses from transcript)
+	// Only request timestamps if explicitly needed (adds ~30-50% processing time)
+	const response = await openai.audio.transcriptions.create({
+		file: file,
+		model: "whisper-1",
+		language: "en", // Specify English for better accuracy
+		response_format: includeTimestamps ? "verbose_json" : "json", // Simpler format when no timestamps
+		...(includeTimestamps
+			? { timestamp_granularities: ["word"] as const }
+			: {}),
+		...(prompt ? { prompt: prompt } : {}),
+	});
+
+	return {
+		transcript: response.text,
+		// Only include word timestamps if requested (they add processing time)
+		...(includeTimestamps &&
+		(
+			response as {
+				words?: Array<{ word: string; start: number; end: number }>;
+			}
+		).words
+			? {
+					// eslint-disable-next-line @typescript-eslint/no-explicit-any
+					words: (response as any).words?.map((w: any) => ({
+						word: w.word,
+						start: w.start,
+						end: w.end,
+					})),
+			  }
+			: {}),
+	};
 }
 
 export async function analyzeTranscript(
-  transcript: string,
-  role: string = 'Senior Design Engineer / Design Engineering Leader',
-  priorities: string[] = [
-    'clarity',
-    'impact statements',
-    'resilience',
-    'accessibility',
-    'performance',
-  ]
+	transcript: string,
+	role: string = "Senior Design Engineer / Design Engineering Leader",
+	priorities: string[] = [
+		"clarity",
+		"impact statements",
+		"resilience",
+		"accessibility",
+		"performance",
+	]
 ): Promise<AnalysisResponse> {
-  const systemPrompt = `You are a concise interview coach.
+	const systemPrompt = `You are a concise interview coach.
 
 Given a transcript, return strict JSON with:
 - starScore 0..5 (Situation, Task, Action, Result present & balanced)
@@ -117,108 +154,117 @@ If the answer is too long or off-topic, reflect that in tips.
 
 Return JSON only, no markdown, no explanation.`;
 
-  const userPrompt = `Transcript:
+	const userPrompt = `Transcript:
 ${transcript}
 
 Context:
 - Role: ${role}
-- Priorities: ${priorities.join(', ')}
+- Priorities: ${priorities.join(", ")}
 
 Return JSON only.`;
 
-  let attempts = 0;
-  const maxAttempts = 3;
+	let attempts = 0;
+	const maxAttempts = 3;
 
-  while (attempts < maxAttempts) {
-    try {
-      const completion = await openai.chat.completions.create({
-        model: 'gpt-4o-mini',
-        messages: [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: userPrompt },
-        ],
-        response_format: { type: 'json_object' },
-        temperature: 0.3,
-      });
+	while (attempts < maxAttempts) {
+		try {
+			const completion = await openai.chat.completions.create({
+				model: "gpt-4o-mini",
+				messages: [
+					{ role: "system", content: systemPrompt },
+					{ role: "user", content: userPrompt },
+				],
+				response_format: { type: "json_object" },
+				temperature: 0.3,
+			});
 
-      const content = completion.choices[0]?.message?.content;
-      if (!content) {
-        throw new Error('No content in response');
-      }
+			const content = completion.choices[0]?.message?.content;
+			if (!content) {
+				throw new Error("No content in response");
+			}
 
-      const parsed = JSON.parse(content);
-      return AnalysisResponseSchema.parse(parsed);
-    } catch {
-      attempts++;
-        if (attempts >= maxAttempts) {
-          // Fallback: return basic scores
-          return {
-          starScore: 2,
-          impactScore: 2,
-          clarityScore: 2,
-          tips: [
-            'Could not analyze response',
-            'Please try again',
-            'Check your internet connection',
-          ],
-        };
-      }
-      // Wait a bit before retry
-      await new Promise((resolve) => setTimeout(resolve, 1000));
-    }
-  }
+			const parsed = JSON.parse(content);
+			return AnalysisResponseSchema.parse(parsed);
+		} catch {
+			attempts++;
+			if (attempts >= maxAttempts) {
+				// Fallback: return basic scores
+				return {
+					starScore: 2,
+					impactScore: 2,
+					clarityScore: 2,
+					tips: [
+						"Could not analyze response",
+						"Please try again",
+						"Check your internet connection",
+					],
+				};
+			}
+			// Wait a bit before retry
+			await new Promise((resolve) => setTimeout(resolve, 1000));
+		}
+	}
 
-  throw new Error('Failed to analyze transcript after retries');
+	throw new Error("Failed to analyze transcript after retries");
 }
 
 const EnhancedAnalysisResponseSchema = z.object({
-  questionAnswered: z.boolean(),
-  answerQuality: z.number().int().min(0).max(5),
-  whatWasRight: z.array(z.string()).min(2).max(4), // Removed max(50) to allow longer strings
-  whatWasWrong: z.array(z.string()).min(2).max(4), // Removed max(50) to allow longer strings
-  betterWording: z.array(z.string()).min(2).max(3), // Removed max(50) to allow longer strings
-  starScore: z.number().int().min(0).max(5),
-  impactScore: z.number().int().min(0).max(5),
-  clarityScore: z.number().int().min(0).max(5),
-  technicalAccuracy: z.number().int().min(0).max(5),
-  terminologyUsage: z.number().int().min(0).max(5),
-  tips: z.array(z.string()).length(5), // Removed max(20) to allow longer tips
+	questionAnswered: z.boolean(),
+	answerQuality: z.number().int().min(0).max(5),
+	whatWasRight: z.array(z.string()).min(2).max(4), // Removed max(50) to allow longer strings
+	whatWasWrong: z.array(z.string()).min(2).max(4), // Removed max(50) to allow longer strings
+	betterWording: z.array(z.string()).min(2).max(3), // Removed max(50) to allow longer strings
+	starScore: z.number().int().min(0).max(5),
+	impactScore: z.number().int().min(0).max(5),
+	clarityScore: z.number().int().min(0).max(5),
+	technicalAccuracy: z.number().int().min(0).max(5),
+	terminologyUsage: z.number().int().min(0).max(5),
+	tips: z.array(z.string()).length(5), // Removed max(20) to allow longer tips
 });
 
-export type EnhancedAnalysisResponse = z.infer<typeof EnhancedAnalysisResponseSchema>;
+export type EnhancedAnalysisResponse = z.infer<
+	typeof EnhancedAnalysisResponseSchema
+>;
 
 /**
  * Enhanced transcript analysis with technical knowledge assessment
  */
 export async function analyzeTranscriptEnhanced(
-  transcript: string,
-  questionTags: string[] = [],
-  role?: string,
-  priorities?: string[],
-  questionText?: string,
-  questionHint?: string | null,
-  preferences?: Partial<CoachingPreferences>,
-  metrics?: {
-    wordCount: number;
-    fillerCount: number;
-    fillerRate: number;
-    wpm: number;
-    longPauses: number;
-  }
+	transcript: string,
+	questionTags: string[] = [],
+	role?: string,
+	priorities?: string[],
+	questionText?: string,
+	questionHint?: string | null,
+	preferences?: Partial<CoachingPreferences>,
+	metrics?: {
+		wordCount: number;
+		fillerCount: number;
+		fillerRate: number;
+		wpm: number;
+		longPauses: number;
+	}
 ): Promise<EnhancedAnalysisResponse> {
-  // Merge preferences with defaults
-  const coachingPrefs: CoachingPreferences = {
-    ...DEFAULT_PREFERENCES,
-    ...preferences,
-    role: role || preferences?.role || DEFAULT_PREFERENCES.role,
-    priorities: priorities || preferences?.priorities || DEFAULT_PREFERENCES.priorities,
-  };
-  const stylePrompt = getCoachingStylePrompt(coachingPrefs.style);
-  const experienceContext = getExperienceLevelContext(coachingPrefs.experienceLevel);
-  const focusContext = getFocusAreaContext(coachingPrefs.focusAreas);
-  const depthInstructions = getFeedbackDepthInstructions(coachingPrefs.feedbackDepth);
+	// Merge preferences with defaults
+	const coachingPrefs: CoachingPreferences = {
+		...DEFAULT_PREFERENCES,
+		...preferences,
+		role: role || preferences?.role || DEFAULT_PREFERENCES.role,
+		priorities:
+			priorities || preferences?.priorities || DEFAULT_PREFERENCES.priorities,
+	};
+	const stylePrompt = getCoachingStylePrompt(coachingPrefs.style);
+	const experienceContext = getExperienceLevelContext(
+		coachingPrefs.experienceLevel
+	);
+	const focusContext = getFocusAreaContext(coachingPrefs.focusAreas);
+	const depthInstructions = getFeedbackDepthInstructions(
+		coachingPrefs.feedbackDepth
+	);
 
-  const systemPrompt = `You are an expert interview coach specializing in technical interviews for ${coachingPrefs.experienceLevel} engineering roles with deep knowledge of industry best practices, common pitfalls, and effective feedback techniques.
+	const systemPrompt = `You are an expert interview coach specializing in technical interviews for ${
+		coachingPrefs.experienceLevel
+	} engineering roles with deep knowledge of industry best practices, common pitfalls, and effective feedback techniques.
 
 ${stylePrompt}
 
@@ -226,13 +272,23 @@ ${experienceContext}
 
 ${focusContext}
 
-Your role is to provide ${coachingPrefs.feedbackDepth}, actionable feedback that helps candidates improve their interview performance. Be specific and focus on actionable improvements.
+Your role is to provide ${
+		coachingPrefs.feedbackDepth
+	}, actionable feedback that helps candidates improve their interview performance. Be specific and focus on actionable improvements.
 
 **Industry Knowledge Base:**
 - Technical interviews require: STAR method (Situation, Task, Action, Result), quantifiable metrics, domain-specific terminology, trade-off discussions, and learning reflection
 - Common pitfalls: rambling without structure, no metrics, technical inaccuracies, weak STAR structure, excessive filler words (>5%), no trade-offs, no learning/reflection
 - Domain terminology: Use precise terms (e.g., "reduced latency by implementing Redis caching" not "made it faster")
-- Scoring benchmarks: ${coachingPrefs.experienceLevel} level expects ${coachingPrefs.experienceLevel === 'junior' ? 'basic structure, fundamentals, learning mindset' : coachingPrefs.experienceLevel === 'mid' ? 'good structure, some metrics, solid knowledge' : coachingPrefs.experienceLevel === 'senior' ? 'excellent structure, strong metrics, deep expertise' : 'perfect structure, strategic metrics, strategic vision'}
+- Scoring benchmarks: ${coachingPrefs.experienceLevel} level expects ${
+		coachingPrefs.experienceLevel === "junior"
+			? "basic structure, fundamentals, learning mindset"
+			: coachingPrefs.experienceLevel === "mid"
+			? "good structure, some metrics, solid knowledge"
+			: coachingPrefs.experienceLevel === "senior"
+			? "excellent structure, strong metrics, deep expertise"
+			: "perfect structure, strategic metrics, strategic vision"
+	}
 
 IMPORTANT: When analyzing the transcript, pay special attention to:
 - Filler words: Count instances of "um", "uh", "like", "you know", "actually", "basically", "so", "well", "I mean", etc. Note patterns and frequency.
@@ -331,39 +387,47 @@ For terminologyUsage:
 
 Return JSON only, no markdown, no explanation.`;
 
-  // Build domain context from tags
-  const domainContext = questionTags.length > 0 
-    ? `Question Domain: ${questionTags.join(', ')}
+	// Build domain context from tags
+	const domainContext =
+		questionTags.length > 0
+			? `Question Domain: ${questionTags.join(", ")}
     
 For technical accuracy assessment, evaluate if the answer:
-- Uses correct concepts and terminology for: ${questionTags.join(', ')}
+- Uses correct concepts and terminology for: ${questionTags.join(", ")}
 - Demonstrates understanding of domain-specific principles
 - Provides technically sound solutions or explanations
 - Avoids common misconceptions in this domain`
-    : 'General technical question - assess overall technical accuracy.';
+			: "General technical question - assess overall technical accuracy.";
 
-  // Build comprehensive context
-  let questionContext = '';
-  if (questionText) {
-    questionContext += `Question: ${questionText}\n\n`;
-  }
-  if (questionHint) {
-    questionContext += `Expected Answer/Hint: ${questionHint}\n\n`;
-  }
+	// Build comprehensive context
+	let questionContext = "";
+	if (questionText) {
+		questionContext += `Question: ${questionText}\n\n`;
+	}
+	if (questionHint) {
+		questionContext += `Expected Answer/Hint: ${questionHint}\n\n`;
+	}
 
-  // Calculate metrics for context (if available from transcript analysis)
-  const wordCount = metrics?.wordCount || transcript.trim().split(/\s+/).filter(w => w.length > 0).length;
-  const fillerCount = metrics?.fillerCount || 0;
-  const fillerRate = metrics?.fillerRate || 0;
-  const wpm = metrics?.wpm || 0;
-  const longPauses = metrics?.longPauses || 0;
-  
-  const userPrompt = `${questionContext}Transcript of Answer:
+	// Calculate metrics for context (if available from transcript analysis)
+	const wordCount =
+		metrics?.wordCount ||
+		transcript
+			.trim()
+			.split(/\s+/)
+			.filter((w) => w.length > 0).length;
+	const fillerCount = metrics?.fillerCount || 0;
+	const fillerRate = metrics?.fillerRate || 0;
+	const wpm = metrics?.wpm || 0;
+	const longPauses = metrics?.longPauses || 0;
+
+	const userPrompt = `${questionContext}Transcript of Answer:
 ${transcript}
 
 **Actual Transcript Metrics (use these for scoring):**
 - Word count: ${wordCount} words
-- Estimated length: ${wordCount > 0 ? Math.round(wordCount / 150) : 0} minutes (assuming ~150 WPM)
+- Estimated length: ${
+		wordCount > 0 ? Math.round(wordCount / 150) : 0
+	} minutes (assuming ~150 WPM)
 - Filler words: ${fillerCount} instances (${fillerRate.toFixed(1)}% of words)
 - Words per minute: ${wpm} WPM
 - Long pauses (>800ms): ${longPauses} pauses
@@ -377,11 +441,15 @@ ${transcript}
 Context:
 - Target Role: ${coachingPrefs.role}
 - Experience Level: ${coachingPrefs.experienceLevel}
-- Priorities: ${coachingPrefs.priorities.join(', ')}
-- Focus Areas: ${coachingPrefs.focusAreas.join(', ')}
+- Priorities: ${coachingPrefs.priorities.join(", ")}
+- Focus Areas: ${coachingPrefs.focusAreas.join(", ")}
 ${domainContext}
 
-Question Tags: ${questionTags.length > 0 ? questionTags.join(', ') : 'general (no specific domain)'}
+Question Tags: ${
+		questionTags.length > 0
+			? questionTags.join(", ")
+			: "general (no specific domain)"
+	}
 
 ${depthInstructions}
 
@@ -486,137 +554,173 @@ When providing tips, be specific, actionable, and reference the transcript. Use 
 
 Return JSON only.`;
 
-  let attempts = 0;
-  const maxAttempts = 3;
+	let attempts = 0;
+	const maxAttempts = 3;
 
-  while (attempts < maxAttempts) {
-    try {
-      console.log(`AI analysis attempt ${attempts + 1}/${maxAttempts}...`);
-      console.log('Prompt length:', userPrompt.length, 'System prompt length:', systemPrompt.length);
-      
-      const completion = await openai.chat.completions.create({
-        model: 'gpt-4o-mini',
-        messages: [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: userPrompt },
-        ],
-        response_format: { type: 'json_object' },
-        temperature: 0.5, // Increased from 0.3 to allow more variation in scoring
-        max_tokens: 2500, // Increased for more detailed analysis (questionAnswered, whatWasRight/Wrong, betterWording)
-      });
-      
-      console.log('OpenAI API call successful');
+	while (attempts < maxAttempts) {
+		try {
+			console.log(`AI analysis attempt ${attempts + 1}/${maxAttempts}...`);
+			console.log(
+				"Prompt length:",
+				userPrompt.length,
+				"System prompt length:",
+				systemPrompt.length
+			);
 
-      const content = completion.choices[0]?.message?.content;
-      if (!content) {
-        console.error('OpenAI returned empty content');
-        throw new Error('No content in response from OpenAI');
-      }
+			const completion = await openai.chat.completions.create({
+				model: "gpt-4o-mini",
+				messages: [
+					{ role: "system", content: systemPrompt },
+					{ role: "user", content: userPrompt },
+				],
+				response_format: { type: "json_object" },
+				temperature: 0.5, // Increased from 0.3 to allow more variation in scoring
+				max_tokens: 2500, // Increased for more detailed analysis (questionAnswered, whatWasRight/Wrong, betterWording)
+			});
 
-      // Log for debugging (truncate if too long)
-      const logContent = content.length > 500 ? content.substring(0, 500) + '...' : content;
-      console.log('OpenAI response received (first 500 chars):', logContent);
-      console.log('Full response length:', content.length);
+			console.log("OpenAI API call successful");
 
-      let parsed;
-      try {
-        parsed = JSON.parse(content);
-      } catch (parseError) {
-        console.error('JSON parse error:', parseError);
-        console.error('Content that failed to parse:', content.substring(0, 1000));
-        throw new Error(`Failed to parse JSON: ${parseError instanceof Error ? parseError.message : 'Unknown error'}`);
-      }
+			const content = completion.choices[0]?.message?.content;
+			if (!content) {
+				console.error("OpenAI returned empty content");
+				throw new Error("No content in response from OpenAI");
+			}
 
-      // Validate with schema
-      try {
-        const validated = EnhancedAnalysisResponseSchema.parse(parsed);
-        console.log('Schema validation passed');
-        console.log('AI returned scores:', {
-          starScore: validated.starScore,
-          impactScore: validated.impactScore,
-          clarityScore: validated.clarityScore,
-          technicalAccuracy: validated.technicalAccuracy,
-          terminologyUsage: validated.terminologyUsage,
-          answerQuality: validated.answerQuality,
-        });
-        return validated;
-      } catch (validationError) {
-        console.error('Schema validation error:', validationError);
-        console.error('Parsed content keys:', Object.keys(parsed || {}));
-        console.error('Parsed content:', JSON.stringify(parsed, null, 2).substring(0, 2000));
-        
-        // Try to provide helpful error message
-        if (validationError instanceof z.ZodError) {
-          const missingFields = validationError.issues.map(issue => issue.path.join('.')).join(', ');
-          console.error('Missing or invalid fields:', missingFields);
-          throw new Error(`Schema validation failed. Missing/invalid fields: ${missingFields}. Full error: ${validationError.message}`);
-        }
-        throw new Error(`Schema validation failed: ${validationError instanceof Error ? validationError.message : 'Unknown error'}`);
-      }
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
-      const errorStack = error instanceof Error ? error.stack : undefined;
-      console.error(`Analysis attempt ${attempts + 1} failed:`, errorMessage);
-      if (errorStack) {
-        console.error('Error stack:', errorStack);
-      }
-      attempts++;
-      
-      if (attempts >= maxAttempts) {
-        // Log the error for debugging
-        console.error('All analysis attempts failed. Last error:', errorMessage);
-        console.error('Transcript length:', transcript.length);
-        console.error('Transcript preview:', transcript.substring(0, 300));
-        
-        // Return more helpful fallback based on transcript length
-        const hasContent = transcript.trim().length > 10;
-        const wordCount = transcript.trim().split(/\s+/).filter(w => w.length > 0).length;
-        return {
-          questionAnswered: wordCount > 20, // Likely answered if substantial content
-          answerQuality: hasContent ? 2 : 1,
-          whatWasRight: hasContent ? [
-            'Your response was recorded successfully',
-            'You provided some content',
-          ] : [
-            'Recording was successful',
-            'Audio quality was good',
-          ],
-          whatWasWrong: hasContent ? [
-            'AI analysis temporarily unavailable - unable to assess answer quality',
-            'Unable to verify if question was fully answered',
-          ] : [
-            'Response is too brief to analyze',
-            'Please provide more detailed answer',
-          ],
-          betterWording: [
-            'Try speaking for 2-3 minutes with clear structure',
-            'Use the STAR method: Situation, Task, Action, Result',
-            'Include specific metrics and examples',
-          ],
-          starScore: hasContent ? 2 : 1,
-          impactScore: hasContent ? 2 : 1,
-          clarityScore: hasContent ? 2 : 1,
-          technicalAccuracy: hasContent ? 2 : 1,
-          terminologyUsage: hasContent ? 2 : 1,
-          tips: hasContent ? [
-            'AI analysis temporarily unavailable',
-            'Your response was recorded successfully',
-            'Try speaking more clearly and structure your answer',
-            'Use the STAR method: Situation, Task, Action, Result',
-            'Include specific metrics and outcomes when possible',
-          ] : [
-            'Please provide a longer response',
-            'Try speaking for at least 30 seconds',
-            'Structure your answer with clear examples',
-            'Include specific details and outcomes',
-            'Practice speaking clearly and confidently',
-          ],
-        };
-      }
-      // Exponential backoff for retries
-      await new Promise((resolve) => setTimeout(resolve, 1000 * attempts));
-    }
-  }
+			// Log for debugging (truncate if too long)
+			const logContent =
+				content.length > 500 ? content.substring(0, 500) + "..." : content;
+			console.log("OpenAI response received (first 500 chars):", logContent);
+			console.log("Full response length:", content.length);
 
-  throw new Error('Failed to analyze transcript after retries');
+			let parsed;
+			try {
+				parsed = JSON.parse(content);
+			} catch (parseError) {
+				console.error("JSON parse error:", parseError);
+				console.error(
+					"Content that failed to parse:",
+					content.substring(0, 1000)
+				);
+				throw new Error(
+					`Failed to parse JSON: ${
+						parseError instanceof Error ? parseError.message : "Unknown error"
+					}`
+				);
+			}
+
+			// Validate with schema
+			try {
+				const validated = EnhancedAnalysisResponseSchema.parse(parsed);
+				console.log("Schema validation passed");
+				console.log("AI returned scores:", {
+					starScore: validated.starScore,
+					impactScore: validated.impactScore,
+					clarityScore: validated.clarityScore,
+					technicalAccuracy: validated.technicalAccuracy,
+					terminologyUsage: validated.terminologyUsage,
+					answerQuality: validated.answerQuality,
+				});
+				return validated;
+			} catch (validationError) {
+				console.error("Schema validation error:", validationError);
+				console.error("Parsed content keys:", Object.keys(parsed || {}));
+				console.error(
+					"Parsed content:",
+					JSON.stringify(parsed, null, 2).substring(0, 2000)
+				);
+
+				// Try to provide helpful error message
+				if (validationError instanceof z.ZodError) {
+					const missingFields = validationError.issues
+						.map((issue) => issue.path.join("."))
+						.join(", ");
+					console.error("Missing or invalid fields:", missingFields);
+					throw new Error(
+						`Schema validation failed. Missing/invalid fields: ${missingFields}. Full error: ${validationError.message}`
+					);
+				}
+				throw new Error(
+					`Schema validation failed: ${
+						validationError instanceof Error
+							? validationError.message
+							: "Unknown error"
+					}`
+				);
+			}
+		} catch (error) {
+			const errorMessage =
+				error instanceof Error ? error.message : String(error);
+			const errorStack = error instanceof Error ? error.stack : undefined;
+			console.error(`Analysis attempt ${attempts + 1} failed:`, errorMessage);
+			if (errorStack) {
+				console.error("Error stack:", errorStack);
+			}
+			attempts++;
+
+			if (attempts >= maxAttempts) {
+				// Log the error for debugging
+				console.error(
+					"All analysis attempts failed. Last error:",
+					errorMessage
+				);
+				console.error("Transcript length:", transcript.length);
+				console.error("Transcript preview:", transcript.substring(0, 300));
+
+				// Return more helpful fallback based on transcript length
+				const hasContent = transcript.trim().length > 10;
+				const wordCount = transcript
+					.trim()
+					.split(/\s+/)
+					.filter((w) => w.length > 0).length;
+				return {
+					questionAnswered: wordCount > 20, // Likely answered if substantial content
+					answerQuality: hasContent ? 2 : 1,
+					whatWasRight: hasContent
+						? [
+								"Your response was recorded successfully",
+								"You provided some content",
+						  ]
+						: ["Recording was successful", "Audio quality was good"],
+					whatWasWrong: hasContent
+						? [
+								"AI analysis temporarily unavailable - unable to assess answer quality",
+								"Unable to verify if question was fully answered",
+						  ]
+						: [
+								"Response is too brief to analyze",
+								"Please provide more detailed answer",
+						  ],
+					betterWording: [
+						"Try speaking for 2-3 minutes with clear structure",
+						"Use the STAR method: Situation, Task, Action, Result",
+						"Include specific metrics and examples",
+					],
+					starScore: hasContent ? 2 : 1,
+					impactScore: hasContent ? 2 : 1,
+					clarityScore: hasContent ? 2 : 1,
+					technicalAccuracy: hasContent ? 2 : 1,
+					terminologyUsage: hasContent ? 2 : 1,
+					tips: hasContent
+						? [
+								"AI analysis temporarily unavailable",
+								"Your response was recorded successfully",
+								"Try speaking more clearly and structure your answer",
+								"Use the STAR method: Situation, Task, Action, Result",
+								"Include specific metrics and outcomes when possible",
+						  ]
+						: [
+								"Please provide a longer response",
+								"Try speaking for at least 30 seconds",
+								"Structure your answer with clear examples",
+								"Include specific details and outcomes",
+								"Practice speaking clearly and confidently",
+						  ],
+				};
+			}
+			// Exponential backoff for retries
+			await new Promise((resolve) => setTimeout(resolve, 1000 * attempts));
+		}
+	}
+
+	throw new Error("Failed to analyze transcript after retries");
 }

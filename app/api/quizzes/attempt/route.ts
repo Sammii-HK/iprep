@@ -73,12 +73,18 @@ export async function POST(request: NextRequest) {
       const audioKey = await uploadAudio(audioBlob, audioFile.type);
       audioUrl = getAudioUrl(audioKey);
 
-      // Transcribe with context for better accuracy
+      // Transcribe with context for better accuracy (skip timestamps for faster transcription)
       const { transcript: transcribedText, words: wordTimestamps } =
-        await transcribeAudio(audioBlob, {
-          questionText: question.text,
-          questionTags: question.tags,
-        });
+        await transcribeAudio(
+          audioBlob,
+          {
+            questionText: question.text,
+            questionTags: question.tags,
+          },
+          {
+            includeWordTimestamps: false, // Skip timestamps for faster transcription
+          }
+        );
       transcript = transcribedText;
       answerText = transcribedText;
 

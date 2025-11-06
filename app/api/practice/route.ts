@@ -118,11 +118,19 @@ export async function POST(request: NextRequest) {
         audioType: audioFile.type,
       });
       
+      // Optimize: Skip word timestamps for faster transcription (saves ~30-50% time)
+      // We can estimate pauses from transcript text instead
       const transcriptionResult = await Promise.race([
-        transcribeAudio(audioBlob, {
-          questionText: question.text,
-          questionTags: question.tags,
-        }),
+        transcribeAudio(
+          audioBlob,
+          {
+            questionText: question.text,
+            questionTags: question.tags,
+          },
+          {
+            includeWordTimestamps: false, // Skip timestamps for faster transcription
+          }
+        ),
         new Promise<never>((_, reject) =>
           setTimeout(() => reject(new Error('Transcription timeout after 60s')), 60000)
         ),
