@@ -44,21 +44,52 @@ export function MicRecorder({
 
   // Check audio levels for visualization - use time domain data for accurate volume
   const checkAudioLevel = () => {
-    if (!analyserRef.current || !isRecording) return;
+    if (!analyserRef.current || !isRecording || !streamRef.current) {
+      if (levelCheckRef.current) {
+        cancelAnimationFrame(levelCheckRef.current);
+        levelCheckRef.current = null;
+      }
+      return;
+    }
 
-    const dataArray = new Uint8Array(analyserRef.current.frequencyBinCount);
+    // Check if audio context is running
+    if (audioContextRef.current && audioContextRef.current.state === 'suspended') {
+      audioContextRef.current.resume().catch(console.error);
+    }
+
+    // Check if stream is active
+    const audioTracks = streamRef.current.getAudioTracks();
+    if (audioTracks.length === 0 || audioTracks[0].readyState !== 'live') {
+      setAudioLevel(0);
+      levelCheckRef.current = requestAnimationFrame(checkAudioLevel);
+      return;
+    }
+
+    const bufferLength = analyserRef.current.frequencyBinCount;
+    const dataArray = new Uint8Array(bufferLength);
     // Use getByteTimeDomainData for volume detection (more accurate than frequency)
     analyserRef.current.getByteTimeDomainData(dataArray);
     
     // Calculate RMS (Root Mean Square) for volume level
     let sum = 0;
+    let count = 0;
     for (let i = 0; i < dataArray.length; i++) {
       const normalized = (dataArray[i] - 128) / 128;
-      sum += normalized * normalized;
+      const squared = normalized * normalized;
+      sum += squared;
+      count++;
     }
-    const rms = Math.sqrt(sum / dataArray.length);
-    // Convert to percentage (0-100)
-    const normalizedLevel = Math.min(100, Math.max(0, rms * 200));
+    
+    if (count === 0) {
+      setAudioLevel(0);
+      levelCheckRef.current = requestAnimationFrame(checkAudioLevel);
+      return;
+    }
+    
+    const rms = Math.sqrt(sum / count);
+    // Convert to percentage (0-100) - scale more aggressively
+    // RMS typically ranges from 0 to ~0.3 for normal speech
+    const normalizedLevel = Math.min(100, Math.max(0, (rms * 300)));
     setAudioLevel(normalizedLevel);
 
     levelCheckRef.current = requestAnimationFrame(checkAudioLevel);
@@ -66,16 +97,47 @@ export function MicRecorder({
 
   const startRecording = async () => {
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      // Request microphone with better constraints
+      const stream = await navigator.mediaDevices.getUserMedia({ 
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true,
+        }
+      });
+      
+      // Check if stream has audio tracks
+      const audioTracks = stream.getAudioTracks();
+      if (audioTracks.length === 0) {
+        throw new Error('No audio tracks found in stream');
+      }
+      
+      console.log('Audio track:', {
+        label: audioTracks[0].label,
+        enabled: audioTracks[0].enabled,
+        readyState: audioTracks[0].readyState,
+        muted: audioTracks[0].muted,
+      });
+      
       streamRef.current = stream;
       setMicConnected(true);
 
       // Set up audio analysis for level detection
-      const audioContext = new AudioContext();
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
+      const audioContext = new AudioContextClass();
+      
+      // Resume audio context if suspended (required by some browsers)
+      if (audioContext.state === 'suspended') {
+        await audioContext.resume();
+      }
+      
       const analyser = audioContext.createAnalyser();
+      analyser.fftSize = 2048; // Increased for better accuracy
+      analyser.smoothingTimeConstant = 0.8;
+      
       const source = audioContext.createMediaStreamSource(stream);
       source.connect(analyser);
-      analyser.fftSize = 256;
       
       audioContextRef.current = audioContext;
       analyserRef.current = analyser;
@@ -184,9 +246,9 @@ export function MicRecorder({
               style={{ width: `${audioLevel}%` }}
             />
           </div>
-          {audioLevel < 5 && (
+          {audioLevel < 1 && micConnected && (
             <p className="text-xs text-red-500 dark:text-red-400 mt-1 text-center">
-              ⚠️ No audio detected - check your microphone
+              ⚠️ No audio detected - check your microphone permissions and settings
             </p>
           )}
         </div>
