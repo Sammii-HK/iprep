@@ -50,8 +50,16 @@ export async function GET(
 			throw new ValidationError("You do not have access to this session");
 		}
 
-		// Limit questions based on maxQuestions query param
+		// Filter questions by tags if session has filterTags
 		let questions = session.bank?.questions || [];
+		const filterTags = (session as { filterTags?: string[] }).filterTags;
+		if (filterTags && filterTags.length > 0) {
+			questions = questions.filter((q) =>
+				q.tags.some((tag) => filterTags.includes(tag))
+			);
+		}
+
+		// Limit questions based on maxQuestions query param
 		if (maxQuestions && maxQuestions > 0 && questions.length > maxQuestions) {
 			questions = questions.slice(0, maxQuestions);
 		}

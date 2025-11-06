@@ -30,8 +30,8 @@ const EnhancedAnalysisResponseSchema = z.object({
 	questionAnswered: z.boolean(),
 	answerQuality: z.number().int().min(0).max(5),
 	whatWasRight: z.array(z.string()).min(2).max(4),
-	betterWording: z.array(z.string()).min(2).max(3), // Each should include: definition, example, clarity
-	dontForget: z.array(z.string()).min(1).max(4), // Important points they forgot to mention
+	betterWording: z.array(z.string()).min(2).max(3), // Concise wording improvements (grammar fixes use "You said" format)
+	dontForget: z.array(z.string()).min(0).max(4), // Vital specific points missing from answer (empty if nothing vital missing)
 	starScore: z.number().int().min(0).max(5),
 	impactScore: z.number().int().min(0).max(5),
 	clarityScore: z.number().int().min(0).max(5),
@@ -63,14 +63,13 @@ function buildOptimizedSystemPrompt(
 
 	return `Expert ${level} interview coach. ${style}
 
-You MUST return a valid JSON object with ALL required fields. Use this exact structure:
-
+Return JSON only:
 {
-  "questionAnswered": true/false,
+  "questionAnswered": boolean,
   "answerQuality": 0-5,
-  "whatWasRight": ["item1", "item2", "item3", "item4"],
-  "betterWording": ["suggestion1", "suggestion2", "suggestion3"],
-  "dontForget": ["point1", "point2", "point3"],
+  "whatWasRight": ["item1", "item2", "item3"],
+  "betterWording": ["suggestion1", "suggestion2"],
+  "dontForget": ["point1"] or [],
   "starScore": 0-5,
   "impactScore": 0-5,
   "clarityScore": 0-5,
@@ -79,35 +78,24 @@ You MUST return a valid JSON object with ALL required fields. Use this exact str
   "tips": ["tip1", "tip2", "tip3", "tip4", "tip5"]
 }
 
-CRITICAL FORMATTING REQUIREMENTS:
+Formatting:
+- betterWording (2-3): Grammar/English fixes use "You said: '[exact quote]'. Better: '[fix]'". Other improvements: brief (1 sentence).
+- dontForget (0-4): Only VITAL, SPECIFIC missing points. Empty [] if nothing vital missing. No generic reminders.
+- whatWasRight (2-4): Specific correct points from their answer.
+- tips (5): Actionable, concise tips.
 
-1. betterWording (2-3 items): Each item MUST reference their ACTUAL transcript. Help improve:
-   - English clarity, grammar, and professional phrasing
-   - Technical accuracy and terminology
-   - How to express ideas more clearly and concisely
-   Format: "You said: '[exact quote from transcript]'. Instead, say: '[improved version]' because [reason - e.g., 'more clear', 'more professional', 'more technically precise']. Example: [concrete example]"
-   
-   IMPORTANT: Focus on improving HOW they said things - grammar, clarity, phrasing, word choice - not just what they said. Help them sound more professional and articulate.
-
-2. dontForget (1-4 items): ONLY include points that were ACTUALLY MISSING from their answer. Compare their answer to the question requirements and expected topics. If they covered everything adequately, return an empty array []. Only list specific missing points, not generic reminders.
-
-3. whatWasRight (2-4 items): Specific things they got right.
-
-4. tips (exactly 5 items): Actionable tips with examples.
-
-Scoring (0-5): questionAnswered (boolean), answerQuality, starScore (ONLY for behavioral/STAR questions, use clarityScore for technical), impactScore (ONLY if business impact relevant), clarityScore, technicalAccuracy, terminologyUsage.
-
-IMPORTANT: For pure technical questions (no behavioral/STAR format needed), set starScore and impactScore to 3 (neutral) and focus on technicalAccuracy, clarityScore, and terminologyUsage.
+Scoring (0-5):
+- answerQuality: 5=complete, 4=good, 3=partial, 2=tangential, 1=barely, 0=none
+- technicalAccuracy: 5=deep, 4=good, 3=basic, 2=superficial, 1=errors, 0=wrong
+- terminologyUsage: 5=precise, 4=good, 3=mixed, 2=generic, 1=few, 0=none
+- clarityScore: 5=excellent, 4=good, 3=adequate, 2=unclear, 1=confusing, 0=incoherent
+- starScore/impactScore: Use for behavioral/STAR questions only. Set to 3 for pure technical questions.
 
 Context: ${coachingPrefs.priorities
 		.slice(0, 3)
 		.join(", ")}, ${getFocusAreaContext(
 		coachingPrefs.focusAreas
-	)}. Expect: ${levelExpectation}.
-
-Scoring: answerQuality (5=complete, 4=good, 3=partial, 2=tangential, 1=barely, 0=none), starScore (5=full STAR, 4=good, 3=partial, 2=weak, 1=minimal, 0=none), impactScore (5=metrics+business, 4=good, 3=some, 2=few, 1=qualitative, 0=none), technicalAccuracy (5=deep, 4=good, 3=basic, 2=superficial, 1=errors, 0=wrong), terminologyUsage (5=precise, 4=good, 3=mixed, 2=generic, 1=few, 0=none).
-
-CRITICAL: Return ONLY valid JSON. No markdown, no explanations, no code blocks. Just the JSON object.`;
+	)}. Level: ${levelExpectation}.`;
 }
 
 /**
@@ -137,50 +125,45 @@ function buildOptimizedUserPrompt(
 	const wpm = metrics?.wpm || 0;
 	const longPauses = metrics?.longPauses || 0;
 
-	// OPTIMIZE: Truncate very long transcripts to reduce token usage and speed
-	// Keep first 800 words (most important context) and last 200 words (conclusion)
-	const MAX_TRANSCRIPT_WORDS = 1000; // Limit transcript to ~1000 words for faster processing
+	// OPTIMIZE: Truncate long transcripts for faster processing while keeping quality
+	// Keep first 600 words (context) and last 200 words (conclusion) - total ~800 words
+	const MAX_TRANSCRIPT_WORDS = 800; // Balanced: faster than 1000, but keeps more context than 650
 	let processedTranscript = transcript;
 	if (wordCount > MAX_TRANSCRIPT_WORDS) {
 		const words = transcript.split(/\s+/);
-		const firstPart = words.slice(0, 800).join(" ");
+		const firstPart = words.slice(0, 600).join(" ");
 		const lastPart = words.slice(-200).join(" ");
 		processedTranscript = `${firstPart}... [${
-			wordCount - 1000
+			wordCount - 800
 		} words omitted] ...${lastPart}`;
 		console.log(
-			`Truncated transcript from ${wordCount} to ~1000 words for faster processing`
+			`Truncated transcript from ${wordCount} to ~800 words for faster processing`
 		);
 	}
 
+	// Build concise prompt - removed redundant instructions (already in system prompt)
 	let prompt = "";
 
 	if (questionText) {
 		prompt += `Q: ${questionText}\n`;
 	}
 	if (questionHint) {
-		prompt += `Expected Answer/Key Points: ${questionHint}\n`; // Use full hint for better suggestions
-		prompt += `CRITICAL: Compare their transcript to this expected answer. Suggest specific wording improvements that align with these key points.\n`;
+		// Truncate hint if too long (keep first 300 chars for better context)
+		const hint =
+			questionHint.length > 300
+				? questionHint.substring(0, 300) + "..."
+				: questionHint;
+		prompt += `Expected Answer/Key Points: ${hint}\n`;
+		prompt += `Compare their answer to these key points.\n`;
 	}
 	if (questionTags.length > 0) {
-		prompt += `Domain: ${questionTags.slice(0, 5).join(", ")}\n`; // Limit to 5 tags
+		prompt += `Tags: ${questionTags.slice(0, 3).join(", ")}\n`; // Reduced to 3 tags
 	}
 
-	prompt += `\nTheir Answer (Transcript): ${processedTranscript}\n\n`;
-	prompt += `Metrics: ${wordCount}w, ${fillerCount}f (${fillerRate.toFixed(
+	prompt += `\nAnswer: ${processedTranscript}\n`;
+	prompt += `Metrics: ${wordCount}w, ${fillerRate.toFixed(
 		1
-	)}%), ${wpm}wpm, ${longPauses}p.\n`;
-	prompt += `CRITICAL INSTRUCTIONS:
-- For betterWording: Quote EXACT phrases from their transcript and show how to reword them for:
-  * Better English clarity and grammar
-  * More professional and articulate phrasing
-  * Technical accuracy and precise terminology
-  * Clearer and more concise expression
-- Reference specific sentences they said and provide better alternatives
-- Help them improve HOW they express ideas, not just what they say
-- Compare their wording to the expected answer and suggest improvements
-- For technical questions, focus on technical accuracy and clarity, not STAR/behavioral format
-- Score: relevance, quality, clarity, technical accuracy, terminology. Skip STAR/Impact for pure technical questions.`;
+	)}% fillers, ${wpm}wpm\n`;
 
 	return prompt;
 }
@@ -283,8 +266,9 @@ export async function analyzeTranscriptOptimized(
 					{ role: "user", content: userPrompt },
 				],
 				response_format: { type: "json_object" },
-				temperature: 0.3, // Lower temperature = faster, more deterministic generation
-				max_tokens: 1200, // Further reduced (optimized prompts + structured output need less)
+				temperature: 0.25, // Balanced: faster than 0.3 but maintains quality better than 0.2
+				max_tokens: 1000, // Balanced: enough for quality feedback, less than 1200 for speed
+				top_p: 0.95, // Slightly lower for speed, but maintains quality
 			});
 
 			const fullText = completion.choices[0]?.message?.content;
@@ -420,10 +404,7 @@ export async function analyzeTranscriptOptimized(
 						"Use the STAR method: Situation, Task, Action, Result",
 						"Include specific metrics and examples",
 					],
-					dontForget: [
-						"Review the question requirements carefully",
-						"Include relevant technical details",
-					],
+					dontForget: [], // Only include if specific vital points are missing
 					starScore: 2,
 					impactScore: 2,
 					clarityScore: 2,

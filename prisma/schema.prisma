@@ -64,6 +64,7 @@ model Session {
   userId      String?
   title       String
   bankId      String?
+  filterTags  String[]          @default([]) // Tags to filter questions by (for weak topics practice)
   isCompleted Boolean           @default(false)
   completedAt DateTime?
   createdAt   DateTime          @default(now())

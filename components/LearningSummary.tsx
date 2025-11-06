@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
 
 interface CommonMistake {
   pattern: string;
@@ -26,8 +27,11 @@ interface LearningSummaryData {
 }
 
 export function LearningSummary({ sessionId }: { sessionId: string }) {
+  const router = useRouter();
   const [summary, setSummary] = useState<LearningSummaryData | null>(null);
+  const [bankId, setBankId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [creatingSession, setCreatingSession] = useState(false);
 
   useEffect(() => {
     async function fetchSummary() {
@@ -36,6 +40,7 @@ export function LearningSummary({ sessionId }: { sessionId: string }) {
         if (response.ok) {
           const data = await response.json();
           setSummary(data.summary);
+          setBankId(data.bankId);
         }
       } catch (error) {
         console.error('Error fetching summary:', error);
@@ -55,6 +60,59 @@ export function LearningSummary({ sessionId }: { sessionId: string }) {
     return null;
   }
 
+  // Calculate what needs most review
+  const needsReview = Object.entries(summary.performanceByTag)
+    .filter(([, data]) => data.avgScore < 3.5)
+    .sort(([, a], [, b]) => {
+      // Sort by score (lowest first), then by count (more questions = higher priority)
+      if (Math.abs(a.avgScore - b.avgScore) > 0.2) {
+        return a.avgScore - b.avgScore;
+      }
+      return b.count - a.count;
+    })
+    .slice(0, 5);
+
+  const handlePracticeWeakTopics = async () => {
+    if (!summary || !bankId) return;
+
+    const weakTags = summary.weakTags.length > 0 
+      ? summary.weakTags 
+      : needsReview.map(([tag]) => tag);
+
+    if (weakTags.length === 0) {
+      alert('No weak topics identified. Great job!');
+      return;
+    }
+
+    setCreatingSession(true);
+    try {
+      const response = await fetch('/api/sessions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          title: `Practice: ${weakTags.slice(0, 3).join(', ')}${weakTags.length > 3 ? '...' : ''}`,
+          bankId: bankId,
+          filterTags: weakTags,
+        }),
+      });
+
+      if (response.ok) {
+        const session = await response.json();
+        router.push(`/practice/session/${session.id}`);
+      } else {
+        const error = await response.json();
+        alert(error.error || 'Failed to create practice session');
+      }
+    } catch (error) {
+      console.error('Error creating session:', error);
+      alert('Failed to create practice session');
+    } finally {
+      setCreatingSession(false);
+    }
+  };
+
   return (
     <div className="bg-white dark:bg-slate-800 rounded-lg shadow p-6 space-y-6">
       <div>
@@ -66,9 +124,64 @@ export function LearningSummary({ sessionId }: { sessionId: string }) {
 
       {summary.overallScore !== null && (
         <div className="bg-blue-50 dark:bg-blue-900/20 rounded-lg p-4">
-          <div className="text-sm text-gray-600 dark:text-gray-400">Overall Score</div>
-          <div className="text-3xl font-bold text-blue-600 dark:text-blue-400">
+          <div className="text-sm text-gray-600 dark:text-gray-400 mb-1">Overall Score</div>
+          <div className="text-3xl font-bold text-blue-600 dark:text-blue-400 mb-2">
             {summary.overallScore.toFixed(1)} / 5.0
+          </div>
+          {summary.overallScore < 3.5 && (
+            <p className="text-sm text-blue-700 dark:text-blue-300">
+              Focus on the topics below to improve your overall performance
+            </p>
+          )}
+        </div>
+      )}
+
+      {/* What to Review Next - Most Prominent */}
+      {needsReview.length > 0 && (
+        <div className="bg-amber-50 dark:bg-amber-900/20 rounded-lg p-5 border-2 border-amber-200 dark:border-amber-800">
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="text-lg font-bold text-amber-900 dark:text-amber-100 flex items-center gap-2">
+              <span>📚</span>
+              <span>What to Review Next</span>
+            </h3>
+            {bankId && (summary.weakTags.length > 0 || needsReview.length > 0) && (
+              <button
+                onClick={handlePracticeWeakTopics}
+                disabled={creatingSession}
+                className="px-4 py-2 bg-amber-600 hover:bg-amber-700 disabled:bg-amber-400 text-white rounded-lg text-sm font-medium transition-colors"
+              >
+                {creatingSession ? 'Creating...' : '🎯 Practice Weak Topics'}
+              </button>
+            )}
+          </div>
+          <p className="text-sm text-amber-800 dark:text-amber-200 mb-4">
+            These topics need the most attention based on your performance:
+          </p>
+          <div className="space-y-3">
+            {needsReview.map(([tag, data], idx) => (
+              <div key={tag} className="bg-white dark:bg-slate-700 rounded-lg p-3 border border-amber-200 dark:border-amber-700">
+                <div className="flex items-center justify-between mb-1">
+                  <span className="font-semibold text-gray-900 dark:text-gray-100">
+                    {idx + 1}. {tag}
+                  </span>
+                  <span className={`text-sm font-medium ${
+                    data.avgScore < 2.5 
+                      ? 'text-red-600 dark:text-red-400' 
+                      : data.avgScore < 3 
+                      ? 'text-orange-600 dark:text-orange-400'
+                      : 'text-amber-600 dark:text-amber-400'
+                  }`}>
+                    {data.avgScore.toFixed(1)} / 5.0
+                  </span>
+                </div>
+                <div className="text-xs text-gray-600 dark:text-gray-400">
+                  {data.count} question{data.count !== 1 ? 's' : ''} • 
+                  {data.avgScore < 2.5 && ' Needs significant review'}
+                  {data.avgScore >= 2.5 && data.avgScore < 3 && ' Needs practice'}
+                  {data.avgScore >= 3 && data.avgScore < 3.5 && ' Could improve'}
+                </div>
+              </div>
+            ))}
           </div>
         </div>
       )}
@@ -95,34 +208,45 @@ export function LearningSummary({ sessionId }: { sessionId: string }) {
         </div>
       )}
 
-      {summary.weakTags.length > 0 && (
+      {/* Common Mistakes - Actionable */}
+      {summary.commonMistakes.length > 0 && (
         <div>
-          <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2">
-            Areas to Improve
+          <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-3">
+            Common Patterns to Watch
           </h3>
-          <div className="flex flex-wrap gap-2">
-            {summary.weakTags.map((tag) => (
-              <span
-                key={tag}
-                className="bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-300 px-3 py-1 rounded-full text-sm"
-              >
-                {tag}
-              </span>
+          <ul className="space-y-3">
+            {summary.commonMistakes.map((mistake, idx) => (
+              <li key={idx} className="bg-red-50 dark:bg-red-900/20 rounded-lg p-4 border border-red-200 dark:border-red-800">
+                <div className="flex items-start justify-between mb-2">
+                  <div className="font-medium text-red-900 dark:text-red-100">
+                    {mistake.pattern}
+                  </div>
+                  <span className="text-xs bg-red-200 dark:bg-red-800 text-red-800 dark:text-red-200 px-2 py-1 rounded">
+                    {mistake.frequency}x
+                  </span>
+                </div>
+                {mistake.examples.length > 0 && (
+                  <div className="text-sm text-red-700 dark:text-red-300 mt-2">
+                    <span className="font-medium">Examples:</span> {mistake.examples.slice(0, 2).join(', ')}
+                  </div>
+                )}
+              </li>
             ))}
-          </div>
+          </ul>
         </div>
       )}
 
+      {/* Strong Areas - Positive Reinforcement */}
       {summary.strongTags.length > 0 && (
         <div>
           <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2">
-            Strong Areas
+            Strong Areas ✨
           </h3>
           <div className="flex flex-wrap gap-2">
             {summary.strongTags.map((tag) => (
               <span
                 key={tag}
-                className="bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300 px-3 py-1 rounded-full text-sm"
+                className="bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300 px-3 py-1 rounded-full text-sm font-medium"
               >
                 {tag}
               </span>
@@ -131,45 +255,69 @@ export function LearningSummary({ sessionId }: { sessionId: string }) {
         </div>
       )}
 
-      {summary.recommendedFocus.length > 0 && (
-        <div>
-          <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2">
-            Recommended Focus Areas
-          </h3>
-          <div className="flex flex-wrap gap-2">
-            {summary.recommendedFocus.map((tag) => (
-              <span
-                key={tag}
-                className="bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300 px-3 py-1 rounded-full text-sm font-medium"
-              >
-                {tag}
-              </span>
-            ))}
-          </div>
-        </div>
-      )}
-
+      {/* Performance by Topic - Full Breakdown */}
       {Object.keys(summary.performanceByTag).length > 0 && (
         <div>
-          <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2">
+          <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-3">
             Performance by Topic
           </h3>
           <div className="space-y-2">
             {Object.entries(summary.performanceByTag)
               .sort(([, a], [, b]) => a.avgScore - b.avgScore)
-              .map(([tag, data]) => (
-                <div key={tag} className="flex items-center justify-between bg-gray-50 dark:bg-gray-700 rounded p-2">
-                  <span className="text-gray-900 dark:text-gray-100">{tag}</span>
-                  <div className="flex items-center space-x-2">
-                    <span className="text-sm text-gray-600 dark:text-gray-400">
-                      {data.count} questions
-                    </span>
-                    <span className="font-medium text-gray-900 dark:text-gray-100">
-                      {data.avgScore.toFixed(1)} / 5.0
-                    </span>
+              .map(([tag, data]) => {
+                const isWeak = data.avgScore < 3;
+                const isStrong = data.avgScore >= 4;
+                return (
+                  <div 
+                    key={tag} 
+                    className={`flex items-center justify-between rounded-lg p-3 ${
+                      isWeak 
+                        ? 'bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800' 
+                        : isStrong
+                        ? 'bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800'
+                        : 'bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600'
+                    }`}
+                  >
+                    <div className="flex-1">
+                      <span className={`font-medium ${
+                        isWeak 
+                          ? 'text-red-900 dark:text-red-100' 
+                          : isStrong
+                          ? 'text-green-900 dark:text-green-100'
+                          : 'text-gray-900 dark:text-gray-100'
+                      }`}>
+                        {tag}
+                      </span>
+                      <div className="text-xs text-gray-600 dark:text-gray-400 mt-0.5">
+                        {data.count} question{data.count !== 1 ? 's' : ''}
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <div className="w-24 bg-gray-200 dark:bg-gray-600 rounded-full h-2">
+                        <div 
+                          className={`h-2 rounded-full ${
+                            isWeak 
+                              ? 'bg-red-500' 
+                              : isStrong
+                              ? 'bg-green-500'
+                              : 'bg-blue-500'
+                          }`}
+                          style={{ width: `${(data.avgScore / 5) * 100}%` }}
+                        />
+                      </div>
+                      <span className={`font-semibold w-16 text-right ${
+                        isWeak 
+                          ? 'text-red-600 dark:text-red-400' 
+                          : isStrong
+                          ? 'text-green-600 dark:text-green-400'
+                          : 'text-gray-900 dark:text-gray-100'
+                      }`}>
+                        {data.avgScore.toFixed(1)} / 5.0
+                      </span>
+                    </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
           </div>
         </div>
       )}

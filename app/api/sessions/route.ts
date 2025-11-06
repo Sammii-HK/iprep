@@ -8,6 +8,7 @@ const CreateSessionSchema = z.object({
   title: z.string().min(1),
   bankId: z.string().cuid('Question bank is required for practice sessions.'),
   maxQuestions: z.number().int().min(1).max(50).optional(),
+  filterTags: z.array(z.string()).optional(), // Filter questions by tags (for weak topics practice)
 });
 
 export async function POST(request: NextRequest) {
@@ -31,8 +32,20 @@ export async function POST(request: NextRequest) {
       throw new ValidationError('You do not have access to this question bank');
     }
 
-    if (bank.questions.length === 0) {
-      throw new ValidationError('Question bank has no questions');
+    // Filter questions by tags if provided
+    let questions = bank.questions;
+    if (validated.filterTags && validated.filterTags.length > 0) {
+      questions = bank.questions.filter((q) => 
+        q.tags.some((tag) => validated.filterTags!.includes(tag))
+      );
+    }
+
+    if (questions.length === 0) {
+      throw new ValidationError(
+        validated.filterTags && validated.filterTags.length > 0
+          ? 'No questions found matching the selected topics. Try practicing all questions or different topics.'
+          : 'Question bank has no questions'
+      );
     }
 
     const session = await prisma.session.create({
@@ -40,6 +53,7 @@ export async function POST(request: NextRequest) {
         title: validated.title,
         bankId: validated.bankId,
         userId: user.id,
+        filterTags: validated.filterTags || [],
       },
     });
 

@@ -37,7 +37,10 @@ export async function GET(
       );
     }
 
-    return NextResponse.json({ summary });
+    return NextResponse.json({ 
+      summary,
+      bankId: session.bankId, // Include bankId so we can create a new session with filtered questions
+    });
   } catch (error) {
     const errorData = handleApiError(error);
     return NextResponse.json(
