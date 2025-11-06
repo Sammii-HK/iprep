@@ -27,17 +27,63 @@ export function parseCSV(csvContent: string): ParsedQuestion[] {
     header: true,
     skipEmptyLines: true,
     transformHeader: (header) => header.trim().toLowerCase(),
+    transform: (value) => value?.trim() || '', // Trim and handle undefined
   });
 
+  // Log parsing errors but don't fail immediately
   if (result.errors.length > 0) {
-    throw new Error(`CSV parsing errors: ${result.errors.map((e) => e.message).join(', ')}`);
+    console.warn('CSV parsing warnings:', result.errors);
+  }
+
+  // Validate that we have the expected headers
+  if (result.data.length > 0) {
+    const firstRow = result.data[0] as Record<string, any>;
+    const headers = Object.keys(firstRow);
+    const requiredHeaders = ['text'];
+    const missingHeaders = requiredHeaders.filter(h => !headers.includes(h));
+    
+    if (missingHeaders.length > 0) {
+      throw new Error(
+        `CSV is missing required columns: ${missingHeaders.join(', ')}. ` +
+        `Found columns: ${headers.join(', ')}. ` +
+        `Expected format: text,tags,difficulty`
+      );
+    }
   }
 
   const questions: ParsedQuestion[] = [];
+  const errors: string[] = [];
 
-  for (const row of result.data) {
+  for (let i = 0; i < result.data.length; i++) {
+    const row = result.data[i] as Record<string, string | undefined>;
+    const rowNumber = i + 2; // +2 because row 1 is header, and arrays are 0-indexed
+
+    // Skip completely empty rows
+    if (!row || Object.keys(row).length === 0) {
+      continue;
+    }
+
+    // Check if required fields exist
+    if (!row.text || !row.text.trim()) {
+      errors.push(`Row ${rowNumber}: Missing or empty "text" field`);
+      continue;
+    }
+
+    if (row.difficulty === undefined || row.difficulty === null || row.difficulty === '') {
+      errors.push(`Row ${rowNumber}: Missing "difficulty" field`);
+      continue;
+    }
+
     try {
-      const validated = QuestionRowSchema.parse(row);
+      // Ensure tags field exists (default to empty string)
+      const tagsString = row.tags || '';
+      
+      const validated = QuestionRowSchema.parse({
+        text: row.text.trim(),
+        tags: tagsString,
+        difficulty: row.difficulty,
+      });
+
       const tags = validated.tags
         .split(',')
         .map((tag) => tag.trim())
@@ -49,9 +95,29 @@ export function parseCSV(csvContent: string): ParsedQuestion[] {
         difficulty: validated.difficulty,
       });
     } catch (error) {
-      console.error('Error parsing row:', row, error);
-      throw new Error(`Invalid row: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      console.error(`Error parsing row ${rowNumber}:`, row, error);
+      if (error instanceof z.ZodError) {
+        const errorDetails = error.issues.map(issue => 
+          `${issue.path.join('.')}: ${issue.message}`
+        ).join(', ');
+        errors.push(`Row ${rowNumber}: ${errorDetails}`);
+      } else {
+        errors.push(`Row ${rowNumber}: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      }
     }
+  }
+
+  // If no valid questions were parsed, throw an error with details
+  if (questions.length === 0) {
+    const errorMsg = errors.length > 0 
+      ? `No valid questions found. Errors:\n${errors.join('\n')}`
+      : 'No valid questions found in CSV file.';
+    throw new Error(errorMsg);
+  }
+
+  // If there were some errors but we have valid questions, log them
+  if (errors.length > 0) {
+    console.warn(`Imported ${questions.length} questions, but ${errors.length} rows had errors:`, errors);
   }
 
   return questions;

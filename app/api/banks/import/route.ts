@@ -39,7 +39,7 @@ export async function POST(request: NextRequest) {
 
     if (questions.length === 0) {
       return NextResponse.json(
-        { error: 'No valid questions found in file' },
+        { error: 'No valid questions found in file. Please check the CSV format: text,tags,difficulty' },
         { status: 400 }
       );
     }
@@ -70,9 +70,16 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       );
     }
+    
+    // Provide more user-friendly error messages
+    const errorMessage = error instanceof Error ? error.message : 'Failed to import bank';
+    const friendlyMessage = errorMessage.includes('Row') 
+      ? errorMessage 
+      : `Import failed: ${errorMessage}. Please ensure your CSV has columns: text,tags,difficulty`;
+    
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Failed to import bank' },
-      { status: 500 }
+      { error: friendlyMessage },
+      { status: 400 }
     );
   }
 }

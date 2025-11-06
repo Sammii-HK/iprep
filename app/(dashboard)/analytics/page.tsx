@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { TrendChart } from '@/components/TrendChart';
+import { NotificationSettings } from '@/components/NotificationSettings';
 
 interface AnalyticsData {
   avgWPM: number;
@@ -62,6 +63,11 @@ export default function AnalyticsPage() {
           <option value={30}>Last 30 days</option>
           <option value={90}>Last 90 days</option>
         </select>
+      </div>
+
+      {/* Notification Settings */}
+      <div className="mb-6">
+        <NotificationSettings />
       </div>
 
       {/* KPIs */}
