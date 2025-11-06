@@ -39,6 +39,12 @@ export default function DashboardLayout({
                 >
                   Quizzes
                 </Link>
+                <Link
+                  href="/settings"
+                  className="border-transparent text-slate-600 dark:text-slate-400 hover:border-slate-300 dark:hover:border-slate-600 hover:text-slate-900 dark:hover:text-slate-100 inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium transition-colors"
+                >
+                  Settings
+                </Link>
               </div>
             </div>
           </div>

@@ -246,9 +246,9 @@ export function MicRecorder({
               style={{ width: `${audioLevel}%` }}
             />
           </div>
-          {audioLevel < 1 && micConnected && (
-            <p className="text-xs text-red-500 dark:text-red-400 mt-1 text-center">
-              ⚠️ No audio detected - check your microphone permissions and settings
+          {audioLevel < 0.5 && micConnected && isRecording && (
+            <p className="text-xs text-yellow-500 dark:text-yellow-400 mt-1 text-center">
+              ⚠️ Low audio detected - speak louder or check microphone
             </p>
           )}
         </div>

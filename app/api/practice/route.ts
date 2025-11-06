@@ -16,6 +16,7 @@ import {
 import { handleApiError, RateLimitError, ValidationError, NotFoundError, ExternalServiceError } from '@/lib/errors';
 import { validateAudioFile, validateId } from '@/lib/validation';
 import { getConfig } from '@/lib/config';
+import { CoachingPreferences } from '@/lib/coaching-config';
 
 // Simple in-memory rate limiting (upgrade to Redis in v2)
 const rateLimitMap = new Map<string, { count: number; resetTime: number }>();
@@ -52,6 +53,17 @@ export async function POST(request: NextRequest) {
     const audioFile = formData.get('audio') as File | null;
     const sessionId = formData.get('sessionId') as string | null;
     const questionId = formData.get('questionId') as string | null;
+    
+    // Get coaching preferences from request (optional)
+    const preferencesJson = formData.get('preferences') as string | null;
+    let preferences: Partial<CoachingPreferences> | undefined;
+    if (preferencesJson) {
+      try {
+        preferences = JSON.parse(preferencesJson);
+      } catch {
+        // Ignore invalid JSON
+      }
+    }
 
     // Validate required fields
     if (!audioFile || !sessionId || !questionId) {
@@ -101,7 +113,7 @@ export async function POST(request: NextRequest) {
         ),
       ]);
       audioUrl = getAudioUrl(audioKey);
-    } catch (error) {
+    } catch {
       throw new ExternalServiceError('R2', 'Failed to upload audio file');
     }
 
@@ -117,7 +129,7 @@ export async function POST(request: NextRequest) {
       ]);
       transcript = transcriptionResult.transcript;
       wordTimestamps = transcriptionResult.words;
-    } catch (error) {
+    } catch {
       throw new ExternalServiceError('OpenAI Whisper', 'Failed to transcribe audio');
     }
 
@@ -154,21 +166,42 @@ export async function POST(request: NextRequest) {
     try {
       // Use question tags for better technical accuracy assessment
       const questionTags = question.tags || [];
-      const questionText = question.text;
+      
+      // Load coaching preferences from request (could be from user session in future)
+      // For now, use defaults or get from localStorage on client side
+      // In a real app, you'd get this from the user's session/database
       
       analysis = await Promise.race([
         analyzeTranscriptEnhanced(
           transcript,
           questionTags,
-          'Senior Design Engineer / Design Engineering Leader',
-          ['clarity', 'impact statements', 'technical accuracy', 'resilience', 'performance']
+          undefined, // role - will use from preferences
+          undefined, // priorities - will use from preferences
+          question.text,
+          question.hint,
+          preferences
         ),
         new Promise<never>((_, reject) =>
           setTimeout(() => reject(new Error('Analysis timeout')), 30000)
         ),
       ]);
     } catch (error) {
-      throw new ExternalServiceError('OpenAI GPT', 'Failed to analyze transcript');
+      console.error('Error in AI analysis:', error);
+      // Don't throw - return fallback analysis instead
+      analysis = {
+        starScore: 2,
+        impactScore: 2,
+        clarityScore: 2,
+        technicalAccuracy: 2,
+        terminologyUsage: 2,
+        tips: [
+          'AI analysis temporarily unavailable',
+          'Your response was recorded successfully',
+          'Review your transcript and practice speaking more clearly',
+          'Use the STAR method: Situation, Task, Action, Result',
+          'Include specific metrics and outcomes when possible',
+        ],
+      };
     }
 
     // Save SessionItem

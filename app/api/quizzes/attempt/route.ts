@@ -83,12 +83,34 @@ export async function POST(request: NextRequest) {
 
       // Use enhanced analysis with technical accuracy (same as practice)
       const questionTags = question.tags || [];
-      const analysis = await analyzeTranscriptEnhanced(
-        transcript,
-        questionTags,
-        'Senior Design Engineer / Design Engineering Leader',
-        ['clarity', 'impact statements', 'technical accuracy', 'resilience', 'performance']
-      );
+      let analysis;
+      try {
+        analysis = await analyzeTranscriptEnhanced(
+          transcript,
+          questionTags,
+          'Senior Design Engineer / Design Engineering Leader',
+          ['clarity', 'impact statements', 'technical accuracy', 'resilience', 'performance'],
+          question.text,
+          question.hint
+        );
+      } catch (error) {
+        console.error('Error in AI analysis:', error);
+        // Fallback analysis
+        analysis = {
+          starScore: 2,
+          impactScore: 2,
+          clarityScore: 2,
+          technicalAccuracy: 2,
+          terminologyUsage: 2,
+          tips: [
+            'AI analysis temporarily unavailable',
+            'Your response was recorded successfully',
+            'Review your transcript and practice speaking more clearly',
+            'Use the STAR method: Situation, Task, Action, Result',
+            'Include specific metrics and outcomes when possible',
+          ],
+        };
+      }
       const confidenceScore = analyzeConfidenceFromTranscript(
         transcript,
         fillerCount,
@@ -118,15 +140,17 @@ export async function POST(request: NextRequest) {
         );
       }
 
-      try {
-        // Use enhanced analysis for written answers too
-        const questionTags = question.tags || [];
-        const analysis = await analyzeTranscriptEnhanced(
-          answerText,
-          questionTags,
-          'Senior Design Engineer / Design Engineering Leader',
-          ['clarity', 'impact statements', 'technical accuracy', 'resilience', 'performance']
-        );
+          try {
+            // Use enhanced analysis for written answers too
+            const questionTags = question.tags || [];
+            const analysis = await analyzeTranscriptEnhanced(
+              answerText,
+              questionTags,
+              'Senior Design Engineer / Design Engineering Leader',
+              ['clarity', 'impact statements', 'technical accuracy', 'resilience', 'performance'],
+              question.text,
+              question.hint
+            );
         score =
           (analysis.starScore +
             analysis.impactScore +

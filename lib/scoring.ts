@@ -1,21 +1,50 @@
-// Filler word patterns (case-insensitive)
+// Filler word patterns (case-insensitive) - expanded list
 const FILLER_PATTERNS = [
   /\buh\b/gi,
   /\bum\b/gi,
+  /\buhm\b/gi,
+  /\buhh\b/gi,
   /\blike\b/gi,
   /\byou know\b/gi,
+  /\bya know\b/gi,
   /\bsort of\b/gi,
   /\bkind of\b/gi,
+  /\bkinda\b/gi,
+  /\bsorta\b/gi,
+  /\bactually\b/gi,
+  /\bbasically\b/gi,
+  /\bliterally\b/gi,
+  /\bso\b/gi, // "so" as filler (context-dependent, but common)
+  /\bwell\b/gi, // "well" as filler
+  /\bI mean\b/gi,
+  /\bI guess\b/gi,
+  /\bI think\b/gi, // When used as filler, not actual thinking
+  /\byou see\b/gi,
+  /\bright\b/gi, // "right?" as filler
+  /\bokay\b/gi, // "okay" as filler
+  /\bok\b/gi, // "ok" as filler
+  /\ber\b/gi, // British "er"
+  /\berm\b/gi, // British "erm"
 ];
 
 export function countFillers(transcript: string): number {
+  if (!transcript || transcript.trim().length === 0) {
+    return 0;
+  }
+  
+  // Normalize transcript - lowercase for matching
+  const normalized = transcript.toLowerCase();
   let count = 0;
+  
   for (const pattern of FILLER_PATTERNS) {
-    const matches = transcript.match(pattern);
+    // Reset regex lastIndex to avoid issues with global regex
+    pattern.lastIndex = 0;
+    const matches = normalized.match(pattern);
     if (matches) {
       count += matches.length;
     }
   }
+  
   return count;
 }
 

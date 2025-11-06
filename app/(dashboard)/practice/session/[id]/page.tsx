@@ -86,10 +86,24 @@ export default function PracticeSessionPage() {
     setLoading(true);
     try {
       const currentQuestion = questions[currentQuestionIndex];
+      // Load coaching preferences from localStorage
+      const savedPreferences = localStorage.getItem('coachingPreferences');
+      let preferences: unknown = null;
+      if (savedPreferences) {
+        try {
+          preferences = JSON.parse(savedPreferences);
+        } catch {
+          // Ignore parse errors
+        }
+      }
+
       const formData = new FormData();
       formData.append('audio', blob, 'recording.webm');
       formData.append('sessionId', sessionId);
       formData.append('questionId', currentQuestion.id);
+      if (preferences) {
+        formData.append('preferences', JSON.stringify(preferences));
+      }
 
       const response = await fetch('/api/practice', {
         method: 'POST',
