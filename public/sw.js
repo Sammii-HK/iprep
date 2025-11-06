@@ -49,8 +49,8 @@ self.addEventListener('push', (event) => {
   const title = data.title || 'Interview Coach';
   const options = {
     body: data.body || 'Time to practice!',
-    icon: '/icon-192.png',
-    badge: '/icon-192.png',
+    icon: '/icon-192x192.png',
+    badge: '/icon-192x192.png',
     tag: data.tag || 'study-reminder',
     data: data.url || '/practice',
     requireInteraction: false,
