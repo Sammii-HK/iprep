@@ -45,7 +45,13 @@ export async function transcribeAudio(
 	transcript: string;
 	words?: Array<{ word: string; start: number; end: number }>;
 }> {
-	const file = new File([audioBlob], "audio.webm", { type: "audio/webm" });
+	// Use the blob's actual type, or default to webm
+	const blobType = audioBlob.type || "audio/webm";
+	const file = new File(
+		[audioBlob],
+		`audio.${blobType.split("/")[1]?.split(";")[0] || "webm"}`,
+		{ type: blobType }
+	);
 	const includeTimestamps = options?.includeWordTimestamps ?? false;
 
 	// Build prompt with context to improve transcription accuracy

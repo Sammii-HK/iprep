@@ -70,10 +70,12 @@ export function validateAudioFile(file: File): { valid: boolean; error?: string 
     };
   }
 
-  // Check file type
+  // Check file type (including iOS-compatible formats)
   const validTypes = [
     'audio/webm',
-    'audio/mp4',
+    'audio/mp4', // iOS Safari
+    'audio/m4a', // iOS Safari
+    'audio/aac', // iOS Safari
     'audio/mpeg',
     'audio/wav',
     'audio/ogg',

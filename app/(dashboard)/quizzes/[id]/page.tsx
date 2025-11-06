@@ -273,7 +273,11 @@ export default function QuizPage() {
               {scorecard.audioUrl && (
                 <div className="mt-4">
                   <audio controls className="w-full">
+                    {/* Support multiple formats for iOS compatibility */}
                     <source src={scorecard.audioUrl} type="audio/webm" />
+                    <source src={scorecard.audioUrl} type="audio/mp4" />
+                    <source src={scorecard.audioUrl} type="audio/m4a" />
+                    <source src={scorecard.audioUrl} type="audio/aac" />
                   </audio>
                 </div>
               )}

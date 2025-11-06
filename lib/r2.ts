@@ -15,9 +15,23 @@ function getS3Client() {
 
 export async function uploadAudio(
   audioBlob: Blob,
-  contentType: string = 'audio/webm'
+  contentType: string = 'audio/webm' // Will use blob's actual type if provided
 ): Promise<string> {
-  const key = `audio/${Date.now()}-${randomBytes(8).toString('hex')}.webm`;
+  // Use the blob's actual type, or the provided contentType
+  const actualContentType = audioBlob.type || contentType;
+  
+  // Determine file extension from content type
+  const getExtension = (mimeType: string): string => {
+    if (mimeType.includes('mp4') || mimeType.includes('m4a')) return 'm4a';
+    if (mimeType.includes('aac')) return 'aac';
+    if (mimeType.includes('webm')) return 'webm';
+    if (mimeType.includes('wav')) return 'wav';
+    if (mimeType.includes('ogg')) return 'ogg';
+    return 'webm'; // Default fallback
+  };
+  
+  const extension = getExtension(actualContentType);
+  const key = `audio/${Date.now()}-${randomBytes(8).toString('hex')}.${extension}`;
   const buffer = Buffer.from(await audioBlob.arrayBuffer());
 
   const s3Client = getS3Client();
@@ -27,7 +41,7 @@ export async function uploadAudio(
       Bucket: process.env.R2_BUCKET_NAME!,
       Key: key,
       Body: buffer,
-      ContentType: contentType,
+      ContentType: actualContentType,
       // Private ACL (no public access)
     })
   );
