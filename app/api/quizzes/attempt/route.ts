@@ -6,6 +6,8 @@ import { uploadAudio, getAudioUrl } from '@/lib/r2';
 import {
   countWords,
   countFillers,
+  calculateWPM,
+  calculateFillerRate,
   detectLongPauses,
 } from '@/lib/scoring';
 import {
@@ -94,7 +96,15 @@ export async function POST(request: NextRequest) {
           'Senior Design Engineer / Design Engineering Leader',
           ['clarity', 'impact statements', 'technical accuracy', 'resilience', 'performance'],
           question.text,
-          question.hint
+          question.hint,
+          undefined, // preferences
+          {
+            wordCount,
+            fillerCount,
+            fillerRate: calculateFillerRate(fillerCount, wordCount),
+            wpm: calculateWPM(wordCount, wordTimestamps ? wordTimestamps[wordTimestamps.length - 1].end : 30),
+            longPauses,
+          }
         );
       } catch (error) {
         console.error('Error in AI analysis:', error);

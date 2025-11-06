@@ -197,7 +197,14 @@ export async function analyzeTranscriptEnhanced(
   priorities?: string[],
   questionText?: string,
   questionHint?: string | null,
-  preferences?: Partial<CoachingPreferences>
+  preferences?: Partial<CoachingPreferences>,
+  metrics?: {
+    wordCount: number;
+    fillerCount: number;
+    fillerRate: number;
+    wpm: number;
+    longPauses: number;
+  }
 ): Promise<EnhancedAnalysisResponse> {
   // Merge preferences with defaults
   const coachingPrefs: CoachingPreferences = {
@@ -345,16 +352,27 @@ For technical accuracy assessment, evaluate if the answer:
   }
 
   // Calculate metrics for context (if available from transcript analysis)
-  const wordCount = transcript.trim().split(/\s+/).filter(w => w.length > 0).length;
+  const wordCount = metrics?.wordCount || transcript.trim().split(/\s+/).filter(w => w.length > 0).length;
+  const fillerCount = metrics?.fillerCount || 0;
+  const fillerRate = metrics?.fillerRate || 0;
+  const wpm = metrics?.wpm || 0;
+  const longPauses = metrics?.longPauses || 0;
   
   const userPrompt = `${questionContext}Transcript of Answer:
 ${transcript}
 
-**Transcript Analysis:**
+**Actual Transcript Metrics (use these for scoring):**
 - Word count: ${wordCount} words
 - Estimated length: ${wordCount > 0 ? Math.round(wordCount / 150) : 0} minutes (assuming ~150 WPM)
-- Filler words detected: [Count instances of: um, uh, like, you know, actually, basically, so, well, I mean, etc.]
-- Long pauses: [Identify pauses >800ms if word timestamps available, otherwise note natural pause patterns]
+- Filler words: ${fillerCount} instances (${fillerRate.toFixed(1)}% of words)
+- Words per minute: ${wpm} WPM
+- Long pauses (>800ms): ${longPauses} pauses
+
+**CRITICAL: Use these actual metrics to score the answer. Different answers should get different scores based on:**
+- STAR structure quality (for behavioral questions) or clarity/organization (for factual questions)
+- Presence and quality of metrics/impact statements
+- Technical accuracy and terminology usage
+- Overall answer quality relative to the question asked
 
 Context:
 - Target Role: ${coachingPrefs.role}
@@ -483,7 +501,7 @@ Return JSON only.`;
           { role: 'user', content: userPrompt },
         ],
         response_format: { type: 'json_object' },
-        temperature: 0.3,
+        temperature: 0.5, // Increased from 0.3 to allow more variation in scoring
         max_tokens: 2500, // Increased for more detailed analysis (questionAnswered, whatWasRight/Wrong, betterWording)
       });
       
@@ -513,6 +531,14 @@ Return JSON only.`;
       try {
         const validated = EnhancedAnalysisResponseSchema.parse(parsed);
         console.log('Schema validation passed');
+        console.log('AI returned scores:', {
+          starScore: validated.starScore,
+          impactScore: validated.impactScore,
+          clarityScore: validated.clarityScore,
+          technicalAccuracy: validated.technicalAccuracy,
+          terminologyUsage: validated.terminologyUsage,
+          answerQuality: validated.answerQuality,
+        });
         return validated;
       } catch (validationError) {
         console.error('Schema validation error:', validationError);

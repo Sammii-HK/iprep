@@ -215,7 +215,14 @@ export async function POST(request: NextRequest) {
           undefined, // priorities - will use from preferences
           question.text,
           question.hint,
-          preferences
+          preferences,
+          {
+            wordCount,
+            fillerCount,
+            fillerRate,
+            wpm,
+            longPauses,
+          }
         ),
         new Promise<never>((_, reject) =>
           setTimeout(() => reject(new Error('Analysis timeout after 30s')), 30000)
@@ -226,6 +233,11 @@ export async function POST(request: NextRequest) {
         questionAnswered: analysis.questionAnswered,
         answerQuality: analysis.answerQuality,
         tipsCount: analysis.tips.length,
+        starScore: analysis.starScore,
+        impactScore: analysis.impactScore,
+        clarityScore: analysis.clarityScore,
+        technicalAccuracy: analysis.technicalAccuracy,
+        terminologyUsage: analysis.terminologyUsage,
       });
     } catch (error) {
       console.error('Error in AI analysis:', error);
