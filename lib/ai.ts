@@ -32,17 +32,55 @@ const AnalysisResponseSchema = z.object({
 
 export type AnalysisResponse = z.infer<typeof AnalysisResponseSchema>;
 
-export async function transcribeAudio(audioBlob: Blob): Promise<{
+export async function transcribeAudio(
+  audioBlob: Blob,
+  context?: {
+    questionText?: string;
+    questionTags?: string[];
+  }
+): Promise<{
   transcript: string;
   words?: Array<{ word: string; start: number; end: number }>;
 }> {
   const file = new File([audioBlob], 'audio.webm', { type: 'audio/webm' });
 
+  // Build prompt with context to improve transcription accuracy
+  // Include technical terms and domain-specific vocabulary
+  let prompt = '';
+  if (context?.questionTags && context.questionTags.length > 0) {
+    prompt += `This is a technical interview answer. Common terms: ${context.questionTags.join(', ')}. `;
+  }
+  if (context?.questionText) {
+    // Extract key technical terms from question (capitalized words and acronyms)
+    const words = context.questionText.split(/\s+/);
+    const technicalTerms = words
+      .filter(word => {
+        const cleaned = word.replace(/[.,!?;:()]/g, ''); // Remove punctuation
+        return (
+          cleaned.length > 3 && (
+            /^[A-Z][a-z]+/.test(cleaned) || // Capitalized words (e.g., "React", "Docker")
+            /^[A-Z]{2,}$/.test(cleaned) || // Acronyms (e.g., "API", "SQL", "AWS")
+            /[A-Z]{2,}/.test(cleaned) // Words with multiple capitals (e.g., "JavaScript", "TypeScript")
+          )
+        );
+      })
+      .map(word => word.replace(/[.,!?;:()]/g, '')) // Clean punctuation
+      .filter((word, index, arr) => arr.indexOf(word) === index) // Remove duplicates
+      .slice(0, 15) // Limit to top 15 terms
+      .join(', ');
+    if (technicalTerms) {
+      prompt += `Technical vocabulary: ${technicalTerms}. `;
+    }
+  }
+  prompt += 'This is spoken English in a professional interview context.';
+
   const response = await openai.audio.transcriptions.create({
     file: file,
     model: 'whisper-1',
+    language: 'en', // Specify English for better accuracy
     response_format: 'verbose_json',
     timestamp_granularities: ['word'],
+    ...(prompt ? { prompt: prompt.substring(0, 200) } : {}), // Whisper prompt max is ~200 chars
   });
 
   return {
@@ -244,12 +282,12 @@ Given a transcript and question context, return strict JSON with:
   * 2: Mostly generic terms, lacks domain-specific language
   * 1: Very few or incorrect technical terms
   * 0: No technical terminology used
-- tips: array of exactly 5 actionable tips (each tip can be up to 50 words):
-  1. Question relevance tip - Did you answer the question? What's missing or off-topic?
-  2. Content/structure tip - specific to what's missing or weak in this answer (STAR, metrics, organization)
-  3. Technical accuracy tip - specific to the question domain and expected answer (correctness, depth, concepts)
-  4. Delivery/confidence tip - address filler words, pacing, or confidence issues observed (specific counts/rates)
-  5. Specific improvement for this answer - what to change in this exact response (concrete, actionable)
+- tips: array of exactly 5 actionable tips (each tip can be up to 60 words, MUST include concrete examples):
+  1. Question relevance tip - Did you answer the question? What's missing or off-topic? If they read the question, acknowledge that and suggest how to expand.
+  2. Content/structure tip - specific to what's missing or weak in this answer (STAR, metrics, organization) WITH EXAMPLES (e.g., "Add metrics like 'reduced latency by 60%' or 'handled 1M requests/day'")
+  3. Technical accuracy tip - specific to the question domain WITH EXAMPLES (e.g., "Instead of 'database', say 'PostgreSQL with read replicas' or 'Redis cache with 5-minute TTL'")
+  4. Delivery/confidence tip - address filler words, pacing, or confidence issues observed (specific counts/rates) WITH EXAMPLES (e.g., "Replace 'um' with a 1-2 second pause")
+  5. Specific improvement for this answer - what to change in this exact response (concrete, actionable) WITH BEFORE/AFTER EXAMPLES (e.g., "Instead of '[their vague phrase]', say '[specific example]'")
 
 CRITICAL: You MUST return all required fields. The JSON must include:
 - questionAnswered (boolean)
@@ -322,34 +360,37 @@ Question Tags: ${questionTags.length > 0 ? questionTags.join(', ') : 'general (n
 ${depthInstructions}
 
 **Analysis Framework:**
-**CRITICAL: First, assess if the question was actually answered.**
+**CRITICAL: First, assess if the question was actually answered. Distinguish between "lacking depth" (fundamentally missing content/knowledge) vs "room for improvement" (has content but could be enhanced).**
 
 1. Question Relevance: Does the answer address the specific question asked? Identify:
    - Key concepts from the question that should be covered
    - Whether the answer directly responds to what was asked
    - If the answer is off-topic or only tangentially related
    - What specific parts of the question were answered vs. missed
+   - **IMPORTANT**: If the candidate read/repeated the question, that shows they understand it - this is NOT "lacking depth" but rather "room for improvement" in how they expand on it
 
-2. What Was Right: Identify 2-4 specific things the candidate got right:
+2. What Was Right: Identify 2-4 specific things the candidate got right (be generous - acknowledge effort):
    - Correct technical concepts or facts
    - Good examples or explanations
    - Appropriate use of terminology
    - Well-structured parts of the answer
    - Effective use of STAR method (if applicable)
+   - If they addressed the question directly (even if verbatim), acknowledge that
 
-3. What Was Wrong: Identify 2-4 specific things that were incorrect or missing:
-   - Incorrect technical information
-   - Missing key concepts or points
-   - Weak or missing examples
-   - Poor structure or organization
-   - Vague or unclear explanations
+3. What Needs Improvement: Identify 2-4 specific areas for improvement (distinguish between missing content vs. enhancement opportunities):
+   - **Missing content**: Only flag if key concepts are completely absent
+   - **Enhancement opportunities**: If they have the basics but could add metrics, examples, depth, structure
+   - **Structure**: If organization could be clearer
+   - **Specificity**: If vague terms could be more precise
+   - **Examples**: If concrete examples would strengthen the answer
+   - **IMPORTANT**: If they read the question, say "You correctly identified the question. Now expand with..." NOT "You lack depth"
 
-4. Better Wording: Provide 2-3 specific suggestions for better phrasing:
-   - Replace vague terms with specific ones
-   - Improve sentence structure
-   - Add missing transitions
-   - Clarify confusing statements
-   - Use more precise terminology
+4. Better Wording: Provide 2-3 specific suggestions with CONCRETE EXAMPLES:
+   - Replace vague terms with specific ones (e.g., "improved performance" → "reduced latency from 500ms to 50ms")
+   - Improve sentence structure with examples (e.g., "Instead of 'I did X', say 'I implemented X by Y, which resulted in Z'")
+   - Add missing transitions with examples (e.g., "Add: 'To accomplish this, I...' or 'The results were...'")
+   - Clarify confusing statements with rewrites (e.g., "Instead of '[vague statement]', say '[specific statement]'")
+   - Use more precise terminology with examples (e.g., "Instead of 'database', say 'PostgreSQL with read replicas'")
 
 Then assess speaking quality AND technical knowledge depth:
 
@@ -374,15 +415,16 @@ When providing tips, be specific, actionable, and reference the transcript. Use 
 - Missing Result: "End with measurable outcomes: 'This resulted in [specific metric], which [business impact].' Examples: reduced latency by 60%, increased conversion by 15%, saved $50K annually."
 - Weak transitions: "Your STAR components are present but transitions are unclear. Use: 'The situation was...', 'My task was to...', 'To accomplish this, I...', 'The results were...'"
 
-**For metrics & impact (check for numbers and business connection):**
-- No metrics: "Your answer lacks quantifiable impact. Include: percentages (60% improvement), time (reduced from 2s to 0.5s), money (saved $50K), scale (handled 1M requests/day), or user impact (improved NPS from 40 to 65)."
-- Vague metrics: "Be more specific. Instead of 'improved performance', say 'reduced page load time from 3.5s to 0.8s' or 'increased API throughput from 1K to 5K requests/second'."
-- Missing business impact: "You have technical metrics but not business impact. Connect to outcomes: 'This reduced server costs by 30%' or 'increased user conversion by 22%'."
+**For metrics & impact (check for numbers and business connection - ALWAYS provide examples):**
+- No metrics: "Your answer lacks quantifiable impact. Include specific examples: percentages (e.g., 'reduced error rate by 60%'), time (e.g., 'reduced page load from 2s to 0.5s'), money (e.g., 'saved $50K annually'), scale (e.g., 'handled 1M requests/day'), or user impact (e.g., 'improved NPS from 40 to 65')."
+- Vague metrics: "Be more specific with concrete examples. Instead of 'improved performance', say 'reduced page load time from 3.5s to 0.8s' or 'increased API throughput from 1K to 5K requests/second'."
+- Missing business impact: "You have technical metrics but not business impact. Connect to outcomes with examples: 'This reduced server costs by 30%, saving $50K annually' or 'increased user conversion by 22%, generating $200K in additional revenue'."
 
-**For technical accuracy (evaluate correctness and depth):**
-- Incorrect concepts: "Your explanation of [concept] is incorrect. [Correct explanation]. Review core concepts for [domain] before your next interview."
-- Surface-level: "Your answer demonstrates basic understanding but lacks depth. Dive deeper: explain why you chose [technology], what trade-offs you considered, alternative approaches you evaluated, and how you validated the solution."
-- Missing technical details: "Add more technical specifics. Instead of 'I optimized the database', say 'I optimized queries by adding composite indexes on [columns], which reduced query time from 500ms to 50ms for [use case]'."
+**For technical accuracy (evaluate correctness and depth - distinguish between missing vs. enhancement):**
+- Incorrect concepts: "Your explanation of [concept] is incorrect. [Correct explanation with example]. Review core concepts for [domain] before your next interview. Example: [provide a correct example]."
+- Surface-level (if they have basics): "Your answer demonstrates understanding but could go deeper. Expand with examples: explain why you chose [technology] (e.g., 'I chose Redis because it provides sub-millisecond latency'), what trade-offs you considered (e.g., 'I traded memory cost for speed'), alternative approaches (e.g., 'I also considered Memcached but Redis had better persistence'), and how you validated (e.g., 'I load-tested with 10K concurrent users')."
+- Missing technical details: "Add more technical specifics with concrete examples. Instead of 'I optimized the database', say 'I optimized queries by adding composite indexes on user_id and created_at columns, which reduced query time from 500ms to 50ms for the user activity feed'."
+- **IMPORTANT**: If they read/repeated the question, they understand it - focus on "how to expand" not "you lack depth"
 
 **For terminology (check for domain-specific vs generic terms):**
 - Generic terms: "Use domain-specific language. Instead of 'made it faster', say 'reduced latency by implementing Redis caching with TTL of 5 minutes' or 'optimized queries using composite indexes on user_id and created_at'."

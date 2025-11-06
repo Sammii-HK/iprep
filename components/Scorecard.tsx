@@ -69,10 +69,11 @@ export function Scorecard({
     <div className="bg-white dark:bg-slate-800 rounded-lg shadow-md p-6 border border-slate-200 dark:border-slate-700">
       <h2 className="text-2xl font-bold mb-6 text-slate-900 dark:text-slate-100">Scorecard</h2>
 
-      {/* Answer Quality Assessment */}
-      {(questionAnswered !== undefined || answerQuality !== undefined) && (
+      {/* Consolidated Answer Quality & Coaching Tips */}
+      {((questionAnswered !== undefined || answerQuality !== undefined || whatWasRight || whatWasWrong || betterWording) || (tips && tips.length > 0)) && (
         <div className="mb-6 p-4 rounded-lg border-2 border-slate-200 dark:border-slate-700">
-          <h3 className="text-lg font-semibold mb-3 text-slate-900 dark:text-slate-100">Answer Quality</h3>
+          <h3 className="text-lg font-semibold mb-3 text-slate-900 dark:text-slate-100">Feedback & Coaching</h3>
+          
           {questionAnswered !== undefined && (
             <div className="mb-3">
               <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-semibold ${
@@ -84,11 +85,7 @@ export function Scorecard({
               </span>
             </div>
           )}
-          {answerQuality !== undefined && (
-            <div className="mb-3">
-              <ScoreBar label="Overall Answer Quality" value={answerQuality} />
-            </div>
-          )}
+
           {whatWasRight && whatWasRight.length > 0 && (
             <div className="mb-3">
               <h4 className="text-sm font-semibold text-green-700 dark:text-green-300 mb-2">✓ What You Got Right:</h4>
@@ -99,6 +96,7 @@ export function Scorecard({
               </ul>
             </div>
           )}
+
           {whatWasWrong && whatWasWrong.length > 0 && (
             <div className="mb-3">
               <h4 className="text-sm font-semibold text-red-700 dark:text-red-300 mb-2">✗ What Needs Improvement:</h4>
@@ -109,12 +107,25 @@ export function Scorecard({
               </ul>
             </div>
           )}
+
           {betterWording && betterWording.length > 0 && (
-            <div>
+            <div className="mb-3">
               <h4 className="text-sm font-semibold text-blue-700 dark:text-blue-300 mb-2">💡 Better Wording Suggestions:</h4>
               <ul className="list-disc list-inside space-y-1 text-sm text-slate-700 dark:text-slate-300">
                 {betterWording.map((item, index) => (
                   <li key={index}>{item}</li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          {/* Coaching Tips - consolidated with answer quality */}
+          {tips && tips.length > 0 && (
+            <div>
+              <h4 className="text-sm font-semibold text-purple-700 dark:text-purple-300 mb-2">🎯 Actionable Tips:</h4>
+              <ul className="list-disc list-inside space-y-2 text-sm text-slate-700 dark:text-slate-300">
+                {tips.map((tip, index) => (
+                  <li key={index} className="leading-relaxed">{tip}</li>
                 ))}
               </ul>
             </div>
@@ -175,17 +186,6 @@ export function Scorecard({
         <ScoreBar label="Intonation" value={scores.intonation} />
       </div>
 
-      {/* Tips */}
-      <div className="mb-6">
-        <h3 className="text-lg font-semibold mb-3 text-slate-900 dark:text-slate-100">Coaching Tips</h3>
-        <ul className="list-disc list-inside space-y-2 text-sm">
-          {tips.map((tip, index) => (
-            <li key={index} className="text-slate-700 dark:text-slate-300">
-              {tip}
-            </li>
-          ))}
-        </ul>
-      </div>
 
       {/* Audio Playback */}
       {audioUrl && (

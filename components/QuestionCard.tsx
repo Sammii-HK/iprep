@@ -85,7 +85,7 @@ export function QuestionCard({
         <>
           <div className="text-lg mb-6 text-slate-900 dark:text-slate-100">{question.text}</div>
           
-          {onRetryWithHint && (
+              {onRetryWithHint && (
             <div className="mb-4">
               {!showHint ? (
                 <button
@@ -96,8 +96,16 @@ export function QuestionCard({
                 </button>
               ) : (
                 <div className="p-4 bg-purple-50 dark:bg-purple-900/20 rounded-lg border border-purple-200 dark:border-purple-800">
+                  <div className="flex justify-between items-start mb-2">
+                    <strong className="font-semibold text-slate-900 dark:text-slate-100">Hint:</strong>
+                    <button
+                      onClick={() => setShowHint(false)}
+                      className="px-2 py-1 text-xs bg-purple-200 dark:bg-purple-800 hover:bg-purple-300 dark:hover:bg-purple-700 text-purple-800 dark:text-purple-200 rounded transition-colors"
+                    >
+                      Hide
+                    </button>
+                  </div>
                   <p className="text-sm text-slate-700 dark:text-slate-300 leading-relaxed whitespace-pre-wrap">
-                    <strong className="font-semibold text-slate-900 dark:text-slate-100">Hint:</strong>{' '}
                     {question.hint || `Use the question tags as context. Think about the key concepts related to: ${question.tags.join(', ')}. Structure your answer clearly and provide examples.`}
                   </p>
                 </div>
@@ -126,7 +134,10 @@ export function QuestionCard({
         )}
         {hasNext && (
           <button
-            onClick={onNext}
+            onClick={() => {
+              setShowHint(false); // Hide hint when moving to next question
+              onNext?.();
+            }}
             className="px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded transition-colors ml-auto"
           >
             Next

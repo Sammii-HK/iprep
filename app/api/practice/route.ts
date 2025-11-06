@@ -118,7 +118,10 @@ export async function POST(request: NextRequest) {
       });
       
       const transcriptionResult = await Promise.race([
-        transcribeAudio(audioBlob),
+        transcribeAudio(audioBlob, {
+          questionText: question.text,
+          questionTags: question.tags,
+        }),
         new Promise<never>((_, reject) =>
           setTimeout(() => reject(new Error('Transcription timeout after 60s')), 60000)
         ),
