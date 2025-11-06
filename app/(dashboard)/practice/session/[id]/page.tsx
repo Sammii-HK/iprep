@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef, useLayoutEffect } from 'react';
 import { useParams } from 'next/navigation';
 import { MicRecorder } from '@/components/MicRecorder';
 import { LiveCaption } from '@/components/LiveCaption';
@@ -52,6 +52,7 @@ export default function PracticeSessionPage() {
   const [loading, setLoading] = useState(false);
   const [scorecard, setScorecard] = useState<SessionItem | null>(null);
   const [sessionItems, setSessionItems] = useState<SessionItem[]>([]);
+  const prevQuestionIndexRef = useRef<number>(0);
 
   const fetchSessionData = useCallback(async () => {
     try {
@@ -85,6 +86,14 @@ export default function PracticeSessionPage() {
       fetchSessionData();
     }
   }, [sessionId, fetchSessionData]);
+
+  // Reset scorecard when question changes
+  useLayoutEffect(() => {
+    if (prevQuestionIndexRef.current !== currentQuestionIndex) {
+      prevQuestionIndexRef.current = currentQuestionIndex;
+      setScorecard(null); // Hide scorecard when moving to new question
+    }
+  }, [currentQuestionIndex]);
 
   const handleRecordingComplete = async (blob: Blob) => {
     if (questions.length === 0) return;

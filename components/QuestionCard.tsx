@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useLayoutEffect } from 'react';
+import { useState } from 'react';
 
 interface Question {
   id: string;
@@ -27,19 +27,18 @@ export function QuestionCard({
   hasPrevious = false,
   onRetryWithHint,
 }: QuestionCardProps) {
-  const [showQuestion, setShowQuestion] = useState(false);
-  const [showHint, setShowHint] = useState(false);
-  const prevQuestionIdRef = { current: question.id };
+  // Store hint state keyed by question ID to automatically reset when question changes
+  const [hintStates, setHintStates] = useState<Record<string, boolean>>({});
   
-  // Reset visibility when question changes - useLayoutEffect for synchronous updates
-  useLayoutEffect(() => {
-    if (prevQuestionIdRef.current !== question.id) {
-      prevQuestionIdRef.current = question.id;
-      setShowQuestion(false);
-      setShowHint(false);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [question.id]);
+  // Get hint state for current question (defaults to false for new questions)
+  const showHint = hintStates[question.id] ?? false;
+  
+  const setShowHint = (show: boolean) => {
+    setHintStates((prev) => ({
+      ...prev,
+      [question.id]: show,
+    }));
+  };
   
   const difficultyColors = {
     1: 'bg-green-100 text-green-800',
@@ -72,20 +71,9 @@ export function QuestionCard({
         </div>
       </div>
 
-      {!showQuestion ? (
-        <div className="mb-6">
-          <button
-            onClick={() => setShowQuestion(true)}
-            className="w-full px-4 py-3 bg-blue-500 hover:bg-blue-600 text-white rounded-lg transition-colors font-semibold"
-          >
-            Show Question
-          </button>
-        </div>
-      ) : (
-        <>
-          <div className="text-lg mb-6 text-slate-900 dark:text-slate-100">{question.text}</div>
-          
-              {onRetryWithHint && (
+      <div className="text-lg mb-6 text-slate-900 dark:text-slate-100">{question.text}</div>
+      
+      {onRetryWithHint && (
             <div className="mb-4">
               {!showHint ? (
                 <button
@@ -112,8 +100,6 @@ export function QuestionCard({
               )}
             </div>
           )}
-        </>
-      )}
 
       <div className="flex gap-2">
         {hasPrevious && (

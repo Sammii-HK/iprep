@@ -72,7 +72,7 @@ export async function transcribeAudio(
       prompt += `Technical vocabulary: ${technicalTerms}. `;
     }
   }
-  prompt += 'This is spoken English in a professional interview context.';
+  prompt += 'This is spoken English in a professional interview context. Include all filler words and hesitations (um, uh, erm, er, like, you know, etc.) exactly as spoken.';
 
   const response = await openai.audio.transcriptions.create({
     file: file,

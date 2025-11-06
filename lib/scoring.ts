@@ -11,9 +11,12 @@ const FILLER_PATTERNS = [
   /\berm\s/gi, // "erm " (with space after)
   /\serm\b/gi, // " erm" (with space before)
   /\ser\b/gi, // " er" (with space before)
+  /\berm[,\.!?;:]/gi, // "erm," "erm." etc (with punctuation)
+  /\ber[,\.!?;:]/gi, // "er," "er." etc (with punctuation)
   /\blike\b/gi,
   /\byou know\b/gi,
   /\bya know\b/gi,
+  /\by'know\b/gi, // Contraction
   /\bsort of\b/gi,
   /\bkind of\b/gi,
   /\bkinda\b/gi,
@@ -37,22 +40,29 @@ export function countFillers(transcript: string): number {
     return 0;
   }
   
-  // Normalize transcript - lowercase and add spaces around punctuation for better matching
-  // This helps catch fillers that might be transcribed with punctuation (e.g., "erm," or "er.")
+  // Normalize transcript - lowercase and preserve structure for better matching
+  // Keep punctuation attached to words initially, then normalize
   const normalized = transcript
     .toLowerCase()
-    .replace(/[.,!?;:]/g, ' ') // Replace punctuation with spaces
     .replace(/\s+/g, ' ') // Normalize multiple spaces to single space
     .trim();
   
   let count = 0;
+  const foundMatches = new Set<string>(); // Track positions to avoid double-counting
   
   for (const pattern of FILLER_PATTERNS) {
     // Reset regex lastIndex to avoid issues with global regex
     pattern.lastIndex = 0;
-    const matches = normalized.match(pattern);
-    if (matches) {
-      count += matches.length;
+    
+    // Use exec in a loop to get all matches with their positions
+    let match;
+    while ((match = pattern.exec(normalized)) !== null) {
+      // Create a unique key for this match position to avoid double counting
+      const matchKey = `${match.index}-${match.index + match[0].length}`;
+      if (!foundMatches.has(matchKey)) {
+        foundMatches.add(matchKey);
+        count++;
+      }
     }
   }
   
@@ -74,7 +84,7 @@ export function calculateFillerRate(
 
 export function detectLongPauses(
   words: Array<{ word: string; start: number; end: number }>,
-  thresholdMs: number = 800
+  thresholdMs: number = 600 // Lowered from 800ms to 600ms to catch more pauses
 ): number {
   if (!words || words.length < 2) return 0;
 
@@ -83,9 +93,9 @@ export function detectLongPauses(
     const gap = (words[i].start - words[i - 1].end) * 1000; // Convert to ms
     if (gap > thresholdMs) {
       longPauses++;
-      // Count very long pauses (>2s) as multiple pauses
-      if (gap > 2000) {
-        longPauses += Math.floor((gap - 2000) / 1000);
+      // Count very long pauses (>1.5s) as multiple pauses
+      if (gap > 1500) {
+        longPauses += Math.floor((gap - 1500) / 500); // Every 500ms after 1.5s counts as another pause
       }
     }
   }
@@ -107,19 +117,24 @@ export function detectLongPausesFromTranscript(
   if (wordCount === 0) return 0;
   
   // Estimate pauses based on:
-  // 1. Punctuation marks (periods, commas, question marks)
+  // 1. Punctuation marks (periods, commas, question marks) - these indicate natural pauses
   // 2. Ellipses and dashes (indicate hesitation)
   // 3. Very short transcript relative to duration (suggests many pauses)
+  // 4. Filler words followed by punctuation (often indicates hesitation/pause)
   
   const punctuationPauses = (transcript.match(/[.!?]/g) || []).length;
   const hesitationMarkers = (transcript.match(/\.\.\.|--|—/g) || []).length;
   
+  // Count filler words that might indicate pauses (um, uh, erm followed by punctuation or space)
+  const fillerPauseMarkers = (transcript.match(/\b(um|uh|erm|er)\s*[.,!?;:]|\b(um|uh|erm|er)\s+[A-Z]/gi) || []).length;
+  
   // If transcript is very short relative to duration, there are likely many pauses
   const estimatedWPM = wordCount / (estimatedDurationSeconds / 60);
-  const pauseFromSlowSpeech = estimatedWPM < 100 ? Math.ceil((100 - estimatedWPM) / 20) : 0;
+  // More aggressive pause detection for slow speech
+  const pauseFromSlowSpeech = estimatedWPM < 120 ? Math.ceil((120 - estimatedWPM) / 15) : 0;
   
-  // Combine indicators
-  const estimatedPauses = punctuationPauses + hesitationMarkers + pauseFromSlowSpeech;
+  // Combine indicators - be more generous with pause counting
+  const estimatedPauses = punctuationPauses + hesitationMarkers + fillerPauseMarkers + pauseFromSlowSpeech;
   
   return Math.max(0, estimatedPauses);
 }

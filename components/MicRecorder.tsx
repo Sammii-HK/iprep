@@ -17,6 +17,7 @@ export function MicRecorder({
   const [duration, setDuration] = useState(0);
   const [audioLevel, setAudioLevel] = useState(0);
   const [micConnected, setMicConnected] = useState(false);
+  const [showLowAudioWarning, setShowLowAudioWarning] = useState(false);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
   const analyserRef = useRef<AnalyserNode | null>(null);
@@ -24,20 +25,26 @@ export function MicRecorder({
   const chunksRef = useRef<Blob[]>([]);
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
   const levelCheckRef = useRef<number | null>(null);
+  const lowAudioStartTimeRef = useRef<number | null>(null);
 
   useEffect(() => {
     return () => {
-      if (intervalRef.current) {
-        clearInterval(intervalRef.current);
+      const interval = intervalRef.current;
+      const levelCheck = levelCheckRef.current;
+      const stream = streamRef.current;
+      const audioContext = audioContextRef.current;
+      
+      if (interval) {
+        clearInterval(interval);
       }
-      if (levelCheckRef.current) {
-        cancelAnimationFrame(levelCheckRef.current);
+      if (levelCheck) {
+        cancelAnimationFrame(levelCheck);
       }
-      if (streamRef.current) {
-        streamRef.current.getTracks().forEach((track) => track.stop());
+      if (stream) {
+        stream.getTracks().forEach((track) => track.stop());
       }
-      if (audioContextRef.current) {
-        audioContextRef.current.close();
+      if (audioContext) {
+        audioContext.close();
       }
     };
   }, []);
@@ -91,6 +98,30 @@ export function MicRecorder({
     // RMS typically ranges from 0 to ~0.3 for normal speech
     const normalizedLevel = Math.min(100, Math.max(0, (rms * 300)));
     setAudioLevel(normalizedLevel);
+
+    // Track low audio duration - only show warning after 3 seconds of low audio
+    const LOW_AUDIO_THRESHOLD = 0.5; // Same threshold as before
+    const LOW_AUDIO_DURATION_MS = 3000; // 3 seconds
+    
+    if (normalizedLevel < LOW_AUDIO_THRESHOLD) {
+      // Audio is low
+      if (lowAudioStartTimeRef.current === null) {
+        // Start tracking low audio time
+        lowAudioStartTimeRef.current = Date.now();
+      } else {
+        // Check if we've had low audio for long enough
+        const lowAudioDuration = Date.now() - lowAudioStartTimeRef.current;
+        if (lowAudioDuration >= LOW_AUDIO_DURATION_MS && !showLowAudioWarning) {
+          setShowLowAudioWarning(true);
+        }
+      }
+    } else {
+      // Audio is good - reset tracking
+      if (lowAudioStartTimeRef.current !== null) {
+        lowAudioStartTimeRef.current = null;
+        setShowLowAudioWarning(false);
+      }
+    }
 
     levelCheckRef.current = requestAnimationFrame(checkAudioLevel);
   };
@@ -173,6 +204,8 @@ export function MicRecorder({
       mediaRecorder.start();
       setIsRecording(true);
       setDuration(0);
+      setShowLowAudioWarning(false);
+      lowAudioStartTimeRef.current = null;
       onStart?.();
 
       // Start timer
@@ -194,6 +227,8 @@ export function MicRecorder({
       mediaRecorderRef.current.stop();
       setIsRecording(false);
       setAudioLevel(0);
+      setShowLowAudioWarning(false);
+      lowAudioStartTimeRef.current = null;
       if (intervalRef.current) {
         clearInterval(intervalRef.current);
         intervalRef.current = null;
@@ -246,7 +281,7 @@ export function MicRecorder({
               style={{ width: `${audioLevel}%` }}
             />
           </div>
-          {audioLevel < 0.5 && micConnected && isRecording && (
+          {showLowAudioWarning && isRecording && (
             <p className="text-xs text-yellow-500 dark:text-yellow-400 mt-1 text-center">
               ⚠️ Low audio detected - speak louder or check microphone
             </p>

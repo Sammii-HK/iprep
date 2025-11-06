@@ -97,6 +97,17 @@ export function Scorecard({
             </div>
           )}
 
+          {whatWasWrong && whatWasWrong.length > 0 && (
+            <div className="mb-3 p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
+              <h4 className="text-sm font-semibold text-blue-700 dark:text-blue-300 mb-2">📝 Points to Remember:</h4>
+              <ul className="list-disc list-inside space-y-1 text-sm text-slate-700 dark:text-slate-300">
+                {whatWasWrong.map((item, index) => (
+                  <li key={index}>{item}</li>
+                ))}
+              </ul>
+            </div>
+          )}
+
           {betterWording && betterWording.length > 0 && (
             <div>
               <h4 className="text-sm font-semibold text-blue-700 dark:text-blue-300 mb-2">💡 Better Wording Suggestions:</h4>
