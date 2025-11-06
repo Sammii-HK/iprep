@@ -39,7 +39,11 @@ export async function GET(
 
     return NextResponse.json({ summary });
   } catch (error) {
-    return handleApiError(error);
+    const errorData = handleApiError(error);
+    return NextResponse.json(
+      { error: errorData.message, code: errorData.code, details: errorData.details },
+      { status: errorData.statusCode }
+    );
   }
 }
 
