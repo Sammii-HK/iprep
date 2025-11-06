@@ -1,5 +1,4 @@
 import Link from 'next/link';
-import { NotificationSettings } from '@/components/NotificationSettings';
 
 export default function DashboardLayout({
   children,

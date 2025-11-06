@@ -11,7 +11,17 @@
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate dev",
     "db:studio": "prisma studio",
-    "postinstall": "prisma generate"
+    "postinstall": "prisma generate",
+    "prepare": "husky"
+  },
+  "lint-staged": {
+    "*.{ts,tsx}": [
+      "eslint --fix --max-warnings=0",
+      "bash -c 'tsc --noEmit --skipLibCheck'"
+    ],
+    "*.{js,jsx}": [
+      "eslint --fix --max-warnings=0"
+    ]
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.922.0",
@@ -33,6 +43,8 @@
     "@types/react-dom": "^19",
     "eslint": "^9",
     "eslint-config-next": "16.0.1",
+    "husky": "^9.1.7",
+    "lint-staged": "^16.2.6",
     "prisma": "^6.18.0",
     "tailwindcss": "^4",
     "typescript": "^5"

@@ -1,0 +1,6 @@
+# Run lint-staged on staged files (linting + typecheck)
+npx lint-staged
+
+# Run full typecheck to catch any type errors
+npm run typecheck
+

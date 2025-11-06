@@ -1,30 +1,37 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 
 interface NotificationSettingsProps {
   onSettingsChange?: (enabled: boolean, time: string) => void;
 }
 
 export function NotificationSettings({ onSettingsChange }: NotificationSettingsProps) {
-  const [enabled, setEnabled] = useState(false);
-  const [permission, setPermission] = useState<NotificationPermission>('default');
-  const [reminderTime, setReminderTime] = useState('09:00');
-  const [isLoading, setIsLoading] = useState(true);
-
-  useEffect(() => {
-    // Check notification permission
-    if ('Notification' in window) {
-      setPermission(Notification.permission);
-      
-      // Load saved settings
-      const savedEnabled = localStorage.getItem('notificationsEnabled') === 'true';
-      const savedTime = localStorage.getItem('reminderTime') || '09:00';
-      setEnabled(savedEnabled);
-      setReminderTime(savedTime);
+  // Initialize state directly to avoid setState in useEffect
+  const getInitialPermission = (): NotificationPermission => {
+    if (typeof window !== 'undefined' && 'Notification' in window) {
+      return Notification.permission;
     }
-    setIsLoading(false);
-  }, []);
+    return 'default';
+  };
+
+  const getInitialEnabled = (): boolean => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('notificationsEnabled') === 'true';
+    }
+    return false;
+  };
+
+  const getInitialTime = (): string => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('reminderTime') || '09:00';
+    }
+    return '09:00';
+  };
+
+  const [enabled, setEnabled] = useState(getInitialEnabled);
+  const [permission, setPermission] = useState<NotificationPermission>(getInitialPermission);
+  const [reminderTime, setReminderTime] = useState(getInitialTime);
 
   const requestPermission = async () => {
     if (!('Notification' in window)) {
@@ -43,7 +50,7 @@ export function NotificationSettings({ onSettingsChange }: NotificationSettingsP
       // Register service worker for push notifications
       if ('serviceWorker' in navigator) {
         try {
-          const registration = await navigator.serviceWorker.ready;
+          await navigator.serviceWorker.ready;
           console.log('Service Worker ready for notifications');
         } catch (error) {
           console.error('Service Worker registration failed:', error);
@@ -107,26 +114,17 @@ export function NotificationSettings({ onSettingsChange }: NotificationSettingsP
   const showReminderNotification = () => {
     if (permission === 'granted' && 'serviceWorker' in navigator) {
       navigator.serviceWorker.ready.then((registration) => {
+        // Use service worker notification which supports actions
         registration.showNotification('Time to Practice! 📚', {
           body: 'Keep improving your interview skills. Practice makes perfect!',
           icon: '/icon-192.png',
           badge: '/icon-192.png',
           tag: 'study-reminder',
           requireInteraction: false,
-          actions: [
-            {
-              action: 'practice',
-              title: 'Start Practice',
-            },
-            {
-              action: 'dismiss',
-              title: 'Dismiss',
-            },
-          ],
           data: {
             url: '/practice',
           },
-        });
+        } as NotificationOptions);
       });
     }
   };
@@ -136,13 +134,6 @@ export function NotificationSettings({ onSettingsChange }: NotificationSettingsP
     // The service worker will respect the enabled flag
   };
 
-  if (isLoading) {
-    return (
-      <div className="bg-white dark:bg-slate-800 rounded-lg shadow-md p-6 border border-slate-200 dark:border-slate-700">
-        <div className="animate-pulse">Loading notification settings...</div>
-      </div>
-    );
-  }
 
   if (!('Notification' in window)) {
     return (
@@ -195,7 +186,7 @@ export function NotificationSettings({ onSettingsChange }: NotificationSettingsP
         {permission !== 'granted' && permission !== 'denied' && (
           <div className="p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
             <p className="text-sm text-blue-800 dark:text-blue-200 mb-2">
-              Click the toggle to enable notifications. You'll need to allow notifications in your browser.
+              Click the toggle to enable notifications. You&apos;ll need to allow notifications in your browser.
             </p>
           </div>
         )}
