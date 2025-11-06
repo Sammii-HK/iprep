@@ -86,7 +86,21 @@ export async function GET(request: NextRequest) {
       take: 50,
     });
 
-    return NextResponse.json(sessions);
+    // Map sessions and handle filterTags gracefully (in case migration hasn't run)
+    const formattedSessions = sessions.map((session) => {
+      const sessionWithFilterTags = session as typeof session & { filterTags?: string[] };
+      return {
+        id: session.id,
+        title: session.title,
+        bankId: session.bankId,
+        createdAt: session.createdAt.toISOString(),
+        isCompleted: session.isCompleted,
+        completedAt: session.completedAt?.toISOString() || null,
+        filterTags: sessionWithFilterTags.filterTags || [],
+      };
+    });
+
+    return NextResponse.json(formattedSessions);
   } catch (error) {
     const errorData = handleApiError(error);
     return NextResponse.json(

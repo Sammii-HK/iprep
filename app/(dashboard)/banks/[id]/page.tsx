@@ -28,6 +28,7 @@ export default function BankDetailPage() {
   const [editingTitle, setEditingTitle] = useState('');
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [showSummary, setShowSummary] = useState(false);
+  const [isCreatingSession, setIsCreatingSession] = useState(false);
   const router = useRouter();
 
   const fetchBank = async () => {
@@ -109,6 +110,37 @@ export default function BankDetailPage() {
     }
   };
 
+  const handleStartPractice = async () => {
+    if (!bank) return;
+
+    setIsCreatingSession(true);
+    try {
+      const response = await fetch('/api/sessions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          title: bank.title,
+          bankId: bank.id,
+        }),
+      });
+
+      if (response.ok) {
+        const session = await response.json();
+        router.push(`/practice/session/${session.id}`);
+      } else {
+        const error = await response.json();
+        alert(error.error || 'Failed to create practice session');
+      }
+    } catch (error) {
+      console.error('Error creating session:', error);
+      alert('Failed to create practice session');
+    } finally {
+      setIsCreatingSession(false);
+    }
+  };
+
   if (loading) {
     return <div className="text-center py-12 text-slate-900 dark:text-slate-100">Loading...</div>;
   }
@@ -167,7 +199,14 @@ export default function BankDetailPage() {
             )}
           </div>
           {!isEditing && (
-            <div className="flex gap-2">
+            <div className="flex gap-2 flex-wrap">
+              <button
+                onClick={handleStartPractice}
+                disabled={isCreatingSession}
+                className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-blue-400 transition-colors font-semibold"
+              >
+                {isCreatingSession ? 'Creating...' : '🎤 Start Practice'}
+              </button>
               <button
                 onClick={() => setShowSummary(!showSummary)}
                 className="px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors"
@@ -176,7 +215,7 @@ export default function BankDetailPage() {
               </button>
               <button
                 onClick={handleEditStart}
-                className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
+                className="px-4 py-2 bg-slate-500 text-white rounded-lg hover:bg-slate-600 transition-colors"
               >
                 Edit Name
               </button>

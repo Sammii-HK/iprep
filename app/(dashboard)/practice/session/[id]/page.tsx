@@ -194,9 +194,9 @@ export default function PracticeSessionPage() {
   const currentQuestion = questions[currentQuestionIndex];
   const isLastQuestion = currentQuestionIndex === questions.length - 1;
 
-  // Show learning summary if session is completed
-  if (sessionCompleted) {
-    return (
+	// Show learning summary if session is completed
+	if (sessionCompleted) {
+		return (
       <div className="px-4 py-6">
         <div className="max-w-4xl mx-auto">
           <div className="mb-6">
@@ -204,7 +204,7 @@ export default function PracticeSessionPage() {
             <p className="text-slate-600 dark:text-slate-400">Here&apos;s your learning summary</p>
           </div>
           <LearningSummary sessionId={sessionId} />
-          <div className="mt-6 flex gap-4">
+          <div className="mt-6 flex gap-4 flex-wrap">
             <button
               onClick={() => router.push('/practice')}
               className="px-6 py-3 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
@@ -216,6 +216,20 @@ export default function PracticeSessionPage() {
               className="px-6 py-3 bg-slate-200 dark:bg-slate-700 text-slate-900 dark:text-slate-100 rounded-lg hover:bg-slate-300 dark:hover:bg-slate-600 transition-colors"
             >
               View All Learning Insights
+            </button>
+            <button
+              onClick={() => {
+                // Reset session state and allow practicing again
+                setSessionCompleted(false);
+                setCurrentQuestionIndex(0);
+                setScorecard(null);
+                setSessionItems([]);
+                // Scroll to top
+                window.scrollTo(0, 0);
+              }}
+              className="px-6 py-3 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors"
+            >
+              Practice Again
             </button>
           </div>
         </div>
