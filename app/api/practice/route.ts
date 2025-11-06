@@ -382,9 +382,52 @@ export async function POST(request: NextRequest) {
     // Calculate intonation score if not already done (for when we reuse past attempts)
     const intonationScore = analyzeIntonationFromTranscript(transcript, wordCount);
 
-    // OPTIMIZE: Return response immediately, save to DB in background
-    // This reduces perceived latency significantly
-    const responseData = {
+    // Save to database (await upload to complete first for audioUrl)
+    // We need the ID to return in the response
+    let sessionItemId: string;
+    try {
+      // Wait for upload to complete (with timeout)
+      await Promise.race([
+        uploadPromise,
+        new Promise<void>((resolve) => setTimeout(() => resolve(), 5000)), // 5s timeout for upload
+      ]);
+
+      const sessionItem = await prisma.sessionItem.create({
+        data: {
+          sessionId,
+          questionId,
+          audioUrl: audioUrl || null,
+          transcript,
+          words: wordCount,
+          wpm,
+          fillerCount,
+          fillerRate,
+          longPauses,
+          confidenceScore,
+          intonationScore,
+          starScore: analysis.starScore,
+          impactScore: analysis.impactScore,
+          clarityScore: analysis.clarityScore,
+          technicalAccuracy: analysis.technicalAccuracy,
+          terminologyUsage: analysis.terminologyUsage,
+          questionAnswered: analysis.questionAnswered,
+          answerQuality: analysis.answerQuality,
+          whatWasRight: analysis.whatWasRight,
+          betterWording: analysis.betterWording,
+          dontForget: analysis.dontForget || [],
+          aiFeedback: analysis.tips.join(' | '),
+        },
+      });
+      sessionItemId = sessionItem.id;
+      console.log('SessionItem saved successfully');
+    } catch (error) {
+      console.error('Failed to save SessionItem:', error);
+      throw new ExternalServiceError('Database', `Failed to save session item: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+
+    // Return response with all data including ID
+    return NextResponse.json({
+      id: sessionItemId,
       transcript,
       metrics: {
         words: wordCount,
@@ -406,56 +449,9 @@ export async function POST(request: NextRequest) {
       questionAnswered: analysis.questionAnswered,
       answerQuality: analysis.answerQuality,
       whatWasRight: analysis.whatWasRight,
+      whatWasWrong: [], // Not returned by AI analysis anymore, but client expects it
       betterWording: analysis.betterWording,
       dontForget: analysis.dontForget || [],
-      audioUrl: null as string | null, // Will be updated when upload completes
-    };
-
-    // Save to database in background (non-blocking)
-    // Wait for upload to complete, then save
-    Promise.all([uploadPromise])
-      .then(async () => {
-        try {
-          await prisma.sessionItem.create({
-            data: {
-              sessionId,
-              questionId,
-              audioUrl: audioUrl || null,
-              transcript,
-              words: wordCount,
-              wpm,
-              fillerCount,
-              fillerRate,
-              longPauses,
-              confidenceScore,
-              intonationScore,
-              starScore: analysis.starScore,
-              impactScore: analysis.impactScore,
-              clarityScore: analysis.clarityScore,
-              technicalAccuracy: analysis.technicalAccuracy,
-              terminologyUsage: analysis.terminologyUsage,
-              questionAnswered: analysis.questionAnswered,
-              answerQuality: analysis.answerQuality,
-              whatWasRight: analysis.whatWasRight,
-              betterWording: analysis.betterWording,
-              dontForget: analysis.dontForget || [],
-              aiFeedback: analysis.tips.join(' | '),
-            },
-          });
-          console.log('SessionItem saved successfully (background)');
-        } catch (error) {
-          console.error('Failed to save SessionItem (background):', error);
-          // Don't throw - response already sent
-        }
-      })
-      .catch((error) => {
-        console.error('Error in background save:', error);
-      });
-
-    // Return response immediately with current audioUrl (may be null if upload still in progress)
-    // Client can poll or we can use Server-Sent Events for updates
-    return NextResponse.json({
-      ...responseData,
       audioUrl: audioUrl, // May be null if upload still in progress
     });
   } catch (error) {
