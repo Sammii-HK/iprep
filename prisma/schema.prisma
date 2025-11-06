@@ -36,6 +36,7 @@ model Question {
   id         String       @id @default(cuid())
   bankId     String
   text       String
+  hint       String?      // Optional answer/hint text from CSV back field
   tags       String[]     // e.g. ["leadership","system-design"]
   difficulty Int          // 1..5
   bank       QuestionBank @relation(fields: [bankId], references: [id])

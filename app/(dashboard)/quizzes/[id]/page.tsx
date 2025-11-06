@@ -8,6 +8,7 @@ import { QuestionCard } from '@/components/QuestionCard';
 interface Question {
   id: string;
   text: string;
+  hint?: string | null;
   tags: string[];
   difficulty: number;
 }

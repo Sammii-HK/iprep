@@ -24,6 +24,7 @@ const QuestionRowSchemaFrontBack = z.object({
 
 export interface ParsedQuestion {
   text: string;
+  hint?: string; // Optional hint/answer from back field
   tags: string[];
   difficulty: number;
 }
@@ -82,23 +83,24 @@ export function parseCSV(csvContent: string): ParsedQuestion[] {
         }
 
         // Back is optional - can be empty
-        const backValue = row.back?.trim() || '';
+        const backValueRaw = row.back?.trim() || '';
         
         const validated = QuestionRowSchemaFrontBack.parse({
           front: row.front.trim(),
-          back: backValue,
+          back: backValueRaw,
         });
 
         // Convert front/back to question format
         // front = question text (required)
-        // back = optional tags (comma-separated) - if empty, no tags
-        const tags = validated.back && validated.back.length > 0
-          ? validated.back.split(',').map(t => t.trim()).filter(t => t.length > 0)
-          : [];
+        // back = optional answer/hint text (full sentence) - always treated as hint text
+        const hint = validated.back && validated.back.trim().length > 0
+          ? validated.back.trim()
+          : undefined;
         
         questions.push({
           text: validated.front,
-          tags, // Can be empty array if back is empty
+          hint,
+          tags: [], // No tags from front,back format
           difficulty: 3, // Default difficulty
         });
       } else {

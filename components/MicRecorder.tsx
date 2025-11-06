@@ -42,16 +42,23 @@ export function MicRecorder({
     };
   }, []);
 
-  // Check audio levels for visualization
+  // Check audio levels for visualization - use time domain data for accurate volume
   const checkAudioLevel = () => {
     if (!analyserRef.current || !isRecording) return;
 
     const dataArray = new Uint8Array(analyserRef.current.frequencyBinCount);
-    analyserRef.current.getByteFrequencyData(dataArray);
+    // Use getByteTimeDomainData for volume detection (more accurate than frequency)
+    analyserRef.current.getByteTimeDomainData(dataArray);
     
-    // Calculate average volume level
-    const average = dataArray.reduce((sum, value) => sum + value, 0) / dataArray.length;
-    const normalizedLevel = Math.min(100, (average / 255) * 100);
+    // Calculate RMS (Root Mean Square) for volume level
+    let sum = 0;
+    for (let i = 0; i < dataArray.length; i++) {
+      const normalized = (dataArray[i] - 128) / 128;
+      sum += normalized * normalized;
+    }
+    const rms = Math.sqrt(sum / dataArray.length);
+    // Convert to percentage (0-100)
+    const normalizedLevel = Math.min(100, Math.max(0, rms * 200));
     setAudioLevel(normalizedLevel);
 
     levelCheckRef.current = requestAnimationFrame(checkAudioLevel);

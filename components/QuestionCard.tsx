@@ -1,8 +1,11 @@
 'use client';
 
+import { useState, useLayoutEffect } from 'react';
+
 interface Question {
   id: string;
   text: string;
+  hint?: string | null;
   tags: string[];
   difficulty: number;
 }
@@ -24,6 +27,20 @@ export function QuestionCard({
   hasPrevious = false,
   onRetryWithHint,
 }: QuestionCardProps) {
+  const [showQuestion, setShowQuestion] = useState(false);
+  const [showHint, setShowHint] = useState(false);
+  const prevQuestionIdRef = { current: question.id };
+  
+  // Reset visibility when question changes - useLayoutEffect for synchronous updates
+  useLayoutEffect(() => {
+    if (prevQuestionIdRef.current !== question.id) {
+      prevQuestionIdRef.current = question.id;
+      setShowQuestion(false);
+      setShowHint(false);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [question.id]);
+  
   const difficultyColors = {
     1: 'bg-green-100 text-green-800',
     2: 'bg-blue-100 text-blue-800',
@@ -55,7 +72,40 @@ export function QuestionCard({
         </div>
       </div>
 
-      <div className="text-lg mb-6 text-slate-900 dark:text-slate-100">{question.text}</div>
+      {!showQuestion ? (
+        <div className="mb-6">
+          <button
+            onClick={() => setShowQuestion(true)}
+            className="w-full px-4 py-3 bg-blue-500 hover:bg-blue-600 text-white rounded-lg transition-colors font-semibold"
+          >
+            Show Question
+          </button>
+        </div>
+      ) : (
+        <>
+          <div className="text-lg mb-6 text-slate-900 dark:text-slate-100">{question.text}</div>
+          
+          {onRetryWithHint && (
+            <div className="mb-4">
+              {!showHint ? (
+                <button
+                  onClick={() => setShowHint(true)}
+                  className="w-full px-4 py-2 bg-purple-500 hover:bg-purple-600 text-white rounded-lg transition-colors text-sm"
+                >
+                  Show Hint
+                </button>
+              ) : (
+                <div className="p-4 bg-purple-50 dark:bg-purple-900/20 rounded-lg border border-purple-200 dark:border-purple-800">
+                  <p className="text-sm text-slate-700 dark:text-slate-300 leading-relaxed whitespace-pre-wrap">
+                    <strong className="font-semibold text-slate-900 dark:text-slate-100">Hint:</strong>{' '}
+                    {question.hint || `Use the question tags as context. Think about the key concepts related to: ${question.tags.join(', ')}. Structure your answer clearly and provide examples.`}
+                  </p>
+                </div>
+              )}
+            </div>
+          )}
+        </>
+      )}
 
       <div className="flex gap-2">
         {hasPrevious && (

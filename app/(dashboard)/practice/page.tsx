@@ -189,7 +189,7 @@ export default function PracticePage() {
                   setSelectedBankId('');
                   setMaxQuestions(0);
                 }}
-                className="px-4 py-2 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300 transition-colors"
+                className="px-4 py-2 bg-slate-200 dark:bg-slate-700 text-slate-900 dark:text-slate-100 rounded-lg hover:bg-slate-300 dark:hover:bg-slate-600 transition-colors"
               >
                 Cancel
               </button>
@@ -214,16 +214,16 @@ export default function PracticePage() {
 
       {sessions.length > 0 && (
         <div>
-          <h2 className="text-xl font-semibold mb-4">Recent Sessions</h2>
+          <h2 className="text-xl font-semibold mb-4 text-slate-900 dark:text-slate-100">Recent Sessions</h2>
           <div className="space-y-2">
             {sessions.map((session) => (
               <div
                 key={session.id}
-                className="bg-white rounded-lg shadow-md p-4 hover:shadow-lg transition-shadow cursor-pointer"
+                className="bg-white dark:bg-slate-800 rounded-lg shadow-md p-4 hover:shadow-lg transition-shadow cursor-pointer border border-slate-200 dark:border-slate-700"
                 onClick={() => router.push(`/practice/session/${session.id}`)}
               >
-                <h3 className="font-semibold">{session.title}</h3>
-                <p className="text-sm text-slate-600 dark:text-slate-400">
+                <h3 className="font-semibold text-slate-900 dark:text-slate-100">{session.title}</h3>
+                <p className="text-sm text-slate-700 dark:text-slate-300">
                   {new Date(session.createdAt).toLocaleDateString()}
                 </p>
               </div>

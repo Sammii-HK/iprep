@@ -243,7 +243,7 @@ export default function QuizzesPage() {
                   setSelectedBankId('');
                   setMaxQuestions(0);
                 }}
-                className="px-4 py-2 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300 transition-colors"
+                className="px-4 py-2 bg-slate-200 dark:bg-slate-700 text-slate-900 dark:text-slate-100 rounded-lg hover:bg-slate-300 dark:hover:bg-slate-600 transition-colors"
               >
                 Cancel
               </button>
@@ -262,10 +262,10 @@ export default function QuizzesPage() {
             <Link
               key={quiz.id}
               href={`/quizzes/${quiz.id}`}
-              className="bg-white rounded-lg shadow-md p-6 hover:shadow-lg transition-shadow"
+              className="bg-white dark:bg-slate-800 rounded-lg shadow-md p-6 hover:shadow-lg transition-shadow border border-slate-200 dark:border-slate-700"
             >
               <div className="flex items-start justify-between mb-2">
-                <h3 className="text-xl font-semibold">{quiz.title}</h3>
+                <h3 className="text-xl font-semibold text-slate-900 dark:text-slate-100">{quiz.title}</h3>
                 <span
                   className={`px-2 py-1 rounded text-xs font-semibold ${
                     quiz.type === 'SPOKEN'

@@ -10,6 +10,7 @@ import { Scorecard } from '@/components/Scorecard';
 interface Question {
   id: string;
   text: string;
+  hint?: string | null;
   tags: string[];
   difficulty: number;
 }
@@ -132,12 +133,14 @@ export default function PracticeSessionPage() {
                 if (currentQuestionIndex < questions.length - 1) {
                   setCurrentQuestionIndex(currentQuestionIndex + 1);
                   setScorecard(null);
+                  // Reset question visibility when moving to next
                 }
               }}
               onPrevious={() => {
                 if (currentQuestionIndex > 0) {
                   setCurrentQuestionIndex(currentQuestionIndex - 1);
                   setScorecard(null);
+                  // Reset question visibility when going back
                 }
               }}
               hasNext={currentQuestionIndex < questions.length - 1}
@@ -161,7 +164,8 @@ export default function PracticeSessionPage() {
             onStart={() => setIsRecording(true)}
             onStop={() => setIsRecording(false)}
           />
-          <LiveCaption isRecording={isRecording} />
+          {/* Only show LiveCaption when recording - consolidate into one box */}
+          {isRecording && <LiveCaption isRecording={isRecording} />}
           {loading && (
             <div className="text-center py-4">
               <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
