@@ -59,33 +59,24 @@ export async function GET(
 			);
 		}
 
-		// Count how many times each question has been answered
-		const questionAnswerCounts = new Map<string, number>();
-		session.items.forEach((item) => {
-			const count = questionAnswerCounts.get(item.questionId) || 0;
-			questionAnswerCounts.set(item.questionId, count + 1);
-		});
-
-		// Reorder questions: least answered first, then by id for consistency
-		questions = questions.sort((a, b) => {
-			const countA = questionAnswerCounts.get(a.id) || 0;
-			const countB = questionAnswerCounts.get(b.id) || 0;
-			if (countA !== countB) {
-				return countA - countB; // Least answered first
-			}
-			return a.id.localeCompare(b.id); // Then by id for consistency
-		});
+		// Keep questions in original order (by id)
+		// Don't reorder - just track which ones have been answered
 
 		// Limit questions based on maxQuestions query param
 		if (maxQuestions && maxQuestions > 0 && questions.length > maxQuestions) {
 			questions = questions.slice(0, maxQuestions);
 		}
 
-		// Find the first unanswered question index
+		// Track which questions have been answered in this session
+		const answeredQuestionIds = new Set<string>();
+		session.items.forEach((item) => {
+			answeredQuestionIds.add(item.questionId);
+		});
+
+		// Find the first unanswered question index (in original order)
 		let firstUnansweredIndex = 0;
 		for (let i = 0; i < questions.length; i++) {
-			const answerCount = questionAnswerCounts.get(questions[i].id) || 0;
-			if (answerCount === 0) {
+			if (!answeredQuestionIds.has(questions[i].id)) {
 				firstUnansweredIndex = i;
 				break;
 			}
@@ -152,6 +143,7 @@ export async function GET(
 			questions,
 			items,
 			firstUnansweredIndex, // Index of first unanswered question
+			answeredQuestionIds: Array.from(answeredQuestionIds), // List of answered question IDs
 		});
 	} catch (error) {
 		const errorResponse = handleApiError(error);

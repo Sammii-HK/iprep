@@ -59,6 +59,7 @@ export default function PracticeSessionPage() {
   const [isCompleting, setIsCompleting] = useState(false);
   const [sessionCompleted, setSessionCompleted] = useState(false);
   const [showAnswer, setShowAnswer] = useState(false); // Show answer/hint after recording
+  const [isInitialLoad, setIsInitialLoad] = useState(true); // Track if this is the first load
   const prevQuestionIndexRef = useRef<number>(0);
 
   const fetchSessionData = useCallback(async () => {
@@ -80,24 +81,31 @@ export default function PracticeSessionPage() {
         if (maxQuestions && maxQuestions > 0 && questions.length > maxQuestions) {
           questions = questions.slice(0, maxQuestions);
         }
-        setQuestions(questions);
+        
+        // Only update questions on initial load to prevent reordering during session
+        if (isInitialLoad) {
+          setQuestions(questions);
+          
+          // Resume at first unanswered question (or 0 if all answered) only on initial load
+          const firstUnansweredIndex = data.firstUnansweredIndex !== undefined 
+            ? data.firstUnansweredIndex 
+            : 0;
+          setCurrentQuestionIndex(firstUnansweredIndex);
+          setIsInitialLoad(false);
+        }
+        
+        // Always update session items to get latest attempts
         setSessionItems(data.items || []);
         
         // Check if session is already completed
         if (data.isCompleted) {
           setSessionCompleted(true);
         }
-
-        // Resume at first unanswered question (or 0 if all answered)
-        const firstUnansweredIndex = data.firstUnansweredIndex !== undefined 
-          ? data.firstUnansweredIndex 
-          : 0;
-        setCurrentQuestionIndex(firstUnansweredIndex);
       }
     } catch (error) {
       console.error('Error fetching session:', error);
     }
-  }, [sessionId]);
+  }, [sessionId, isInitialLoad]);
 
   useEffect(() => {
     if (sessionId) {
@@ -111,8 +119,19 @@ export default function PracticeSessionPage() {
       prevQuestionIndexRef.current = currentQuestionIndex;
       setScorecard(null); // Hide scorecard when moving to new question
       setShowAnswer(false); // Hide answer when moving to new question
+      
+      // If there's a recent attempt for this question, show it
+      const currentQ = questions[currentQuestionIndex];
+      if (currentQ) {
+        const recentAttempt = sessionItems.find(
+          item => item.questionId === currentQ.id
+        );
+        if (recentAttempt) {
+          setScorecard(recentAttempt);
+        }
+      }
     }
-  }, [currentQuestionIndex]);
+  }, [currentQuestionIndex, questions, sessionItems]);
 
   const handleRecordingComplete = async (blob: Blob) => {
     if (questions.length === 0) return;
@@ -146,22 +165,47 @@ export default function PracticeSessionPage() {
 
       if (response.ok) {
         const result = await response.json();
-        setScorecard({
-          id: result.id,
-          audioUrl: result.audioUrl,
-          transcript: result.transcript,
-          metrics: result.metrics,
-          scores: result.scores,
-          tips: result.tips,
-          questionAnswered: result.questionAnswered,
-          answerQuality: result.answerQuality,
-          whatWasRight: result.whatWasRight,
-          whatWasWrong: result.whatWasWrong,
-          betterWording: result.betterWording,
-          dontForget: result.dontForget,
-        });
-        setShowAnswer(true); // Show answer/hint immediately after recording
-        fetchSessionData(); // Refresh to get new session item
+        
+        // Only set scorecard if it matches the current question
+        if (result.questionId === currentQuestion.id) {
+          setScorecard({
+            id: result.id,
+            questionId: result.questionId || currentQuestion.id,
+            audioUrl: result.audioUrl,
+            transcript: result.transcript,
+            metrics: result.metrics,
+            scores: result.scores,
+            tips: result.tips,
+            questionAnswered: result.questionAnswered,
+            answerQuality: result.answerQuality,
+            whatWasRight: result.whatWasRight,
+            whatWasWrong: result.whatWasWrong,
+            betterWording: result.betterWording,
+            dontForget: result.dontForget,
+          });
+          setShowAnswer(true); // Show answer/hint immediately after recording
+        }
+        
+        // Add the new session item to the local state without re-fetching questions
+        // This prevents question reordering during the session
+        setSessionItems(prev => [
+          {
+            id: result.id,
+            questionId: result.questionId || currentQuestion.id,
+            audioUrl: result.audioUrl,
+            transcript: result.transcript,
+            metrics: result.metrics,
+            scores: result.scores,
+            tips: result.tips,
+            questionAnswered: result.questionAnswered,
+            answerQuality: result.answerQuality,
+            whatWasRight: result.whatWasRight,
+            whatWasWrong: result.whatWasWrong,
+            betterWording: result.betterWording,
+            dontForget: result.dontForget,
+          },
+          ...prev,
+        ]);
       } else {
         const error = await response.json();
         alert(`Error: ${error.error}`);

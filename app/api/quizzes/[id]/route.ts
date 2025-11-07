@@ -50,33 +50,24 @@ export async function GET(
 
 		let questions = quiz.bank?.questions || [];
 
-		// Count how many times each question has been answered
-		const questionAnswerCounts = new Map<string, number>();
-		quiz.attempts.forEach((attempt) => {
-			const count = questionAnswerCounts.get(attempt.questionId) || 0;
-			questionAnswerCounts.set(attempt.questionId, count + 1);
-		});
-
-		// Reorder questions: least answered first, then by id for consistency
-		questions = questions.sort((a, b) => {
-			const countA = questionAnswerCounts.get(a.id) || 0;
-			const countB = questionAnswerCounts.get(b.id) || 0;
-			if (countA !== countB) {
-				return countA - countB; // Least answered first
-			}
-			return a.id.localeCompare(b.id); // Then by id for consistency
-		});
+		// Keep questions in original order (by id) - DO NOT REORDER
+		// This ensures question numbers stay consistent and answers match questions
 
 		// Limit questions based on maxQuestions query param
 		if (maxQuestions && maxQuestions > 0 && questions.length > maxQuestions) {
 			questions = questions.slice(0, maxQuestions);
 		}
 
-		// Find the first unanswered question index
+		// Track which questions have been answered in this quiz
+		const answeredQuestionIds = new Set<string>();
+		quiz.attempts.forEach((attempt) => {
+			answeredQuestionIds.add(attempt.questionId);
+		});
+
+		// Find the first unanswered question index (in original order)
 		let firstUnansweredIndex = 0;
 		for (let i = 0; i < questions.length; i++) {
-			const answerCount = questionAnswerCounts.get(questions[i].id) || 0;
-			if (answerCount === 0) {
+			if (!answeredQuestionIds.has(questions[i].id)) {
 				firstUnansweredIndex = i;
 				break;
 			}
