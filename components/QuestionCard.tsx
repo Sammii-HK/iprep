@@ -50,7 +50,7 @@ export function QuestionCard({
 
   /**
    * Highlight parts of the hint that match forgotten points
-   * Uses fuzzy matching to find relevant phrases in the hint
+   * Uses flexible matching to find relevant phrases in the hint
    */
   const highlightForgottenParts = (hintText: string): React.ReactNode => {
     if (!dontForget || dontForget.length === 0) {
@@ -60,12 +60,20 @@ export function QuestionCard({
     // Create a regex pattern from forgotten points
     // Extract key words/phrases from each forgotten point
     const patterns: string[] = [];
+    const importantWords: string[] = [];
+    
     dontForget.forEach((point) => {
       // Extract meaningful words (3+ characters, not common words)
       const words = point
         .toLowerCase()
         .split(/\s+/)
-        .filter((w) => w.length >= 3 && !['the', 'and', 'for', 'are', 'but', 'not', 'you', 'was', 'can', 'this'].includes(w));
+        .filter((w) => {
+          const cleaned = w.replace(/[^\w]/g, ''); // Remove punctuation
+          return cleaned.length >= 3 && !['the', 'and', 'for', 'are', 'but', 'not', 'you', 'was', 'can', 'this', 'that', 'with', 'from', 'have', 'been', 'were', 'when', 'where', 'what', 'which', 'who', 'how', 'why'].includes(cleaned);
+        });
+      
+      // Add individual important words for single-word matching
+      importantWords.push(...words);
       
       // Create patterns from 2-3 word phrases
       for (let i = 0; i < words.length; i++) {
@@ -78,18 +86,34 @@ export function QuestionCard({
       }
     });
 
-    if (patterns.length === 0) {
+    // Remove duplicates
+    const uniquePatterns = [...new Set(patterns)];
+    const uniqueWords = [...new Set(importantWords)];
+
+    if (uniquePatterns.length === 0 && uniqueWords.length === 0) {
       return <span>{hintText}</span>;
     }
 
-    // Combine patterns with word boundaries
-    const combinedPattern = `\\b(${patterns.join('|')})\\b`;
+    // Combine patterns with word boundaries, prioritizing phrases over single words
+    let combinedPattern: string;
+    if (uniquePatterns.length > 0) {
+      combinedPattern = `\\b(${uniquePatterns.join('|')})\\b`;
+      if (uniqueWords.length > 0) {
+        // Add single words as fallback, but with lower priority
+        combinedPattern += `|\\b(${uniqueWords.join('|')})\\b`;
+      }
+    } else {
+      combinedPattern = `\\b(${uniqueWords.join('|')})\\b`;
+    }
     
     // Split text and highlight matches
     const parts: React.ReactNode[] = [];
     let lastIndex = 0;
     let match;
     const regex = new RegExp(combinedPattern, 'gi');
+
+    // Reset regex lastIndex to avoid issues with global regex
+    regex.lastIndex = 0;
 
     while ((match = regex.exec(hintText)) !== null) {
       // Add text before match
@@ -99,7 +123,7 @@ export function QuestionCard({
       
       // Add bolded match
       parts.push(
-        <strong key={match.index} className="font-bold text-amber-700 dark:text-amber-300 bg-amber-100 dark:bg-amber-900/40 px-1 rounded">
+        <strong key={`${match.index}-${match[0]}`} className="font-bold text-amber-700 dark:text-amber-300 bg-amber-100 dark:bg-amber-900/40 px-1 rounded">
           {match[0]}
         </strong>
       );
@@ -112,7 +136,7 @@ export function QuestionCard({
       parts.push(hintText.substring(lastIndex));
     }
 
-    return parts.length > 0 ? <>{parts}</> : <span>{hintText}</span>;
+    return parts.length > 1 ? <>{parts}</> : <span>{hintText}</span>;
   };
   
   const difficultyColors = {
@@ -184,6 +208,12 @@ export function QuestionCard({
                       `Use the question tags as context. Think about the key concepts related to: ${question.tags.join(', ')}. Structure your answer clearly and provide examples.`
                     )}
                   </p>
+                  {/* Debug: Show dontForget if present */}
+                  {dontForget && dontForget.length > 0 && process.env.NODE_ENV === 'development' && (
+                    <div className="mt-2 text-xs text-slate-500 dark:text-slate-400">
+                      Debug: dontForget = {JSON.stringify(dontForget)}
+                    </div>
+                  )}
                 </div>
               )}
             </div>

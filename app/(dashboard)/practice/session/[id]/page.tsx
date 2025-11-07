@@ -166,32 +166,30 @@ export default function PracticeSessionPage() {
       if (response.ok) {
         const result = await response.json();
         
-        // Only set scorecard if it matches the current question
-        if (result.questionId === currentQuestion.id) {
-          setScorecard({
-            id: result.id,
-            questionId: result.questionId || currentQuestion.id,
-            audioUrl: result.audioUrl,
-            transcript: result.transcript,
-            metrics: result.metrics,
-            scores: result.scores,
-            tips: result.tips,
-            questionAnswered: result.questionAnswered,
-            answerQuality: result.answerQuality,
-            whatWasRight: result.whatWasRight,
-            whatWasWrong: result.whatWasWrong,
-            betterWording: result.betterWording,
-            dontForget: result.dontForget,
-          });
-          setShowAnswer(true); // Show answer/hint immediately after recording
-        }
+        // Set scorecard - we know it's for the current question since we just sent it
+        setScorecard({
+          id: result.id,
+          questionId: currentQuestion.id,
+          audioUrl: result.audioUrl,
+          transcript: result.transcript,
+          metrics: result.metrics,
+          scores: result.scores,
+          tips: result.tips,
+          questionAnswered: result.questionAnswered,
+          answerQuality: result.answerQuality,
+          whatWasRight: result.whatWasRight,
+          whatWasWrong: result.whatWasWrong,
+          betterWording: result.betterWording,
+          dontForget: result.dontForget,
+        });
+        setShowAnswer(true); // Show answer/hint after AI analysis completes
         
         // Add the new session item to the local state without re-fetching questions
         // This prevents question reordering during the session
         setSessionItems(prev => [
           {
             id: result.id,
-            questionId: result.questionId || currentQuestion.id,
+            questionId: currentQuestion.id,
             audioUrl: result.audioUrl,
             transcript: result.transcript,
             metrics: result.metrics,
@@ -356,22 +354,25 @@ export default function PracticeSessionPage() {
             onStart={() => setIsRecording(true)}
             onStop={() => {
               setIsRecording(false);
-              setShowAnswer(true); // Show answer immediately when recording stops
+              // Don't show answer until AI analysis completes
             }}
+            disabled={loading}
           />
           {/* Only show LiveCaption when recording - consolidate into one box */}
           {isRecording && <LiveCaption isRecording={isRecording} />}
-          {loading && (
-            <div className="text-center py-4">
-              <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
-              <p className="mt-2 text-slate-700 dark:text-slate-300">Processing...</p>
-            </div>
-          )}
         </div>
 
         {/* Right Column - Scorecard */}
         <div className="lg:col-span-1">
-          {scorecard ? (
+          {loading ? (
+            <div className="bg-white dark:bg-slate-800 rounded-lg shadow-md p-6 border border-slate-200 dark:border-slate-700">
+              <div className="flex flex-col items-center justify-center py-12">
+                <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mb-4"></div>
+                <p className="text-slate-700 dark:text-slate-300 font-medium">Processing your answer...</p>
+                <p className="text-sm text-slate-500 dark:text-slate-400 mt-2">Analyzing speech patterns and content</p>
+              </div>
+            </div>
+          ) : scorecard ? (
           <Scorecard
             metrics={scorecard.metrics}
             scores={scorecard.scores}

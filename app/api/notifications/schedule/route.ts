@@ -1,7 +1,7 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { requireAuth } from '@/lib/auth';
-import { prisma } from '@/lib/db';
-import { handleApiError } from '@/lib/errors';
+import { NextRequest, NextResponse } from "next/server";
+import { requireAuth } from "@/lib/auth";
+import { prisma } from "@/lib/db";
+import { handleApiError } from "@/lib/errors";
 
 /**
  * Analyze user's practice patterns and schedule smart notifications
@@ -11,14 +11,17 @@ export async function POST(request: NextRequest) {
 	try {
 		const user = await requireAuth(request);
 
-		// Get user's recent sessions
+		// Get user's recent sessions - handle null completedAt gracefully
 		const recentSessions = await prisma.session.findMany({
 			where: {
 				userId: user.id,
 				isCompleted: true,
+				completedAt: {
+					not: null, // Only get sessions that actually have a completedAt date
+				},
 			},
 			orderBy: {
-				completedAt: 'desc',
+				completedAt: "desc",
 			},
 			take: 10,
 			include: {
@@ -29,16 +32,19 @@ export async function POST(request: NextRequest) {
 		// Calculate days since last practice
 		const lastSession = recentSessions[0];
 		const daysSinceLastPractice = lastSession?.completedAt
-			? Math.floor((Date.now() - new Date(lastSession.completedAt).getTime()) / (1000 * 60 * 60 * 24))
+			? Math.floor(
+					(Date.now() - new Date(lastSession.completedAt).getTime()) /
+						(1000 * 60 * 60 * 24)
+			  )
 			: 999; // Never practiced
 
 		// Get weak topics from recent sessions
 		const weakTags = new Set<string>();
-		recentSessions.forEach(session => {
+		recentSessions.forEach((session) => {
 			if (session.summary) {
 				const summary = session.summary as { weakTags?: string[] };
 				if (summary.weakTags && Array.isArray(summary.weakTags)) {
-					summary.weakTags.forEach(tag => weakTags.add(tag));
+					summary.weakTags.forEach((tag) => weakTags.add(tag));
 				}
 			}
 		});
@@ -48,9 +54,11 @@ export async function POST(request: NextRequest) {
 			daysSinceLastPractice,
 			weakTags: Array.from(weakTags),
 			shouldScheduleStudyReminder: daysSinceLastPractice >= 2,
-			shouldScheduleWeakTopicsReminder: weakTags.size > 0 && daysSinceLastPractice >= 1,
+			shouldScheduleWeakTopicsReminder:
+				weakTags.size > 0 && daysSinceLastPractice >= 1,
 		});
 	} catch (error) {
+		console.error("Error in notifications/schedule:", error);
 		const errorData = handleApiError(error);
 		return NextResponse.json(
 			{ error: errorData.message, code: errorData.code },
@@ -58,4 +66,3 @@ export async function POST(request: NextRequest) {
 		);
 	}
 }
-

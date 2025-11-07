@@ -30,7 +30,7 @@ const EnhancedAnalysisResponseSchema = z.object({
 	questionAnswered: z.boolean(),
 	answerQuality: z.number().int().min(0).max(5),
 	whatWasRight: z.array(z.string()).min(2).max(4),
-	betterWording: z.array(z.string()).min(2).max(3), // Concise wording improvements (grammar fixes use "You said" format)
+	betterWording: z.array(z.string()).min(0).max(3), // Concise wording improvements (grammar fixes use "You said" format) - allow 0-3 items
 	dontForget: z.array(z.string()).min(0).max(4), // Vital specific points missing from answer (empty if nothing vital missing)
 	starScore: z.number().int().min(0).max(5),
 	impactScore: z.number().int().min(0).max(5),
@@ -79,7 +79,7 @@ Return JSON only:
 }
 
 Formatting:
-- betterWording (2-3): Grammar/English fixes use "You said: '[exact quote]'. Better: '[fix]'". Other improvements: brief (1 sentence).
+- betterWording (0-3): Grammar/English fixes use "You said: '[exact quote]'. Better: '[fix]'". Other improvements: brief (1 sentence). Can be empty if no improvements needed.
 - dontForget (0-4): Only VITAL, SPECIFIC missing points. Empty [] if nothing vital missing. No generic reminders.
 - whatWasRight (2-4): Specific correct points from their answer.
 - tips (5): Actionable, concise tips.

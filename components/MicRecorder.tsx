@@ -6,12 +6,14 @@ interface MicRecorderProps {
 	onRecordingComplete: (blob: Blob) => void;
 	onStart?: () => void;
 	onStop?: () => void;
+	disabled?: boolean; // Disable recording while processing
 }
 
 export function MicRecorder({
 	onRecordingComplete,
 	onStart,
 	onStop,
+	disabled = false,
 }: MicRecorderProps) {
 	const [isRecording, setIsRecording] = useState(false);
 	const [duration, setDuration] = useState(0);
@@ -182,6 +184,9 @@ export function MicRecorder({
 	};
 
 	const startRecording = async () => {
+		// Don't start if disabled
+		if (disabled) return;
+
 		try {
 			// Reuse existing stream if available and active
 			let stream = streamRef.current;
@@ -466,13 +471,16 @@ export function MicRecorder({
 		<div className="flex flex-col items-center gap-4">
 			<button
 				onClick={isRecording ? stopRecording : startRecording}
+				disabled={disabled && !isRecording}
 				className={`w-24 h-24 rounded-full flex items-center justify-center text-white font-semibold transition-all ${
 					isRecording
 						? "bg-red-500 hover:bg-red-600"
+						: disabled
+						? "bg-slate-400 cursor-not-allowed"
 						: "bg-blue-500 hover:bg-blue-600"
 				}`}
 			>
-				{isRecording ? "Stop" : "Record"}
+				{isRecording ? "Stop" : disabled ? "Processing..." : "Record"}
 			</button>
 
 			{/* Audio Level Indicator */}
