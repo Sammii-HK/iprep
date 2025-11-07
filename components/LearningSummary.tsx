@@ -136,9 +136,14 @@ export function LearningSummary({ sessionId }: { sessionId: string }) {
           <div className="text-3xl font-bold text-blue-600 dark:text-blue-400 mb-2">
             {summary.overallScore.toFixed(1)} / 5.0
           </div>
-          {summary.overallScore < 3.5 && (
+          {summary.overallScore < 3.5 && (needsReview.length > 0 || summary.weakTags.length > 0) && (
             <p className="text-sm text-blue-700 dark:text-blue-300">
               Focus on the topics below to improve your overall performance
+            </p>
+          )}
+          {summary.overallScore < 3.5 && needsReview.length === 0 && summary.weakTags.length === 0 && (
+            <p className="text-sm text-blue-700 dark:text-blue-300">
+              Great job! Keep practicing to maintain your performance.
             </p>
           )}
         </div>
