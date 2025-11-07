@@ -1,9 +1,17 @@
 import { prisma } from './db';
+import { Prisma } from '@prisma/client';
 
 interface CommonMistake {
   pattern: string;
   frequency: number;
   examples: string[];
+}
+
+interface FrequentlyForgottenPoint {
+  point: string;
+  frequency: number;
+  questions: string[]; // Question IDs where this was forgotten
+  tags: string[]; // Tags associated with questions where this was forgotten
 }
 
 interface PerformanceByTag {
@@ -19,6 +27,7 @@ export async function analyzeSessionPerformance(
   userId: string
 ): Promise<{
   commonMistakes: CommonMistake[];
+  frequentlyForgottenPoints: FrequentlyForgottenPoint[];
   weakTags: string[];
   strongTags: string[];
   recommendedFocus: string[];
@@ -45,6 +54,7 @@ export async function analyzeSessionPerformance(
   if (items.length === 0) {
     return {
       commonMistakes: [],
+      frequentlyForgottenPoints: [],
       weakTags: [],
       strongTags: [],
       recommendedFocus: [],
@@ -79,6 +89,42 @@ export async function analyzeSessionPerformance(
     }))
     .sort((a, b) => b.frequency - a.frequency)
     .slice(0, 10); // Top 10 most common
+
+  // Track frequently forgotten key points (dontForget)
+  const forgottenPointFrequency: Map<string, { count: number; questions: Set<string>; tags: Set<string> }> = new Map();
+
+  items.forEach((item) => {
+    if (item.dontForget && item.dontForget.length > 0) {
+      const question = item.question;
+      const questionTags = question.tags || [];
+      
+      item.dontForget.forEach((point) => {
+        const normalized = point.toLowerCase().trim();
+        if (!forgottenPointFrequency.has(normalized)) {
+          forgottenPointFrequency.set(normalized, {
+            count: 0,
+            questions: new Set(),
+            tags: new Set(),
+          });
+        }
+        const entry = forgottenPointFrequency.get(normalized)!;
+        entry.count++;
+        entry.questions.add(question.id);
+        questionTags.forEach(tag => entry.tags.add(tag));
+      });
+    }
+  });
+
+  // Convert to frequently forgotten points array
+  const frequentlyForgottenPoints: FrequentlyForgottenPoint[] = Array.from(forgottenPointFrequency.entries())
+    .map(([point, data]) => ({
+      point,
+      frequency: data.count,
+      questions: Array.from(data.questions),
+      tags: Array.from(data.tags),
+    }))
+    .sort((a, b) => b.frequency - a.frequency)
+    .slice(0, 10); // Top 10 most frequently forgotten
 
   // Calculate performance by tag
   const tagScores: Map<string, number[]> = new Map();
@@ -166,6 +212,7 @@ export async function analyzeSessionPerformance(
 
   return {
     commonMistakes,
+    frequentlyForgottenPoints,
     weakTags,
     strongTags,
     recommendedFocus,
@@ -196,6 +243,7 @@ export async function aggregateUserInsights(userId: string): Promise<void> {
         aggregatedWeakTags: [],
         aggregatedStrongTags: [],
         topFocusAreas: [],
+        topForgottenPoints: Prisma.JsonNull,
         totalSessions: 0,
         totalQuestions: 0,
       },
@@ -203,6 +251,7 @@ export async function aggregateUserInsights(userId: string): Promise<void> {
         aggregatedWeakTags: [],
         aggregatedStrongTags: [],
         topFocusAreas: [],
+        topForgottenPoints: Prisma.JsonNull,
         totalSessions: 0,
         totalQuestions: 0,
         lastUpdated: new Date(),
@@ -219,6 +268,41 @@ export async function aggregateUserInsights(userId: string): Promise<void> {
   if (summaries.length === 0) {
     return;
   }
+
+  // Aggregate frequently forgotten points across all sessions
+  const allForgottenPoints: Map<string, { count: number; sessions: Set<string>; tags: Set<string> }> = new Map();
+  
+  sessions.forEach((session) => {
+    const summary = session.summary;
+    if (summary && summary.frequentlyForgottenPoints) {
+      const points = summary.frequentlyForgottenPoints as unknown as FrequentlyForgottenPoint[];
+      points.forEach((point) => {
+        const normalized = point.point.toLowerCase().trim();
+        if (!allForgottenPoints.has(normalized)) {
+          allForgottenPoints.set(normalized, {
+            count: 0,
+            sessions: new Set(),
+            tags: new Set(),
+          });
+        }
+        const entry = allForgottenPoints.get(normalized)!;
+        entry.count += point.frequency;
+        entry.sessions.add(session.id);
+        point.tags.forEach(tag => entry.tags.add(tag));
+      });
+    }
+  });
+
+  // Get top 5 most frequently forgotten points across all sessions
+  const topForgottenPoints = Array.from(allForgottenPoints.entries())
+    .map(([point, data]) => ({
+      point,
+      totalFrequency: data.count,
+      sessionCount: data.sessions.size,
+      tags: Array.from(data.tags),
+    }))
+    .sort((a, b) => b.totalFrequency - a.totalFrequency)
+    .slice(0, 5);
 
   // Collect all tags
   const tagFrequency: Map<string, { weak: number; strong: number; focus: number }> = new Map();
@@ -284,6 +368,7 @@ export async function aggregateUserInsights(userId: string): Promise<void> {
       aggregatedWeakTags,
       aggregatedStrongTags,
       topFocusAreas,
+      topForgottenPoints: JSON.parse(JSON.stringify(topForgottenPoints)) as Prisma.InputJsonValue,
       totalSessions: sessions.length,
       totalQuestions,
     },
@@ -291,6 +376,7 @@ export async function aggregateUserInsights(userId: string): Promise<void> {
       aggregatedWeakTags,
       aggregatedStrongTags,
       topFocusAreas,
+      topForgottenPoints: JSON.parse(JSON.stringify(topForgottenPoints)) as Prisma.InputJsonValue,
       totalSessions: sessions.length,
       totalQuestions,
       lastUpdated: new Date(),

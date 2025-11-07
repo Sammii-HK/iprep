@@ -59,9 +59,36 @@ export async function GET(
 			);
 		}
 
+		// Count how many times each question has been answered
+		const questionAnswerCounts = new Map<string, number>();
+		session.items.forEach((item) => {
+			const count = questionAnswerCounts.get(item.questionId) || 0;
+			questionAnswerCounts.set(item.questionId, count + 1);
+		});
+
+		// Reorder questions: least answered first, then by id for consistency
+		questions = questions.sort((a, b) => {
+			const countA = questionAnswerCounts.get(a.id) || 0;
+			const countB = questionAnswerCounts.get(b.id) || 0;
+			if (countA !== countB) {
+				return countA - countB; // Least answered first
+			}
+			return a.id.localeCompare(b.id); // Then by id for consistency
+		});
+
 		// Limit questions based on maxQuestions query param
 		if (maxQuestions && maxQuestions > 0 && questions.length > maxQuestions) {
 			questions = questions.slice(0, maxQuestions);
+		}
+
+		// Find the first unanswered question index
+		let firstUnansweredIndex = 0;
+		for (let i = 0; i < questions.length; i++) {
+			const answerCount = questionAnswerCounts.get(questions[i].id) || 0;
+			if (answerCount === 0) {
+				firstUnansweredIndex = i;
+				break;
+			}
 		}
 		const items = session.items.map(
 			(item: {
@@ -124,6 +151,7 @@ export async function GET(
 			completedAt: session.completedAt,
 			questions,
 			items,
+			firstUnansweredIndex, // Index of first unanswered question
 		});
 	} catch (error) {
 		const errorResponse = handleApiError(error);

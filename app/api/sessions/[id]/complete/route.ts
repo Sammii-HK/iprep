@@ -68,6 +68,7 @@ export async function POST(
         sessionId: id,
         bankId: session.bankId || null,
         commonMistakes: JSON.parse(JSON.stringify(analysis.commonMistakes)) as Prisma.InputJsonValue,
+        frequentlyForgottenPoints: JSON.parse(JSON.stringify(analysis.frequentlyForgottenPoints)) as Prisma.InputJsonValue,
         weakTags: analysis.weakTags,
         strongTags: analysis.strongTags,
         recommendedFocus: analysis.recommendedFocus,
@@ -76,6 +77,7 @@ export async function POST(
       },
       update: {
         commonMistakes: JSON.parse(JSON.stringify(analysis.commonMistakes)) as Prisma.InputJsonValue,
+        frequentlyForgottenPoints: JSON.parse(JSON.stringify(analysis.frequentlyForgottenPoints)) as Prisma.InputJsonValue,
         weakTags: analysis.weakTags,
         strongTags: analysis.strongTags,
         recommendedFocus: analysis.recommendedFocus,

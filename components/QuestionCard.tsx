@@ -20,6 +20,7 @@ interface QuestionCardProps {
   currentQuestionNumber?: number; // e.g., 1
   totalQuestions?: number; // e.g., 20
   showHint?: boolean; // Show hint/answer immediately
+  dontForget?: string[]; // Points that were forgotten - will be bolded in hint
 }
 
 export function QuestionCard({
@@ -32,6 +33,7 @@ export function QuestionCard({
   currentQuestionNumber,
   totalQuestions,
   showHint = false, // Default to false, can be overridden
+  dontForget = [], // Points that were forgotten
 }: QuestionCardProps) {
   // Store hint state keyed by question ID to automatically reset when question changes
   const [hintStates, setHintStates] = useState<Record<string, boolean>>({});
@@ -44,6 +46,73 @@ export function QuestionCard({
       ...prev,
       [question.id]: show,
     }));
+  };
+
+  /**
+   * Highlight parts of the hint that match forgotten points
+   * Uses fuzzy matching to find relevant phrases in the hint
+   */
+  const highlightForgottenParts = (hintText: string): React.ReactNode => {
+    if (!dontForget || dontForget.length === 0) {
+      return <span>{hintText}</span>;
+    }
+
+    // Create a regex pattern from forgotten points
+    // Extract key words/phrases from each forgotten point
+    const patterns: string[] = [];
+    dontForget.forEach((point) => {
+      // Extract meaningful words (3+ characters, not common words)
+      const words = point
+        .toLowerCase()
+        .split(/\s+/)
+        .filter((w) => w.length >= 3 && !['the', 'and', 'for', 'are', 'but', 'not', 'you', 'was', 'can', 'this'].includes(w));
+      
+      // Create patterns from 2-3 word phrases
+      for (let i = 0; i < words.length; i++) {
+        if (i + 1 < words.length) {
+          patterns.push(`${words[i]}\\s+${words[i + 1]}`);
+        }
+        if (i + 2 < words.length) {
+          patterns.push(`${words[i]}\\s+${words[i + 1]}\\s+${words[i + 2]}`);
+        }
+      }
+    });
+
+    if (patterns.length === 0) {
+      return <span>{hintText}</span>;
+    }
+
+    // Combine patterns with word boundaries
+    const combinedPattern = `\\b(${patterns.join('|')})\\b`;
+    
+    // Split text and highlight matches
+    const parts: React.ReactNode[] = [];
+    let lastIndex = 0;
+    let match;
+    const regex = new RegExp(combinedPattern, 'gi');
+
+    while ((match = regex.exec(hintText)) !== null) {
+      // Add text before match
+      if (match.index > lastIndex) {
+        parts.push(hintText.substring(lastIndex, match.index));
+      }
+      
+      // Add bolded match
+      parts.push(
+        <strong key={match.index} className="font-bold text-amber-700 dark:text-amber-300 bg-amber-100 dark:bg-amber-900/40 px-1 rounded">
+          {match[0]}
+        </strong>
+      );
+      
+      lastIndex = regex.lastIndex;
+    }
+
+    // Add remaining text
+    if (lastIndex < hintText.length) {
+      parts.push(hintText.substring(lastIndex));
+    }
+
+    return parts.length > 0 ? <>{parts}</> : <span>{hintText}</span>;
   };
   
   const difficultyColors = {
@@ -109,7 +178,11 @@ export function QuestionCard({
                     )}
                   </div>
                   <p className="text-sm text-slate-700 dark:text-slate-300 leading-relaxed whitespace-pre-wrap">
-                    {question.hint || `Use the question tags as context. Think about the key concepts related to: ${question.tags.join(', ')}. Structure your answer clearly and provide examples.`}
+                    {question.hint ? (
+                      highlightForgottenParts(question.hint)
+                    ) : (
+                      `Use the question tags as context. Think about the key concepts related to: ${question.tags.join(', ')}. Structure your answer clearly and provide examples.`
+                    )}
                   </p>
                 </div>
               )}

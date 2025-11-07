@@ -3,6 +3,13 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 
+interface FrequentlyForgottenPoint {
+  point: string;
+  frequency: number;
+  questions: string[];
+  tags: string[];
+}
+
 interface CommonMistake {
   pattern: string;
   frequency: number;
@@ -19,6 +26,7 @@ interface PerformanceByTag {
 
 interface LearningSummaryData {
   commonMistakes: CommonMistake[];
+  frequentlyForgottenPoints?: FrequentlyForgottenPoint[];
   weakTags: string[];
   strongTags: string[];
   recommendedFocus: string[];
@@ -212,6 +220,44 @@ export function LearningSummary({ sessionId }: { sessionId: string }) {
                 {mistake.examples.length > 0 && (
                   <div className="text-sm text-gray-600 dark:text-gray-400 mt-1">
                     Examples: {mistake.examples.join(', ')}
+                  </div>
+                )}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {/* Frequently Forgotten Key Points */}
+      {summary.frequentlyForgottenPoints && summary.frequentlyForgottenPoints.length > 0 && (
+        <div className="mb-6">
+          <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-3">
+            🔑 Consistently Forgotten Key Points
+          </h3>
+          <p className="text-sm text-gray-600 dark:text-gray-400 mb-3">
+            These are key points you forgot to include multiple times. Focus on remembering these!
+          </p>
+          <ul className="space-y-3">
+            {summary.frequentlyForgottenPoints.map((point, idx) => (
+              <li key={idx} className="bg-amber-50 dark:bg-amber-900/30 rounded-lg p-4 border border-amber-200 dark:border-amber-800">
+                <div className="flex items-start justify-between mb-2">
+                  <div className="font-medium text-amber-900 dark:text-amber-100 flex-1">
+                    {point.point}
+                  </div>
+                  <span className="text-xs bg-amber-200 dark:bg-amber-800 text-amber-800 dark:text-amber-200 px-2 py-1 rounded ml-2">
+                    {point.frequency}x
+                  </span>
+                </div>
+                {point.tags.length > 0 && (
+                  <div className="flex flex-wrap gap-1 mt-2">
+                    {point.tags.slice(0, 3).map((tag) => (
+                      <span
+                        key={tag}
+                        className="text-xs bg-amber-100 dark:bg-amber-900/50 text-amber-700 dark:text-amber-300 px-2 py-0.5 rounded"
+                      >
+                        {tag}
+                      </span>
+                    ))}
                   </div>
                 )}
               </li>

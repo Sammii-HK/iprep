@@ -87,6 +87,12 @@ export default function PracticeSessionPage() {
         if (data.isCompleted) {
           setSessionCompleted(true);
         }
+
+        // Resume at first unanswered question (or 0 if all answered)
+        const firstUnansweredIndex = data.firstUnansweredIndex !== undefined 
+          ? data.firstUnansweredIndex 
+          : 0;
+        setCurrentQuestionIndex(firstUnansweredIndex);
       }
     } catch (error) {
       console.error('Error fetching session:', error);
@@ -252,6 +258,7 @@ export default function PracticeSessionPage() {
                 currentQuestionNumber={currentQuestionIndex + 1}
                 totalQuestions={questions.length}
                 showHint={showAnswer} // Show hint/answer after recording
+                dontForget={scorecard?.dontForget || []} // Pass forgotten points to highlight in hint
                 onNext={() => {
                   if (currentQuestionIndex < questions.length - 1) {
                     setCurrentQuestionIndex(currentQuestionIndex + 1);
@@ -303,7 +310,10 @@ export default function PracticeSessionPage() {
           <MicRecorder
             onRecordingComplete={handleRecordingComplete}
             onStart={() => setIsRecording(true)}
-            onStop={() => setIsRecording(false)}
+            onStop={() => {
+              setIsRecording(false);
+              setShowAnswer(true); // Show answer immediately when recording stops
+            }}
           />
           {/* Only show LiveCaption when recording - consolidate into one box */}
           {isRecording && <LiveCaption isRecording={isRecording} />}

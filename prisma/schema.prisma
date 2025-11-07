@@ -144,6 +144,7 @@ model LearningSummary {
   sessionId       String   @unique
   bankId          String?
   commonMistakes  Json     // Array of mistake patterns
+  frequentlyForgottenPoints Json? // Array of key points consistently forgotten
   weakTags        String[] // Tags with low scores
   strongTags      String[] // Tags with high scores
   recommendedFocus String[] // Tags to revisit
@@ -160,6 +161,7 @@ model UserLearningInsight {
   aggregatedWeakTags  String[] // Across all sessions
   aggregatedStrongTags String[] // Across all sessions
   topFocusAreas       String[] // Most recommended
+  topForgottenPoints  Json?    // Most frequently forgotten key points across all sessions
   totalSessions       Int      @default(0)
   totalQuestions      Int      @default(0)
   lastUpdated         DateTime @default(now()) @updatedAt

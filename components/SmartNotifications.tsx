@@ -9,12 +9,24 @@ import { scheduleStudyReminder, scheduleWeakTopicsReminder, checkAndTriggerNotif
  */
 export function SmartNotifications() {
 	// Initialize state directly instead of in useEffect
-	const [isEnabled] = useState(() => {
+	const [isEnabled, setIsEnabled] = useState(() => {
 		if (typeof window !== 'undefined' && 'Notification' in window) {
 			return Notification.permission === 'granted';
 		}
 		return false;
 	});
+
+	// Request notification permission if not granted
+	useEffect(() => {
+		if (typeof window !== 'undefined' && 'Notification' in window) {
+			if (Notification.permission === 'default') {
+				// Request permission
+				Notification.requestPermission().then((permission) => {
+					setIsEnabled(permission === 'granted');
+				});
+			}
+		}
+	}, []);
 
 	const scheduleNotifications = useCallback(async () => {
 		if (!isEnabled) return;
@@ -48,6 +60,8 @@ export function SmartNotifications() {
 	}, [isEnabled]);
 
 	useEffect(() => {
+		if (!isEnabled) return;
+
 		// Schedule notifications when component mounts
 		scheduleNotifications();
 
@@ -60,7 +74,7 @@ export function SmartNotifications() {
 		checkAndTriggerNotifications();
 
 		return () => clearInterval(interval);
-	}, [scheduleNotifications]);
+	}, [scheduleNotifications, isEnabled]);
 
 	// This component doesn't render anything - it just runs in the background
 	return null;

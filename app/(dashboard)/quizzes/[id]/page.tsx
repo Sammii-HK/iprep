@@ -55,6 +55,21 @@ export default function QuizPage() {
           data.questions = data.questions.slice(0, maxQuestions);
         }
         setQuiz(data);
+
+        // Initialize completed questions from attempts
+        const completedSet = new Set<string>();
+        if (data.attempts && Array.isArray(data.attempts)) {
+          data.attempts.forEach((attempt: { questionId: string }) => {
+            completedSet.add(attempt.questionId);
+          });
+        }
+        setCompletedQuestions(completedSet);
+
+        // Resume at first unanswered question (or 0 if all answered)
+        const firstUnansweredIndex = data.firstUnansweredIndex !== undefined 
+          ? data.firstUnansweredIndex 
+          : 0;
+        setCurrentQuestionIndex(firstUnansweredIndex);
       }
     } catch (error) {
       console.error('Error fetching quiz:', error);
