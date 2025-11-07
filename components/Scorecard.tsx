@@ -152,6 +152,19 @@ export function Scorecard({
 						</div>
 					)}
 
+					{dontForget && dontForget.length > 0 && (
+						<div className="mb-3 p-3 bg-slate-50 dark:bg-slate-700 rounded-lg">
+							<h4 className="text-sm font-semibold text-slate-900 dark:text-slate-100 mb-2">
+								Key Points to Include:
+							</h4>
+							<ul className="list-disc list-inside space-y-1 text-sm text-slate-700 dark:text-slate-200">
+								{dontForget.map((item, index) => (
+									<li key={index}>{item}</li>
+								))}
+							</ul>
+						</div>
+					)}
+
 					{betterWording && betterWording.length > 0 && (
 						<div className="mb-3">
 							<h4 className="text-sm font-semibold text-blue-700 dark:text-blue-300 mb-2">
@@ -162,19 +175,6 @@ export function Scorecard({
 									<li key={index} className="leading-relaxed">
 										{item}
 									</li>
-								))}
-							</ul>
-						</div>
-					)}
-
-					{dontForget && dontForget.length > 0 && (
-						<div className="mb-3 p-3 bg-slate-50 dark:bg-slate-800/50 rounded-lg">
-							<h4 className="text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
-								Key Points to Include:
-							</h4>
-							<ul className="list-disc list-inside space-y-1 text-sm text-slate-600 dark:text-slate-400">
-								{dontForget.map((item, index) => (
-									<li key={index}>{item}</li>
 								))}
 							</ul>
 						</div>

@@ -19,6 +19,7 @@ interface QuestionCardProps {
   onRetryWithHint?: () => void;
   currentQuestionNumber?: number; // e.g., 1
   totalQuestions?: number; // e.g., 20
+  showHint?: boolean; // Show hint/answer immediately
 }
 
 export function QuestionCard({
@@ -30,12 +31,13 @@ export function QuestionCard({
   onRetryWithHint,
   currentQuestionNumber,
   totalQuestions,
+  showHint = false, // Default to false, can be overridden
 }: QuestionCardProps) {
   // Store hint state keyed by question ID to automatically reset when question changes
   const [hintStates, setHintStates] = useState<Record<string, boolean>>({});
   
-  // Get hint state for current question (defaults to false for new questions)
-  const showHint = hintStates[question.id] ?? false;
+  // Get hint state for current question - use showHint prop if provided, otherwise use stored state
+  const showHintState = showHint || (hintStates[question.id] ?? false);
   
   const setShowHint = (show: boolean) => {
     setHintStates((prev) => ({
@@ -86,9 +88,9 @@ export function QuestionCard({
       
       {onRetryWithHint && (
             <div className="mb-4">
-              {!showHint ? (
+              {!showHintState ? (
                 <button
-                  onClick={() => setShowHint(true)}
+                  onClick={() => setHintStates((prev) => ({ ...prev, [question.id]: true }))}
                   className="w-full px-4 py-2 bg-purple-500 hover:bg-purple-600 text-white rounded-lg transition-colors text-sm"
                 >
                   Show Hint
@@ -96,13 +98,15 @@ export function QuestionCard({
               ) : (
                 <div className="p-4 bg-purple-50 dark:bg-purple-900/20 rounded-lg border border-purple-200 dark:border-purple-800">
                   <div className="flex justify-between items-start mb-2">
-                    <strong className="font-semibold text-slate-900 dark:text-slate-100">Hint:</strong>
-                    <button
-                      onClick={() => setShowHint(false)}
-                      className="px-2 py-1 text-xs bg-purple-200 dark:bg-purple-800 hover:bg-purple-300 dark:hover:bg-purple-700 text-purple-800 dark:text-purple-200 rounded transition-colors"
-                    >
-                      Hide
-                    </button>
+                    <strong className="font-semibold text-slate-900 dark:text-slate-100">Answer/Hint:</strong>
+                    {!showHint && (
+                      <button
+                        onClick={() => setHintStates((prev) => ({ ...prev, [question.id]: false }))}
+                        className="px-2 py-1 text-xs bg-purple-200 dark:bg-purple-800 hover:bg-purple-300 dark:hover:bg-purple-700 text-purple-800 dark:text-purple-200 rounded transition-colors"
+                      >
+                        Hide
+                      </button>
+                    )}
                   </div>
                   <p className="text-sm text-slate-700 dark:text-slate-300 leading-relaxed whitespace-pre-wrap">
                     {question.hint || `Use the question tags as context. Think about the key concepts related to: ${question.tags.join(', ')}. Structure your answer clearly and provide examples.`}
@@ -132,7 +136,7 @@ export function QuestionCard({
         {hasNext && (
           <button
             onClick={() => {
-              setShowHint(false); // Hide hint when moving to next question
+              setHintStates((prev) => ({ ...prev, [question.id]: false })); // Hide hint when moving to next question
               onNext?.();
             }}
             className="px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded transition-colors ml-auto"

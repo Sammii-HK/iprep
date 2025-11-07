@@ -58,6 +58,7 @@ export default function PracticeSessionPage() {
   const [sessionItems, setSessionItems] = useState<SessionItem[]>([]);
   const [isCompleting, setIsCompleting] = useState(false);
   const [sessionCompleted, setSessionCompleted] = useState(false);
+  const [showAnswer, setShowAnswer] = useState(false); // Show answer/hint after recording
   const prevQuestionIndexRef = useRef<number>(0);
 
   const fetchSessionData = useCallback(async () => {
@@ -98,11 +99,12 @@ export default function PracticeSessionPage() {
     }
   }, [sessionId, fetchSessionData]);
 
-  // Reset scorecard when question changes
+  // Reset scorecard and answer visibility when question changes
   useLayoutEffect(() => {
     if (prevQuestionIndexRef.current !== currentQuestionIndex) {
       prevQuestionIndexRef.current = currentQuestionIndex;
       setScorecard(null); // Hide scorecard when moving to new question
+      setShowAnswer(false); // Hide answer when moving to new question
     }
   }, [currentQuestionIndex]);
 
@@ -152,6 +154,7 @@ export default function PracticeSessionPage() {
           betterWording: result.betterWording,
           dontForget: result.dontForget,
         });
+        setShowAnswer(true); // Show answer/hint immediately after recording
         fetchSessionData(); // Refresh to get new session item
       } else {
         const error = await response.json();
@@ -248,18 +251,19 @@ export default function PracticeSessionPage() {
                 question={currentQuestion}
                 currentQuestionNumber={currentQuestionIndex + 1}
                 totalQuestions={questions.length}
+                showHint={showAnswer} // Show hint/answer after recording
                 onNext={() => {
                   if (currentQuestionIndex < questions.length - 1) {
                     setCurrentQuestionIndex(currentQuestionIndex + 1);
                     setScorecard(null);
-                    // Reset question visibility when moving to next
+                    setShowAnswer(false); // Hide answer when moving to next
                   }
                 }}
                 onPrevious={() => {
                   if (currentQuestionIndex > 0) {
                     setCurrentQuestionIndex(currentQuestionIndex - 1);
                     setScorecard(null);
-                    // Reset question visibility when going back
+                    setShowAnswer(false); // Hide answer when going back
                   }
                 }}
                 hasNext={currentQuestionIndex < questions.length - 1}

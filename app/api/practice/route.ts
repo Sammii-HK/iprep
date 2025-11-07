@@ -121,6 +121,28 @@ export async function POST(request: NextRequest) {
       type: audioFile.type,
     });
 
+    // Get actual audio duration from the blob
+    let actualDuration: number | null = null;
+    try {
+      const audio = new Audio();
+      const audioUrl = URL.createObjectURL(audioBlob);
+      await new Promise<void>((resolve, reject) => {
+        audio.onloadedmetadata = () => {
+          actualDuration = audio.duration;
+          URL.revokeObjectURL(audioUrl);
+          resolve();
+        };
+        audio.onerror = () => {
+          URL.revokeObjectURL(audioUrl);
+          reject(new Error('Failed to load audio metadata'));
+        };
+        audio.src = audioUrl;
+      });
+    } catch (error) {
+      console.warn('Could not get audio duration from blob:', error);
+      // Will fall back to estimation
+    }
+
     // Optimize: Start transcription first (critical), then start upload in parallel
     // We'll wait for upload only when we need to save
     let transcript: string;
@@ -196,11 +218,13 @@ export async function POST(request: NextRequest) {
     const fillerCount = countFillers(transcript);
     const fillerRate = calculateFillerRate(fillerCount, wordCount);
     
-    // Estimate duration from timestamps or use default
+    // Use actual duration if available, otherwise estimate from timestamps or word count
     const duration =
-      wordTimestamps && wordTimestamps.length > 0
+      actualDuration && actualDuration > 0
+        ? actualDuration
+        : wordTimestamps && wordTimestamps.length > 0
         ? wordTimestamps[wordTimestamps.length - 1].end
-        : Math.max(30, wordCount / 2); // Rough estimate: 2 words per second
+        : Math.max(5, wordCount / 3); // More realistic estimate: 3 words per second, minimum 5 seconds
     
     // Detect long pauses - use timestamps if available, otherwise estimate from transcript
     const longPauses = wordTimestamps && wordTimestamps.length > 0
@@ -281,20 +305,50 @@ export async function POST(request: NextRequest) {
         throw new ValidationError('Transcript is empty after trimming. Cannot analyze.');
       }
       
-      console.log('Starting AI analysis...', {
-        transcriptLength: transcript.length,
-        trimmedLength: trimmedTranscript.length,
-        wordCount,
-        questionTags,
-        hasQuestionText: !!question.text,
-        hasQuestionHint: !!question.hint,
-        transcriptPreview: trimmedTranscript.substring(0, 200),
-        transcriptEnd: trimmedTranscript.substring(Math.max(0, trimmedTranscript.length - 100)),
-      });
+      // Only proceed with AI analysis if we have sufficient content
+      // Require at least 10 words OR at least 5 seconds of audio
+      const hasMinimumContent = wordCount >= 10 || (actualDuration && actualDuration >= 5);
+      
+      if (!hasMinimumContent) {
+        // Return a helpful message instead of default fallback
+        analysis = {
+          questionAnswered: false,
+          answerQuality: 1,
+          whatWasRight: [
+            'Your response was recorded',
+          ],
+          betterWording: [
+            `Try speaking for at least ${actualDuration ? Math.ceil(5 - actualDuration) : 5} more seconds or provide more detail (aim for 20+ words)`,
+            'Structure your answer with clear examples',
+          ],
+          dontForget: [],
+          starScore: 1,
+          impactScore: 1,
+          clarityScore: 1,
+          technicalAccuracy: 1,
+          terminologyUsage: 1,
+          tips: [
+            'Your response was too brief. Try speaking for 30-60 seconds.',
+            `You provided ${wordCount} words - aim for 20+ words for better feedback`,
+            'Include specific examples and structure your answer clearly',
+          ],
+        };
+      } else {
+        console.log('Starting AI analysis...', {
+          transcriptLength: transcript.length,
+          trimmedLength: trimmedTranscript.length,
+          wordCount,
+          duration: actualDuration || 'estimated',
+          questionTags,
+          hasQuestionText: !!question.text,
+          hasQuestionHint: !!question.hint,
+          transcriptPreview: trimmedTranscript.substring(0, 200),
+          transcriptEnd: trimmedTranscript.substring(Math.max(0, trimmedTranscript.length - 100)),
+        });
 
-      try {
-        // Pass the trimmed transcript to ensure it's clean
-        analysis = await Promise.race([
+        try {
+          // Pass the trimmed transcript to ensure it's clean
+          analysis = await Promise.race([
           analyzeTranscriptOptimized(
             trimmedTranscript, // Use trimmed transcript
             question.id, // questionId for caching
@@ -378,6 +432,7 @@ export async function POST(request: NextRequest) {
             'Include specific metrics and outcomes when possible',
           ],
         };
+      }
       }
     }
 
