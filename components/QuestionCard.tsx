@@ -123,7 +123,7 @@ export function QuestionCard({
       
       // Add bolded match
       parts.push(
-        <strong key={`${match.index}-${match[0]}`} className="font-bold text-amber-700 dark:text-amber-300 bg-amber-100 dark:bg-amber-900/40 px-1 rounded">
+        <strong key={`${match.index}-${match[0]}`} className="font-bold">
           {match[0]}
         </strong>
       );
