@@ -83,14 +83,17 @@ export function LearningSummary({ sessionId }: { sessionId: string }) {
   }
 
   // Calculate what needs most review
-  const needsReview = Object.entries(summary.performanceByTag)
-    .filter(([, data]) => data.avgScore < 3.5)
+  const performanceByTag = summary.performanceByTag || {};
+  const needsReview = Object.entries(performanceByTag)
+    .filter(([, data]) => data && typeof data === 'object' && 'avgScore' in data && data.avgScore < 3.5)
     .sort(([, a], [, b]) => {
       // Sort by score (lowest first), then by count (more questions = higher priority)
-      if (Math.abs(a.avgScore - b.avgScore) > 0.2) {
-        return a.avgScore - b.avgScore;
+      const aData = a as { avgScore: number; count: number };
+      const bData = b as { avgScore: number; count: number };
+      if (Math.abs(aData.avgScore - bData.avgScore) > 0.2) {
+        return aData.avgScore - bData.avgScore;
       }
-      return b.count - a.count;
+      return bData.count - aData.count;
     })
     .slice(0, 5);
 
@@ -191,30 +194,33 @@ export function LearningSummary({ sessionId }: { sessionId: string }) {
                 These topics need the most attention based on your performance:
               </p>
               <div className="space-y-3">
-                {needsReview.map(([tag, data], idx) => (
+                {needsReview.map(([tag, data], idx) => {
+                  const reviewData = data as { avgScore: number; count: number };
+                  return (
                   <div key={tag} className="bg-white dark:bg-slate-700 rounded-lg p-3 border border-amber-200 dark:border-amber-700">
                     <div className="flex items-center justify-between mb-1">
                       <span className="font-semibold text-gray-900 dark:text-gray-100">
                         {idx + 1}. {tag}
                       </span>
                       <span className={`text-sm font-medium ${
-                        data.avgScore < 2.5 
+                        reviewData.avgScore < 2.5 
                           ? 'text-red-600 dark:text-red-400' 
-                          : data.avgScore < 3 
+                          : reviewData.avgScore < 3 
                           ? 'text-orange-600 dark:text-orange-400'
                           : 'text-amber-600 dark:text-amber-400'
                       }`}>
-                        {data.avgScore.toFixed(1)} / 5.0
+                        {reviewData.avgScore.toFixed(1)} / 5.0
                       </span>
                     </div>
                     <div className="text-xs text-gray-600 dark:text-gray-400">
-                      {data.count} question{data.count !== 1 ? 's' : ''} • 
-                      {data.avgScore < 2.5 && ' Needs significant review'}
-                      {data.avgScore >= 2.5 && data.avgScore < 3 && ' Needs practice'}
-                      {data.avgScore >= 3 && data.avgScore < 3.5 && ' Could improve'}
+                      {reviewData.count} question{reviewData.count !== 1 ? 's' : ''} • 
+                      {reviewData.avgScore < 2.5 && ' Needs significant review'}
+                      {reviewData.avgScore >= 2.5 && reviewData.avgScore < 3 && ' Needs practice'}
+                      {reviewData.avgScore >= 3 && reviewData.avgScore < 3.5 && ' Could improve'}
                     </div>
                   </div>
-                ))}
+                  );
+                })}
               </div>
             </>
           ) : summary.weakTags.length > 0 ? (
@@ -333,17 +339,23 @@ export function LearningSummary({ sessionId }: { sessionId: string }) {
       )}
 
       {/* Performance by Topic - Full Breakdown */}
-      {Object.keys(summary.performanceByTag).length > 0 && (
+      {Object.keys(performanceByTag).length > 0 && (
         <div>
           <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-3">
             Performance by Topic
           </h3>
           <div className="space-y-2">
-            {Object.entries(summary.performanceByTag)
-              .sort(([, a], [, b]) => a.avgScore - b.avgScore)
+            {Object.entries(performanceByTag)
+              .filter(([, data]) => data && typeof data === 'object' && 'avgScore' in data)
+              .sort(([, a], [, b]) => {
+                const aData = a as { avgScore: number };
+                const bData = b as { avgScore: number };
+                return aData.avgScore - bData.avgScore;
+              })
               .map(([tag, data]) => {
-                const isWeak = data.avgScore < 3;
-                const isStrong = data.avgScore >= 4;
+                const typedData = data as { avgScore: number; count: number };
+                const isWeak = typedData.avgScore < 3;
+                const isStrong = typedData.avgScore >= 4;
                 return (
                   <div 
                     key={tag} 
@@ -366,7 +378,7 @@ export function LearningSummary({ sessionId }: { sessionId: string }) {
                         {tag}
                       </span>
                       <div className="text-xs text-gray-600 dark:text-gray-400 mt-0.5">
-                        {data.count} question{data.count !== 1 ? 's' : ''}
+                        {typedData.count} question{typedData.count !== 1 ? 's' : ''}
                       </div>
                     </div>
                     <div className="flex items-center gap-3">
@@ -379,7 +391,7 @@ export function LearningSummary({ sessionId }: { sessionId: string }) {
                               ? 'bg-green-500'
                               : 'bg-blue-500'
                           }`}
-                          style={{ width: `${(data.avgScore / 5) * 100}%` }}
+                          style={{ width: `${(typedData.avgScore / 5) * 100}%` }}
                         />
                       </div>
                       <span className={`font-semibold w-16 text-right ${
@@ -389,15 +401,15 @@ export function LearningSummary({ sessionId }: { sessionId: string }) {
                           ? 'text-green-600 dark:text-green-400'
                           : 'text-gray-900 dark:text-gray-100'
                       }`}>
-                        {data.avgScore.toFixed(1)} / 5.0
+                        {typedData.avgScore.toFixed(1)} / 5.0
                       </span>
                     </div>
                   </div>
                 );
               })}
+            </div>
           </div>
-        </div>
-      )}
+        )}
     </div>
   );
 }
