@@ -20,17 +20,19 @@ export default function LearningPage() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (!user?.isPremium) {
-      router.push('/');
-      return;
-    }
-
     async function fetchInsights() {
       try {
         const response = await fetch('/api/learning/insights');
         if (response.ok) {
           const data = await response.json();
           setInsights(data.insights);
+        } else {
+          const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
+          console.error('Error fetching insights:', errorData);
+          if (response.status === 403) {
+            // Premium required - but don't redirect, just show message
+            console.log('Premium access required for learning insights');
+          }
         }
       } catch (error) {
         console.error('Error fetching insights:', error);
@@ -39,8 +41,10 @@ export default function LearningPage() {
       }
     }
 
-    fetchInsights();
-  }, [user, router]);
+    if (user) {
+      fetchInsights();
+    }
+  }, [user]);
 
   if (loading) {
     return <div className="text-gray-600">Loading insights...</div>;
