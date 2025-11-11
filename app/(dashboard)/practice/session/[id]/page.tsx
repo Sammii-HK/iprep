@@ -63,7 +63,13 @@ export default function PracticeSessionPage() {
   const prevQuestionIndexRef = useRef<number>(0);
 
   const fetchSessionData = useCallback(async () => {
+    if (!sessionId) {
+      console.error('No session ID provided');
+      return;
+    }
+
     try {
+      setLoading(true);
       // Get maxQuestions from localStorage if set during creation
       const storedMaxQuestions = localStorage.getItem(`session_${sessionId}_maxQuestions`);
       const maxQuestions = storedMaxQuestions ? parseInt(storedMaxQuestions, 10) : undefined;
@@ -74,44 +80,96 @@ export default function PracticeSessionPage() {
         : `/api/sessions/${sessionId}`;
       
       const response = await fetch(url);
-      if (response.ok) {
-        const data = await response.json();
-        // Limit questions on frontend if maxQuestions is set
-        let questions = data.questions || [];
-        if (maxQuestions && maxQuestions > 0 && questions.length > maxQuestions) {
-          questions = questions.slice(0, maxQuestions);
+      
+      if (!response.ok) {
+        // Handle different error cases
+        const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
+        
+        if (response.status === 404) {
+          // Session not found - might have been deleted
+          console.error('Session not found:', sessionId);
+          alert('Session not found. It may have been deleted. Redirecting to practice page.');
+          router.push('/practice');
+          return;
         }
         
-        // Only update questions on initial load to prevent reordering during session
-        if (isInitialLoad) {
-          setQuestions(questions);
-          
-          // Resume at first unanswered question (or 0 if all answered) only on initial load
-          const firstUnansweredIndex = data.firstUnansweredIndex !== undefined 
-            ? data.firstUnansweredIndex 
-            : 0;
-          setCurrentQuestionIndex(firstUnansweredIndex);
-          setIsInitialLoad(false);
+        if (response.status === 403) {
+          // Access denied
+          console.error('Access denied to session:', sessionId);
+          alert('You do not have access to this session. Redirecting to practice page.');
+          router.push('/practice');
+          return;
         }
         
-        // Always update session items to get latest attempts
-        setSessionItems(data.items || []);
+        // Other errors
+        console.error('Error fetching session:', errorData);
+        alert(`Failed to load session: ${errorData.error || 'Unknown error'}. Redirecting to practice page.`);
+        router.push('/practice');
+        return;
+      }
+
+      const data = await response.json();
+      
+      // Validate we got valid data
+      if (!data || !Array.isArray(data.questions)) {
+        console.error('Invalid session data received:', data);
+        alert('Invalid session data. Please try again.');
+        return;
+      }
+
+      // Limit questions on frontend if maxQuestions is set
+      let questions = data.questions || [];
+      if (maxQuestions && maxQuestions > 0 && questions.length > maxQuestions) {
+        questions = questions.slice(0, maxQuestions);
+      }
+      
+      // Ensure we have at least one question
+      if (questions.length === 0) {
+        console.error('Session has no questions');
+        alert('This session has no questions. Redirecting to practice page.');
+        router.push('/practice');
+        return;
+      }
+      
+      // Only update questions on initial load to prevent reordering during session
+      if (isInitialLoad) {
+        setQuestions(questions);
         
-        // Check if session is already completed
-        if (data.isCompleted) {
-          setSessionCompleted(true);
-        }
+        // Resume at question with least attempts (prioritizes unanswered) only on initial load
+        const resumeIndex = data.firstUnansweredIndex !== undefined && data.firstUnansweredIndex < questions.length
+          ? data.firstUnansweredIndex 
+          : 0;
+        setCurrentQuestionIndex(resumeIndex);
+        setIsInitialLoad(false);
+      }
+      
+      // Always update session items to get latest attempts
+      setSessionItems(data.items || []);
+      
+      // Check if session is already completed
+      if (data.isCompleted) {
+        setSessionCompleted(true);
       }
     } catch (error) {
       console.error('Error fetching session:', error);
+      // Network error or other exception
+      alert('Failed to load session. Please check your connection and try again.');
+      // Don't redirect on network errors - let user retry
+    } finally {
+      setLoading(false);
     }
-  }, [sessionId, isInitialLoad]);
+  }, [sessionId, isInitialLoad, router]);
 
   useEffect(() => {
-    if (sessionId) {
+    // Always load session from URL parameter - never create new
+    if (sessionId && sessionId.trim() !== '') {
       fetchSessionData();
+    } else {
+      console.error('Invalid session ID in URL');
+      alert('Invalid session ID. Redirecting to practice page.');
+      router.push('/practice');
     }
-  }, [sessionId, fetchSessionData]);
+  }, [sessionId]); // Only depend on sessionId, not fetchSessionData to avoid re-runs
 
   // Reset scorecard and answer visibility when question changes
   useLayoutEffect(() => {
@@ -126,9 +184,14 @@ export default function PracticeSessionPage() {
   const handleRecordingComplete = async (blob: Blob) => {
     if (questions.length === 0) return;
 
+    const currentQuestion = questions[currentQuestionIndex];
+    if (!currentQuestion) {
+      alert('Invalid question. Please refresh the page.');
+      return;
+    }
+
     setLoading(true);
     try {
-      const currentQuestion = questions[currentQuestionIndex];
       // Load coaching preferences from localStorage
       const savedPreferences = localStorage.getItem('coachingPreferences');
       let preferences: unknown = null;
@@ -277,6 +340,34 @@ export default function PracticeSessionPage() {
               View All Learning Insights
             </button>
           </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Show loading state while fetching session
+  if (loading && questions.length === 0) {
+    return (
+      <div className="px-4 py-6">
+        <div className="max-w-4xl mx-auto text-center py-12">
+          <div className="text-slate-600 dark:text-slate-400">Loading session...</div>
+        </div>
+      </div>
+    );
+  }
+
+  // Show error if no questions loaded
+  if (!loading && questions.length === 0) {
+    return (
+      <div className="px-4 py-6">
+        <div className="max-w-4xl mx-auto text-center py-12">
+          <div className="text-slate-600 dark:text-slate-400 mb-4">Session not found or has no questions.</div>
+          <button
+            onClick={() => router.push('/practice')}
+            className="px-6 py-3 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
+          >
+            Back to Practice Sessions
+          </button>
         </div>
       </div>
     );

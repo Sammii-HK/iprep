@@ -50,8 +50,13 @@ export async function GET(
 			throw new ValidationError("You do not have access to this session");
 		}
 
+		// Validate session has a bank
+		if (!session.bank) {
+			throw new ValidationError("Session's question bank no longer exists");
+		}
+
 		// Filter questions by tags if session has filterTags
-		let questions = session.bank?.questions || [];
+		let questions = session.bank.questions || [];
 		const filterTags = (session as { filterTags?: string[] }).filterTags;
 		if (filterTags && filterTags.length > 0) {
 			questions = questions.filter((q) =>
@@ -67,20 +72,37 @@ export async function GET(
 			questions = questions.slice(0, maxQuestions);
 		}
 
-		// Track which questions have been answered in this session
+		// Track which questions have been answered and count attempts per question
 		const answeredQuestionIds = new Set<string>();
+		const attemptCounts = new Map<string, number>();
 		session.items.forEach((item) => {
 			answeredQuestionIds.add(item.questionId);
+			const count = attemptCounts.get(item.questionId) || 0;
+			attemptCounts.set(item.questionId, count + 1);
 		});
 
-		// Find the first unanswered question index (in original order)
-		let firstUnansweredIndex = 0;
+		// Find the question with the least attempts (prioritize unanswered, then least attempts)
+		let bestQuestionIndex = 0;
+		let minAttempts = Infinity;
+		
 		for (let i = 0; i < questions.length; i++) {
-			if (!answeredQuestionIds.has(questions[i].id)) {
-				firstUnansweredIndex = i;
+			const questionId = questions[i].id;
+			const attempts = attemptCounts.get(questionId) || 0;
+			
+			// If unanswered, prioritize it
+			if (!answeredQuestionIds.has(questionId)) {
+				bestQuestionIndex = i;
 				break;
 			}
+			
+			// Otherwise, find the one with least attempts
+			if (attempts < minAttempts) {
+				minAttempts = attempts;
+				bestQuestionIndex = i;
+			}
 		}
+		
+		const firstUnansweredIndex = bestQuestionIndex;
 		const items = session.items.map(
 			(item: {
 				id: string;

@@ -97,7 +97,10 @@ export async function POST(request: NextRequest) {
 
     // Check if session and question exist (with question text for context)
     const [session, question] = await Promise.all([
-      prisma.session.findUnique({ where: { id: sessionId } }),
+      prisma.session.findUnique({ 
+        where: { id: sessionId },
+        include: { bank: true },
+      }),
       prisma.question.findUnique({ 
         where: { id: questionId },
         include: { bank: true },
@@ -114,6 +117,11 @@ export async function POST(request: NextRequest) {
     // Verify user owns the session (unless admin)
     if (session.userId && session.userId !== user.id && user.role !== 'ADMIN') {
       throw new ValidationError('You do not have access to this session');
+    }
+
+    // Validate that the question belongs to the session's bank
+    if (session.bankId && question.bankId !== session.bankId) {
+      throw new ValidationError('Question does not belong to this session\'s question bank');
     }
 
     // Convert File to Blob
