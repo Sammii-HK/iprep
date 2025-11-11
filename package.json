@@ -18,7 +18,8 @@
     "db:studio": "prisma studio",
     "postinstall": "prisma generate",
     "prepare": "husky",
-    "generate-vapid-keys": "node scripts/generate-vapid-keys.js"
+    "generate-vapid-keys": "node scripts/generate-vapid-keys.js",
+    "migrate:frequentlyforgottenpoints": "node scripts/migrate-frequentlyforgottenpoints.js"
   },
   "lint-staged": {
     "*.{ts,tsx}": [
