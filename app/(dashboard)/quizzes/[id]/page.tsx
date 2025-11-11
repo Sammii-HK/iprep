@@ -243,7 +243,7 @@ export default function QuizPage() {
               <button
                 onClick={handleWrittenSubmit}
                 disabled={loading || !writtenAnswer.trim()}
-                className="mt-4 w-full px-4 py-2 bg-purple-200 dark:bg-purple-800 text-white rounded-lg hover:bg-purple-300 dark:hover:bg-purple-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                className="mt-4 w-full px-4 py-2 bg-purple-200 dark:bg-purple-800 text-purple-800 dark:text-purple-200 rounded-lg hover:bg-purple-300 dark:hover:bg-purple-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {loading ? 'Submitting...' : 'Submit Answer'}
               </button>

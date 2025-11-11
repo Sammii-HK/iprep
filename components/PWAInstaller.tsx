@@ -60,7 +60,7 @@ export function PWAInstaller() {
 	}
 
 	return (
-		<div className="fixed bottom-4 right-4 bg-purple-200 dark:bg-purple-800 dark:bg-purple-200 dark:bg-purple-800 text-white px-4 py-3 rounded-lg shadow-lg z-50 flex items-center gap-3">
+		<div className="fixed bottom-4 right-4 bg-purple-200 dark:bg-purple-800 text-purple-800 dark:text-purple-200 px-4 py-3 rounded-lg z-50 flex items-center gap-3 border border-purple-300 dark:border-purple-700">
 			<div>
 				<p className="text-sm font-semibold">Install iPrep</p>
 				<p className="text-xs opacity-90">
@@ -75,7 +75,7 @@ export function PWAInstaller() {
 			</button>
 			<button
 				onClick={() => setShowInstallButton(false)}
-				className="text-white hover:text-purple-200 transition-colors"
+				className="text-purple-800 dark:text-purple-200 hover:text-purple-600 dark:hover:text-purple-300 transition-colors"
 				aria-label="Dismiss"
 			>
 				×

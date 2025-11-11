@@ -475,7 +475,7 @@ export function MicRecorder({
 				disabled={disabled && !isRecording}
 				className={`w-24 h-24 rounded-full flex items-center justify-center text-white font-semibold transition-all ${
 					isRecording
-						? "bg-red-500 hover:bg-red-600"
+						? "bg-red-500 hover:bg-red-200 dark:hover:bg-red-900/50"
 						: disabled
 						? "bg-slate-400 cursor-not-allowed"
 						: "bg-purple-200 dark:bg-purple-800 hover:bg-purple-300 dark:hover:bg-purple-700"

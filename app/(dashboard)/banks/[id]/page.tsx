@@ -178,7 +178,7 @@ export default function BankDetailPage() {
                 />
                 <button
                   onClick={handleEditSave}
-                  className="px-4 py-2 bg-purple-200 dark:bg-purple-800 text-white rounded-lg hover:bg-purple-300 dark:hover:bg-purple-700 transition-colors"
+                  className="px-4 py-2 bg-purple-200 dark:bg-purple-800 hover:bg-purple-300 dark:hover:bg-purple-700 text-purple-800 dark:text-purple-200 rounded-lg transition-all font-medium"
                 >
                   Save
                 </button>
@@ -203,25 +203,25 @@ export default function BankDetailPage() {
               <button
                 onClick={handleStartPractice}
                 disabled={isCreatingSession}
-                className="px-6 py-2 bg-purple-200 dark:bg-purple-800 text-white rounded-lg hover:bg-purple-300 dark:hover:bg-purple-700 disabled:bg-purple-300 dark:bg-purple-700 transition-colors font-semibold"
+                className="px-6 py-2 bg-purple-200 dark:bg-purple-800 hover:bg-purple-300 dark:hover:bg-purple-700 text-purple-800 dark:text-purple-200 rounded-lg transition-all font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                {isCreatingSession ? 'Creating...' : '🎤 Start Practice'}
+                {isCreatingSession ? 'Creating...' : 'Start Practice'}
               </button>
               <button
                 onClick={() => setShowSummary(!showSummary)}
-                className="px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors"
+                className="px-4 py-2 bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-200 rounded-lg hover:bg-green-200 dark:hover:bg-green-900/50 transition-colors"
               >
                 {showSummary ? 'Hide' : 'View'} Practice Summary
               </button>
               <button
                 onClick={handleEditStart}
-                className="px-4 py-2 bg-slate-500 text-white rounded-lg hover:bg-slate-600 transition-colors"
+                className="px-4 py-2 bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 dark:hover:bg-slate-600 text-slate-800 dark:text-slate-200 rounded-lg transition-all font-medium"
               >
                 Edit Name
               </button>
               <button
                 onClick={() => setShowDeleteConfirm(true)}
-                className="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors"
+                className="px-4 py-2 bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-200 rounded-lg hover:bg-red-200 dark:hover:bg-red-900/50 transition-colors"
               >
                 Delete Bank
               </button>
@@ -246,7 +246,7 @@ export default function BankDetailPage() {
               </button>
               <button
                 onClick={handleDelete}
-                className="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors"
+                className="px-4 py-2 bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-200 rounded-lg hover:bg-red-200 dark:hover:bg-red-900/50 transition-colors"
               >
                 Delete
               </button>

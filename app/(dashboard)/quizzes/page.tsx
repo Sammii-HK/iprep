@@ -146,7 +146,7 @@ export default function QuizzesPage() {
       <div className="flex justify-end mb-6">
         <button
           onClick={() => setShowCreateQuiz(!showCreateQuiz)}
-          className="px-4 py-2 bg-purple-200 dark:bg-purple-800 text-white rounded-lg hover:bg-purple-300 dark:hover:bg-purple-700 transition-colors"
+          className="px-4 py-2 bg-purple-200 dark:bg-purple-800 text-purple-800 dark:text-purple-200 rounded-lg hover:bg-purple-300 dark:hover:bg-purple-700 transition-colors"
         >
           Create Quiz
         </button>
@@ -251,7 +251,7 @@ export default function QuizzesPage() {
             <div className="flex gap-2">
               <button
                 onClick={createQuiz}
-                className="px-4 py-2 bg-purple-200 dark:bg-purple-800 text-white rounded-lg hover:bg-purple-300 dark:hover:bg-purple-700 transition-colors"
+                className="px-4 py-2 bg-purple-200 dark:bg-purple-800 text-purple-800 dark:text-purple-200 rounded-lg hover:bg-purple-300 dark:hover:bg-purple-700 transition-colors"
               >
                 Create Quiz
               </button>
@@ -318,7 +318,7 @@ export default function QuizzesPage() {
                       e.stopPropagation();
                       setDeletingQuizId(quiz.id);
                     }}
-                    className="mt-3 px-3 py-1 bg-red-500 text-white rounded text-sm hover:bg-red-600 transition-colors opacity-0 group-hover:opacity-100"
+                    className="mt-3 px-3 py-1 bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-200 rounded text-sm hover:bg-red-200 dark:hover:bg-red-900/50 transition-colors opacity-0 group-hover:opacity-100"
                     title="Delete quiz"
                   >
                     Delete
@@ -345,7 +345,7 @@ export default function QuizzesPage() {
               </button>
               <button
                 onClick={() => handleDeleteQuiz(deletingQuizId)}
-                className="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors"
+                className="px-4 py-2 bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-200 rounded-lg hover:bg-red-200 dark:hover:bg-red-900/50 transition-colors"
               >
                 Delete
               </button>

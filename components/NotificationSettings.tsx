@@ -98,10 +98,10 @@ export function NotificationSettings() {
 					<button
 						onClick={isSubscribed ? handleUnsubscribe : handleSubscribe}
 						disabled={isLoading}
-						className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+						className={`px-4 py-2 rounded-lg font-medium transition-all ${
 							isSubscribed
-								? 'bg-red-500 hover:bg-red-600 text-white'
-								: 'bg-purple-200 dark:bg-purple-800 hover:bg-purple-300 dark:hover:bg-purple-700 text-white'
+								? 'bg-red-100 dark:bg-red-900/30 hover:bg-red-200 dark:hover:bg-red-900/50 text-red-800 dark:text-red-200'
+								: 'bg-purple-200 dark:bg-purple-800 hover:bg-purple-300 dark:hover:bg-purple-700 text-purple-800 dark:text-purple-200'
 						} disabled:opacity-50 disabled:cursor-not-allowed`}
 					>
 						{isLoading

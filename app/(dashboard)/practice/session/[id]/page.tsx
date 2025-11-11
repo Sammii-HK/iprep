@@ -323,13 +323,13 @@ export default function PracticeSessionPage() {
                 // Scroll to top
                 window.scrollTo(0, 0);
               }}
-              className="px-6 py-3 bg-green-100 dark:bg-green-900/30 hover:bg-green-200 dark:hover:bg-green-900/50 text-green-800 dark:text-green-200 rounded-lg transition-all font-semibold shadow-md hover:shadow-lg"
+              className="px-6 py-3 bg-green-100 dark:bg-green-900/30 hover:bg-green-200 dark:hover:bg-green-900/50 text-green-800 dark:text-green-200 rounded-lg transition-all font-semibold"
             >
               Practice Again
             </button>
             <button
               onClick={() => router.push('/practice')}
-              className="px-6 py-3 bg-purple-200 dark:bg-purple-800 hover:bg-purple-300 dark:hover:bg-purple-700 text-purple-800 dark:text-purple-200 rounded-lg transition-all font-semibold shadow-md hover:shadow-lg"
+              className="px-6 py-3 bg-purple-200 dark:bg-purple-800 hover:bg-purple-300 dark:hover:bg-purple-700 text-purple-800 dark:text-purple-200 rounded-lg transition-all font-semibold"
             >
               Back to Practice Sessions
             </button>
@@ -364,7 +364,7 @@ export default function PracticeSessionPage() {
           <div className="text-slate-600 dark:text-slate-400 mb-4">Session not found or has no questions.</div>
           <button
             onClick={() => router.push('/practice')}
-            className="px-6 py-3 bg-purple-200 dark:bg-purple-800 hover:bg-purple-300 dark:hover:bg-purple-700 text-purple-800 dark:text-purple-200 rounded-lg transition-all font-medium shadow-md hover:shadow-lg"
+            className="px-6 py-3 bg-purple-200 dark:bg-purple-800 hover:bg-purple-300 dark:hover:bg-purple-700 text-purple-800 dark:text-purple-200 rounded-lg transition-all font-medium"
           >
             Back to Practice Sessions
           </button>
@@ -418,7 +418,7 @@ export default function PracticeSessionPage() {
                   <button
                     onClick={handleFinishSession}
                     disabled={isCompleting || sessionItems.length === 0}
-                    className="w-full px-6 py-3 bg-green-100 dark:bg-green-900/30 hover:bg-green-200 dark:hover:bg-green-900/50 text-green-800 dark:text-green-200 rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed font-semibold shadow-md hover:shadow-lg"
+                    className="w-full px-6 py-3 bg-green-100 dark:bg-green-900/30 hover:bg-green-200 dark:hover:bg-green-900/50 text-green-800 dark:text-green-200 rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed font-semibold"
                   >
                     {isCompleting ? 'Completing Session...' : 'Finish Session & View Summary'}
                   </button>

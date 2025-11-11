@@ -208,7 +208,7 @@ export default function SettingsPage() {
             <div className="flex gap-3">
               <button
                 onClick={handleSave}
-                className="px-6 py-3 bg-purple-200 dark:bg-purple-800 text-white rounded-lg hover:bg-purple-300 dark:hover:bg-purple-700 transition-colors font-semibold"
+                className="px-6 py-3 bg-purple-200 dark:bg-purple-800 text-purple-800 dark:text-purple-200 rounded-lg hover:bg-purple-300 dark:hover:bg-purple-700 transition-colors font-semibold"
               >
                 {saved ? '✓ Saved' : 'Save Preferences'}
               </button>

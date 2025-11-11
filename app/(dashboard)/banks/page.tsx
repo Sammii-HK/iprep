@@ -275,7 +275,7 @@ export default function BanksPage() {
         <h1 className="text-3xl font-bold">Question Banks</h1>
         <button
           onClick={() => setShowImport(!showImport)}
-          className="px-4 py-2 bg-purple-200 dark:bg-purple-800 text-white rounded-lg hover:bg-purple-300 dark:hover:bg-purple-700 transition-colors"
+          className="px-4 py-2 bg-purple-200 dark:bg-purple-800 hover:bg-purple-300 dark:hover:bg-purple-700 text-purple-800 dark:text-purple-200 rounded-lg transition-all font-medium"
         >
           Import Bank
         </button>
@@ -300,7 +300,7 @@ export default function BanksPage() {
               }}
               className={`px-4 py-2 rounded-lg transition-colors ${
                 importMode === 'single'
-                  ? 'bg-purple-200 dark:bg-purple-800 text-white'
+                  ? 'bg-purple-200 dark:bg-purple-800 text-purple-800 dark:text-purple-200'
                   : 'bg-slate-200 dark:bg-slate-700 text-slate-900 dark:text-slate-100'
               }`}
             >
@@ -318,7 +318,7 @@ export default function BanksPage() {
               }}
               className={`px-4 py-2 rounded-lg transition-colors ${
                 importMode === 'bulk'
-                  ? 'bg-purple-200 dark:bg-purple-800 text-white'
+                  ? 'bg-purple-200 dark:bg-purple-800 text-purple-800 dark:text-purple-200'
                   : 'bg-slate-200 dark:bg-slate-700 text-slate-900 dark:text-slate-100'
               }`}
             >
@@ -506,7 +506,7 @@ export default function BanksPage() {
                   (importMode === 'single' && (!importFile || !importTitle.trim())) ||
                   (importMode === 'bulk' && importFiles.length === 0)
                 }
-                className="px-4 py-2 bg-purple-200 dark:bg-purple-800 text-white rounded-lg hover:bg-purple-300 dark:hover:bg-purple-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                className="px-4 py-2 bg-purple-200 dark:bg-purple-800 text-purple-800 dark:text-purple-200 rounded-lg hover:bg-purple-300 dark:hover:bg-purple-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {importing
                   ? importMode === 'bulk'
@@ -569,7 +569,7 @@ export default function BanksPage() {
                   <div className="flex gap-2">
                     <button
                       onClick={() => handleEditSave(bank.id)}
-                      className="px-3 py-1 bg-purple-200 dark:bg-purple-800 text-white rounded text-sm hover:bg-purple-300 dark:hover:bg-purple-700 transition-colors"
+                      className="px-3 py-1 bg-purple-200 dark:bg-purple-800 text-purple-800 dark:text-purple-200 rounded text-sm hover:bg-purple-300 dark:hover:bg-purple-700 transition-colors"
                     >
                       Save
                     </button>
@@ -600,14 +600,14 @@ export default function BanksPage() {
                   <div className="flex gap-2 mt-3 opacity-0 group-hover:opacity-100 transition-opacity">
                     <button
                       onClick={(e) => handleEditStart(e, bank)}
-                      className="px-3 py-1 bg-purple-200 dark:bg-purple-800 text-white rounded text-sm hover:bg-purple-300 dark:hover:bg-purple-700 transition-colors"
+                      className="px-3 py-1 bg-purple-200 dark:bg-purple-800 text-purple-800 dark:text-purple-200 rounded text-sm hover:bg-purple-300 dark:hover:bg-purple-700 transition-colors"
                       title="Edit bank name"
                     >
                       Edit
                     </button>
                     <button
                       onClick={(e) => handleDeleteClick(e, bank.id)}
-                      className="px-3 py-1 bg-red-500 text-white rounded text-sm hover:bg-red-600 transition-colors"
+                      className="px-3 py-1 bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-200 rounded text-sm hover:bg-red-200 dark:hover:bg-red-900/50 transition-colors"
                       title="Delete bank"
                     >
                       Delete
@@ -637,7 +637,7 @@ export default function BanksPage() {
               </button>
               <button
                 onClick={() => handleDeleteConfirm(deletingBankId)}
-                className="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors"
+                className="px-4 py-2 bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-200 rounded-lg hover:bg-red-200 dark:hover:bg-red-900/50 transition-colors"
               >
                 Delete
               </button>

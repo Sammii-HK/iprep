@@ -232,7 +232,7 @@ export function QuestionCard({
         {onRetryWithHint && (
           <button
             onClick={onRetryWithHint}
-            className="px-4 py-2 bg-purple-200 dark:bg-purple-800 hover:bg-purple-300 dark:hover:bg-purple-700 text-white rounded transition-colors"
+            className="px-4 py-2 bg-purple-200 dark:bg-purple-800 hover:bg-purple-300 dark:hover:bg-purple-700 text-purple-800 dark:text-purple-200 rounded-lg transition-all font-medium"
           >
             Retry with Hint
           </button>
