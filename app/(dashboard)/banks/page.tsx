@@ -508,11 +508,7 @@ export default function BanksPage() {
                 }
                 className="px-4 py-2 bg-purple-200 dark:bg-purple-800 text-purple-800 dark:text-purple-200 rounded-lg hover:bg-purple-300 dark:hover:bg-purple-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                {importing
-                  ? importMode === 'bulk'
-                    ? `Importing ${importFiles.length} file(s)...`
-                    : 'Importing...'
-                  : importMode === 'bulk'
+                {importMode === 'bulk'
                   ? `Import ${importFiles.length} Bank(s)`
                   : 'Import'}
               </button>

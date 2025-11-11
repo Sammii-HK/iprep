@@ -179,7 +179,7 @@ export function LearningSummary({ sessionId }: { sessionId: string }) {
                 disabled={creatingSession}
                 className="px-4 py-2 bg-amber-100 dark:bg-amber-900/30 hover:bg-amber-200 dark:hover:bg-amber-900/50 text-amber-800 dark:text-amber-200 rounded-lg text-sm font-medium transition-all disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
               >
-                {creatingSession ? 'Creating...' : 'Practice Weak Topics'}
+                Practice Weak Topics
               </button>
             ) : (
               <p className="text-xs text-amber-700 dark:text-amber-300">

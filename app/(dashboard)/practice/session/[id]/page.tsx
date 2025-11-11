@@ -420,7 +420,7 @@ export default function PracticeSessionPage() {
                     disabled={isCompleting || sessionItems.length === 0}
                     className="w-full px-6 py-3 bg-green-100 dark:bg-green-900/30 hover:bg-green-200 dark:hover:bg-green-900/50 text-green-800 dark:text-green-200 rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed font-semibold"
                   >
-                    {isCompleting ? 'Completing Session...' : 'Finish Session & View Summary'}
+                    Finish Session & View Summary
                   </button>
                 </div>
               )}

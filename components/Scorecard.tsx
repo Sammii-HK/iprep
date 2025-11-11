@@ -126,6 +126,72 @@ export function Scorecard({
 						</div>
 					)}
 
+					{/* Key Points to Include - First */}
+					{dontForget && dontForget.length > 0 && (
+						<div className="mb-3 p-3 bg-slate-50 dark:bg-slate-700 rounded-lg">
+							<h4 className="text-sm font-semibold text-slate-900 dark:text-slate-100 mb-2">
+								Key Points to Include:
+							</h4>
+							<ul className="list-disc list-inside space-y-1 text-sm text-slate-700 dark:text-slate-200">
+								{dontForget.map((item, index) => (
+									<li key={index}>{item}</li>
+								))}
+							</ul>
+						</div>
+					)}
+
+					{/* Better Wording Suggestions - Second */}
+					{betterWording && betterWording.length > 0 && (
+						<div className="mb-3">
+							<h4 className="text-sm font-semibold text-purple-700 dark:text-purple-300 mb-2">
+								💡 Better Wording Suggestions:
+							</h4>
+							<div className="space-y-3 text-sm text-slate-700 dark:text-slate-300">
+								{betterWording.map((item, index) => {
+									// Check if it's in "You said: '...'. Better: '...'" format
+									const youSaidMatch = item.match(
+										/You said:\s*['"]([^'"]+)['"]/i
+									);
+									const betterMatch = item.match(/Better:\s*['"]([^'"]+)['"]/i);
+
+									if (youSaidMatch && betterMatch) {
+										// Format: "You said" in italics, "Better" suggestion in bold
+										return (
+											<div key={index} className="leading-relaxed">
+												<p className="italic text-slate-600 dark:text-slate-400 mb-1">
+													You said: &ldquo;{youSaidMatch[1]}&rdquo;
+												</p>
+												<p className="font-semibold">
+													Suggestion: &ldquo;{betterMatch[1]}&rdquo;
+												</p>
+											</div>
+										);
+									}
+
+									// Check if it starts with "Better:" (without "You said")
+									const betterOnlyMatch = item.match(/Better:\s*(.+)/i);
+									if (betterOnlyMatch) {
+										return (
+											<div key={index} className="leading-relaxed">
+												<p className="font-semibold">
+													Better: {betterOnlyMatch[1]}
+												</p>
+											</div>
+										);
+									}
+
+									// Regular suggestion - make it bold
+									return (
+										<div key={index} className="leading-relaxed">
+											<p className="font-semibold">{item}</p>
+										</div>
+									);
+								})}
+							</div>
+						</div>
+					)}
+
+					{/* What You Got Right - Third */}
 					{whatWasRight && whatWasRight.length > 0 && (
 						<div className="mb-3">
 							<h4 className="text-sm font-semibold text-green-700 dark:text-green-300 mb-2">
@@ -141,40 +207,12 @@ export function Scorecard({
 
 					{whatWasWrong && whatWasWrong.length > 0 && (
 						<div className="mb-3 p-3 bg-purple-50 dark:bg-purple-900/20 rounded-lg border border-purple-200 dark:border-purple-800">
-							<h4 className="text-sm font-semibold text-purple-700 dark:text-purple-300 dark:text-purple-300 mb-2">
+							<h4 className="text-sm font-semibold text-purple-700 dark:text-purple-300 mb-2">
 								📝 Points to Remember:
 							</h4>
 							<ul className="list-disc list-inside space-y-1 text-sm text-slate-700 dark:text-slate-300">
 								{whatWasWrong.map((item, index) => (
 									<li key={index}>{item}</li>
-								))}
-							</ul>
-						</div>
-					)}
-
-					{dontForget && dontForget.length > 0 && (
-						<div className="mb-3 p-3 bg-slate-50 dark:bg-slate-700 rounded-lg">
-							<h4 className="text-sm font-semibold text-slate-900 dark:text-slate-100 mb-2">
-								Key Points to Include:
-							</h4>
-							<ul className="list-disc list-inside space-y-1 text-sm text-slate-700 dark:text-slate-200">
-								{dontForget.map((item, index) => (
-									<li key={index}>{item}</li>
-								))}
-							</ul>
-						</div>
-					)}
-
-					{betterWording && betterWording.length > 0 && (
-						<div className="mb-3">
-							<h4 className="text-sm font-semibold text-purple-700 dark:text-purple-300 dark:text-purple-300 mb-2">
-								💡 Better Wording Suggestions:
-							</h4>
-							<ul className="list-disc list-inside space-y-2 text-sm text-slate-700 dark:text-slate-300">
-								{betterWording.map((item, index) => (
-									<li key={index} className="leading-relaxed">
-										{item}
-									</li>
 								))}
 							</ul>
 						</div>

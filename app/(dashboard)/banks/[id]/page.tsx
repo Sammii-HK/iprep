@@ -205,7 +205,7 @@ export default function BankDetailPage() {
                 disabled={isCreatingSession}
                 className="px-6 py-2 bg-purple-200 dark:bg-purple-800 hover:bg-purple-300 dark:hover:bg-purple-700 text-purple-800 dark:text-purple-200 rounded-lg transition-all font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                {isCreatingSession ? 'Creating...' : 'Start Practice'}
+                Start Practice
               </button>
               <button
                 onClick={() => setShowSummary(!showSummary)}

@@ -145,27 +145,9 @@ export async function POST(request: NextRequest) {
 			type: audioFile.type,
 		});
 
-		// Get actual audio duration from the blob
-		let actualDuration: number | null = null;
-		try {
-			const audio = new Audio();
-			const audioUrl = URL.createObjectURL(audioBlob);
-			await new Promise<void>((resolve, reject) => {
-				audio.onloadedmetadata = () => {
-					actualDuration = audio.duration;
-					URL.revokeObjectURL(audioUrl);
-					resolve();
-				};
-				audio.onerror = () => {
-					URL.revokeObjectURL(audioUrl);
-					reject(new Error("Failed to load audio metadata"));
-				};
-				audio.src = audioUrl;
-			});
-		} catch (error) {
-			console.warn("Could not get audio duration from blob:", error);
-			// Will fall back to estimation
-		}
+		// Note: Audio duration detection removed - Audio API is browser-only
+		// We'll use word count estimation instead (more reliable for server-side)
+		const actualDuration: number | null = null;
 
 		// Optimize: Start transcription first (critical), then start upload in parallel
 		// We'll wait for upload only when we need to save
@@ -362,8 +344,7 @@ export async function POST(request: NextRequest) {
 
 			// Only proceed with AI analysis if we have sufficient content
 			// Require at least 10 words OR at least 5 seconds of audio
-			const hasMinimumContent =
-				wordCount >= 10 || (actualDuration && actualDuration >= 5);
+			const hasMinimumContent = wordCount >= 10;
 
 			if (!hasMinimumContent) {
 				// Return a helpful message instead of default fallback

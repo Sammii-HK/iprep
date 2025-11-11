@@ -29,7 +29,7 @@ export async function GET(request: NextRequest) {
 
     // If no insights exist, or if we have sessions but insights are stale/empty, aggregate
     const shouldAggregate = !insights || 
-      (completedSessionsCount > 0 && (
+      (completedSessionsCount > 0 && insights && (
         insights.totalSessions === 0 || 
         !insights.lastUpdated ||
         (insights.lastUpdated.getTime() < Date.now() - 5 * 60 * 1000) // 5 minutes ago
