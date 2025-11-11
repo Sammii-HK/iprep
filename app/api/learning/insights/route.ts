@@ -15,9 +15,36 @@ export async function GET(request: NextRequest) {
     }
 
     // Check if insights need to be updated (if they don't exist or are stale)
-    let insights = await prisma.userLearningInsight.findUnique({
-      where: { userId: user.id },
-    });
+    let insights;
+    try {
+      insights = await prisma.userLearningInsight.findUnique({
+        where: { userId: user.id },
+      });
+    } catch (error) {
+      // If topForgottenPoints column doesn't exist, handle gracefully
+      if (error instanceof Error && error.message.includes('topForgottenPoints')) {
+        console.warn('topForgottenPoints column not found, fetching insights without it');
+        // Try to fetch using raw query to avoid Prisma type issues
+        const rawInsights = await prisma.$queryRawUnsafe<Array<{
+          id: string;
+          userId: string;
+          aggregatedWeakTags: string[];
+          aggregatedStrongTags: string[];
+          topFocusAreas: string[];
+          totalSessions: number;
+          totalQuestions: number;
+          lastUpdated: Date;
+        }>>(
+          `SELECT id, "userId", "aggregatedWeakTags", "aggregatedStrongTags", "topFocusAreas", "totalSessions", "totalQuestions", "lastUpdated" 
+           FROM "UserLearningInsight" 
+           WHERE "userId" = $1`,
+          user.id
+        );
+        insights = rawInsights[0] || null;
+      } else {
+        throw error;
+      }
+    }
 
     // Check if we have completed sessions that might not be aggregated
     const completedSessionsCount = await prisma.session.count({

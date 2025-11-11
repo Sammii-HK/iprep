@@ -407,29 +407,63 @@ export async function aggregateUserInsights(userId: string): Promise<void> {
 		.map(([tag]) => tag);
 
 	// Update or create insight record
-	await prisma.userLearningInsight.upsert({
-		where: { userId },
-		create: {
-			userId,
-			aggregatedWeakTags,
-			aggregatedStrongTags,
-			topFocusAreas,
-			topForgottenPoints: JSON.parse(
-				JSON.stringify(topForgottenPoints)
-			) as Prisma.InputJsonValue,
-			totalSessions: sessions.length,
-			totalQuestions,
-		},
-		update: {
-			aggregatedWeakTags,
-			aggregatedStrongTags,
-			topFocusAreas,
-			topForgottenPoints: JSON.parse(
-				JSON.stringify(topForgottenPoints)
-			) as Prisma.InputJsonValue,
-			totalSessions: sessions.length,
-			totalQuestions,
-			lastUpdated: new Date(),
-		},
-	});
+	// Handle topForgottenPoints gracefully if column doesn't exist yet
+	try {
+		await prisma.userLearningInsight.upsert({
+			where: { userId },
+			create: {
+				userId,
+				aggregatedWeakTags,
+				aggregatedStrongTags,
+				topFocusAreas,
+				topForgottenPoints: JSON.parse(
+					JSON.stringify(topForgottenPoints)
+				) as Prisma.InputJsonValue,
+				totalSessions: sessions.length,
+				totalQuestions,
+			},
+			update: {
+				aggregatedWeakTags,
+				aggregatedStrongTags,
+				topFocusAreas,
+				topForgottenPoints: JSON.parse(
+					JSON.stringify(topForgottenPoints)
+				) as Prisma.InputJsonValue,
+				totalSessions: sessions.length,
+				totalQuestions,
+				lastUpdated: new Date(),
+			},
+		});
+	} catch (error) {
+		// If topForgottenPoints column doesn't exist, try without it
+		if (
+			error instanceof Error &&
+			error.message.includes("topForgottenPoints")
+		) {
+			console.warn(
+				"topForgottenPoints column not found, creating/updating without it"
+			);
+			await prisma.userLearningInsight.upsert({
+				where: { userId },
+				create: {
+					userId,
+					aggregatedWeakTags,
+					aggregatedStrongTags,
+					topFocusAreas,
+					totalSessions: sessions.length,
+					totalQuestions,
+				},
+				update: {
+					aggregatedWeakTags,
+					aggregatedStrongTags,
+					topFocusAreas,
+					totalSessions: sessions.length,
+					totalQuestions,
+					lastUpdated: new Date(),
+				},
+			});
+		} else {
+			throw error;
+		}
+	}
 }
