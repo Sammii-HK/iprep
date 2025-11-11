@@ -61,30 +61,63 @@ export async function POST(
     });
 
     // Create or update learning summary
-    const summary = await prisma.learningSummary.upsert({
-      where: { sessionId: id },
-      create: {
-        userId: user.id,
-        sessionId: id,
-        bankId: session.bankId || null,
-        commonMistakes: JSON.parse(JSON.stringify(analysis.commonMistakes)) as Prisma.InputJsonValue,
-        frequentlyForgottenPoints: JSON.parse(JSON.stringify(analysis.frequentlyForgottenPoints)) as Prisma.InputJsonValue,
-        weakTags: analysis.weakTags,
-        strongTags: analysis.strongTags,
-        recommendedFocus: analysis.recommendedFocus,
-        performanceByTag: JSON.parse(JSON.stringify(analysis.performanceByTag)) as Prisma.InputJsonValue,
-        overallScore: analysis.overallScore,
-      },
-      update: {
-        commonMistakes: JSON.parse(JSON.stringify(analysis.commonMistakes)) as Prisma.InputJsonValue,
-        frequentlyForgottenPoints: JSON.parse(JSON.stringify(analysis.frequentlyForgottenPoints)) as Prisma.InputJsonValue,
-        weakTags: analysis.weakTags,
-        strongTags: analysis.strongTags,
-        recommendedFocus: analysis.recommendedFocus,
-        performanceByTag: JSON.parse(JSON.stringify(analysis.performanceByTag)) as Prisma.InputJsonValue,
-        overallScore: analysis.overallScore,
-      },
-    });
+    // Handle missing frequentlyForgottenPoints column gracefully
+    let summary;
+    try {
+      summary = await prisma.learningSummary.upsert({
+        where: { sessionId: id },
+        create: {
+          userId: user.id,
+          sessionId: id,
+          bankId: session.bankId || null,
+          commonMistakes: JSON.parse(JSON.stringify(analysis.commonMistakes)) as Prisma.InputJsonValue,
+          frequentlyForgottenPoints: JSON.parse(JSON.stringify(analysis.frequentlyForgottenPoints)) as Prisma.InputJsonValue,
+          weakTags: analysis.weakTags,
+          strongTags: analysis.strongTags,
+          recommendedFocus: analysis.recommendedFocus,
+          performanceByTag: JSON.parse(JSON.stringify(analysis.performanceByTag)) as Prisma.InputJsonValue,
+          overallScore: analysis.overallScore,
+        },
+        update: {
+          commonMistakes: JSON.parse(JSON.stringify(analysis.commonMistakes)) as Prisma.InputJsonValue,
+          frequentlyForgottenPoints: JSON.parse(JSON.stringify(analysis.frequentlyForgottenPoints)) as Prisma.InputJsonValue,
+          weakTags: analysis.weakTags,
+          strongTags: analysis.strongTags,
+          recommendedFocus: analysis.recommendedFocus,
+          performanceByTag: JSON.parse(JSON.stringify(analysis.performanceByTag)) as Prisma.InputJsonValue,
+          overallScore: analysis.overallScore,
+        },
+      });
+    } catch (error) {
+      // If frequentlyForgottenPoints column doesn't exist, create/update without it
+      if (error instanceof Error && error.message.includes('frequentlyForgottenPoints')) {
+        console.warn('frequentlyForgottenPoints column not found, creating/updating without it');
+        summary = await prisma.learningSummary.upsert({
+          where: { sessionId: id },
+          create: {
+            userId: user.id,
+            sessionId: id,
+            bankId: session.bankId || null,
+            commonMistakes: JSON.parse(JSON.stringify(analysis.commonMistakes)) as Prisma.InputJsonValue,
+            weakTags: analysis.weakTags,
+            strongTags: analysis.strongTags,
+            recommendedFocus: analysis.recommendedFocus,
+            performanceByTag: JSON.parse(JSON.stringify(analysis.performanceByTag)) as Prisma.InputJsonValue,
+            overallScore: analysis.overallScore,
+          },
+          update: {
+            commonMistakes: JSON.parse(JSON.stringify(analysis.commonMistakes)) as Prisma.InputJsonValue,
+            weakTags: analysis.weakTags,
+            strongTags: analysis.strongTags,
+            recommendedFocus: analysis.recommendedFocus,
+            performanceByTag: JSON.parse(JSON.stringify(analysis.performanceByTag)) as Prisma.InputJsonValue,
+            overallScore: analysis.overallScore,
+          },
+        });
+      } else {
+        throw error;
+      }
+    }
 
     // Trigger user insights aggregation (async, don't wait)
     aggregateUserInsights(user.id).catch((err) => {

@@ -231,6 +231,121 @@ export async function analyzeSessionPerformance(
 	};
 }
 
+/**
+ * Analyze quiz performance from quiz attempts
+ * Similar to analyzeSessionPerformance but for quizzes
+ */
+export async function analyzeQuizPerformance(
+	quizId: string,
+	userId: string
+): Promise<{
+	weakTags: string[];
+	strongTags: string[];
+	recommendedFocus: string[];
+	performanceByTag: PerformanceByTag;
+	overallScore: number;
+	frequentlyForgottenPoints: FrequentlyForgottenPoint[];
+}> {
+	// Get all quiz attempts for this quiz
+	const attempts = await prisma.quizAttempt.findMany({
+		where: {
+			quizId,
+			quiz: {
+				userId,
+			},
+		},
+		include: {
+			question: true,
+		},
+	});
+
+	if (attempts.length === 0) {
+		return {
+			weakTags: [],
+			strongTags: [],
+			recommendedFocus: [],
+			performanceByTag: {},
+			overallScore: 0,
+			frequentlyForgottenPoints: [],
+		};
+	}
+
+	// Calculate performance by tag
+	const tagScores: Map<string, number[]> = new Map();
+	const tagQuestions: Map<string, Set<string>> = new Map();
+
+	attempts.forEach((attempt) => {
+		const question = attempt.question;
+		const tags = question.tags || [];
+		const score = attempt.score ? attempt.score / 20 : 0; // Convert 0-100 to 0-5
+
+		tags.forEach((tag) => {
+			if (!tagScores.has(tag)) {
+				tagScores.set(tag, []);
+				tagQuestions.set(tag, new Set());
+			}
+			tagScores.get(tag)?.push(score);
+			tagQuestions.get(tag)?.add(question.id);
+		});
+	});
+
+	// Build performance by tag object
+	const performanceByTag: PerformanceByTag = {};
+	Array.from(tagScores.entries()).forEach(([tag, scores]) => {
+		const avgScore = scores.reduce((a, b) => a + b, 0) / scores.length;
+		performanceByTag[tag] = {
+			avgScore: Math.round(avgScore * 10) / 10,
+			count: scores.length,
+			questions: Array.from(tagQuestions.get(tag) || []),
+		};
+	});
+
+	// Identify weak tags (avg score < 3) and strong tags (avg score >= 4)
+	const weakTags: string[] = [];
+	const strongTags: string[] = [];
+
+	Object.entries(performanceByTag).forEach(([tag, data]) => {
+		if (data.avgScore < 3) {
+			weakTags.push(tag);
+		} else if (data.avgScore >= 4) {
+			strongTags.push(tag);
+		}
+	});
+
+	// Generate recommended focus areas (weak tags sorted by frequency/importance)
+	const recommendedFocus = weakTags
+		.sort((a, b) => {
+			const aData = performanceByTag[a];
+			const bData = performanceByTag[b];
+			if (aData.count !== bData.count) {
+				return bData.count - aData.count;
+			}
+			return aData.avgScore - bData.avgScore;
+		})
+		.slice(0, 5);
+
+	// Calculate overall score
+	const allScores = attempts
+		.map((a) => (a.score ? a.score / 20 : 0))
+		.filter((s) => s > 0);
+	const overallScore =
+		allScores.length > 0
+			? Math.round(
+					(allScores.reduce((a, b) => a + b, 0) / allScores.length) * 10
+			  ) / 10
+			: 0;
+
+	// For quizzes, we don't have dontForget data, so return empty array
+	return {
+		weakTags,
+		strongTags,
+		recommendedFocus,
+		performanceByTag,
+		overallScore,
+		frequentlyForgottenPoints: [],
+	};
+}
+
 export async function aggregateUserInsights(userId: string): Promise<void> {
 	// Get all completed sessions for user
 	const sessions = await prisma.session.findMany({
@@ -244,7 +359,51 @@ export async function aggregateUserInsights(userId: string): Promise<void> {
 		},
 	});
 
-	if (sessions.length === 0) {
+	// Get all quizzes with attempts for user
+	const quizzes = await prisma.quiz.findMany({
+		where: {
+			userId,
+		},
+		include: {
+			attempts: {
+				include: {
+					question: true,
+				},
+			},
+		},
+	});
+
+	// Filter to quizzes with completed attempts
+	const quizzesWithAttempts = quizzes.filter((q) => q.attempts.length > 0);
+
+	// Initialize total questions counter
+	let totalQuestions = 0;
+
+	// Analyze quiz performance for each quiz
+	const quizSummaries: Array<{
+		weakTags: string[];
+		strongTags: string[];
+		recommendedFocus: string[];
+		performanceByTag: PerformanceByTag;
+		overallScore: number;
+	}> = [];
+
+	for (const quiz of quizzesWithAttempts) {
+		try {
+			const quizAnalysis = await analyzeQuizPerformance(quiz.id, userId);
+			quizSummaries.push(quizAnalysis);
+			// Add quiz questions to total count
+			const uniqueQuestionIds = new Set(quiz.attempts.map((a) => a.questionId));
+			totalQuestions += uniqueQuestionIds.size;
+		} catch (error) {
+			console.error(`Error analyzing quiz ${quiz.id}:`, error);
+			// Continue with other quizzes
+		}
+	}
+
+	const totalSessionsAndQuizzes = sessions.length + quizzesWithAttempts.length;
+
+	if (sessions.length === 0 && quizzesWithAttempts.length === 0) {
 		// Create empty insight record
 		await prisma.userLearningInsight.upsert({
 			where: { userId },
@@ -275,14 +434,13 @@ export async function aggregateUserInsights(userId: string): Promise<void> {
 		.map((s) => s.summary)
 		.filter((s): s is NonNullable<typeof s> => s !== null);
 
-	// Calculate total questions (even if no summaries)
-	let totalQuestions = 0;
+	// Calculate total questions from sessions (quiz questions already added above)
 	sessions.forEach((session) => {
 		totalQuestions += session.items?.length || 0;
 	});
 
-	// If no summaries, still update insights with session/question counts
-	if (summaries.length === 0) {
+	// If no summaries and no quiz summaries, still update insights with counts
+	if (summaries.length === 0 && quizSummaries.length === 0) {
 		await prisma.userLearningInsight.upsert({
 			where: { userId },
 			create: {
@@ -291,7 +449,7 @@ export async function aggregateUserInsights(userId: string): Promise<void> {
 				aggregatedStrongTags: [],
 				topFocusAreas: [],
 				topForgottenPoints: Prisma.JsonNull,
-				totalSessions: sessions.length,
+				totalSessions: totalSessionsAndQuizzes,
 				totalQuestions,
 			},
 			update: {
@@ -299,7 +457,7 @@ export async function aggregateUserInsights(userId: string): Promise<void> {
 				aggregatedStrongTags: [],
 				topFocusAreas: [],
 				topForgottenPoints: Prisma.JsonNull,
-				totalSessions: sessions.length,
+				totalSessions: totalSessionsAndQuizzes,
 				totalQuestions,
 				lastUpdated: new Date(),
 			},
@@ -346,12 +504,13 @@ export async function aggregateUserInsights(userId: string): Promise<void> {
 		.sort((a, b) => b.totalFrequency - a.totalFrequency)
 		.slice(0, 5);
 
-	// Collect all tags
+	// Collect all tags from both session summaries AND quiz summaries
 	const tagFrequency: Map<
 		string,
 		{ weak: number; strong: number; focus: number }
 	> = new Map();
 
+	// Aggregate from session summaries
 	summaries.forEach((summary) => {
 		// Count weak tags
 		summary.weakTags.forEach((tag) => {
@@ -378,15 +537,43 @@ export async function aggregateUserInsights(userId: string): Promise<void> {
 		});
 	});
 
+	// Aggregate from quiz summaries
+	quizSummaries.forEach((quizSummary) => {
+		// Count weak tags
+		quizSummary.weakTags.forEach((tag) => {
+			if (!tagFrequency.has(tag)) {
+				tagFrequency.set(tag, { weak: 0, strong: 0, focus: 0 });
+			}
+			tagFrequency.get(tag)!.weak++;
+		});
+
+		// Count strong tags
+		quizSummary.strongTags.forEach((tag) => {
+			if (!tagFrequency.has(tag)) {
+				tagFrequency.set(tag, { weak: 0, strong: 0, focus: 0 });
+			}
+			tagFrequency.get(tag)!.strong++;
+		});
+
+		// Count recommended focus
+		quizSummary.recommendedFocus.forEach((tag) => {
+			if (!tagFrequency.has(tag)) {
+				tagFrequency.set(tag, { weak: 0, strong: 0, focus: 0 });
+			}
+			tagFrequency.get(tag)!.focus++;
+		});
+	});
+
 	// Calculate total questions
 	sessions.forEach((session) => {
 		totalQuestions += session.items?.length || 0;
 	});
 
 	// Determine aggregated weak/strong tags
-	// For 1-2 sessions: include if appears in any session
-	// For 3+ sessions: include if appears in >50% of sessions
-	const threshold = sessions.length <= 2 ? 1 : Math.ceil(sessions.length * 0.5);
+	// For 1-2 sessions/quizzes: include if appears in any
+	// For 3+ sessions/quizzes: include if appears in >50%
+	const totalSummaries = summaries.length + quizSummaries.length;
+	const threshold = totalSummaries <= 2 ? 1 : Math.ceil(totalSummaries * 0.5);
 	const aggregatedWeakTags: string[] = [];
 	const aggregatedStrongTags: string[] = [];
 
@@ -419,7 +606,7 @@ export async function aggregateUserInsights(userId: string): Promise<void> {
 				topForgottenPoints: JSON.parse(
 					JSON.stringify(topForgottenPoints)
 				) as Prisma.InputJsonValue,
-				totalSessions: sessions.length,
+				totalSessions: totalSessionsAndQuizzes,
 				totalQuestions,
 			},
 			update: {
@@ -429,7 +616,7 @@ export async function aggregateUserInsights(userId: string): Promise<void> {
 				topForgottenPoints: JSON.parse(
 					JSON.stringify(topForgottenPoints)
 				) as Prisma.InputJsonValue,
-				totalSessions: sessions.length,
+				totalSessions: totalSessionsAndQuizzes,
 				totalQuestions,
 				lastUpdated: new Date(),
 			},

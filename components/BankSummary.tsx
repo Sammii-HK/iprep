@@ -46,15 +46,23 @@ export function BankSummary({ bankId }: { bankId: string }) {
         if (response.ok) {
           const data = await response.json();
           setSummary(data);
+        } else {
+          const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
+          console.error('Error fetching bank summary:', errorData);
+          // Set summary to null to show error message
+          setSummary(null);
         }
       } catch (error) {
         console.error('Error fetching bank summary:', error);
+        setSummary(null);
       } finally {
         setLoading(false);
       }
     }
 
-    fetchSummary();
+    if (bankId) {
+      fetchSummary();
+    }
   }, [bankId]);
 
   if (loading) {
@@ -95,7 +103,7 @@ export function BankSummary({ bankId }: { bankId: string }) {
       {summary.averageOverallScore !== null && (
         <div className="bg-purple-50 dark:bg-purple-900/20 rounded-lg p-4">
           <div className="text-sm text-slate-600 dark:text-slate-400">Average Overall Score</div>
-          <div className="text-3xl font-bold text-purple-600 dark:text-purple-400 dark:text-purple-400">
+          <div className="text-3xl font-bold text-purple-600 dark:text-purple-400">
             {summary.averageOverallScore.toFixed(1)} / 5.0
           </div>
         </div>
@@ -168,7 +176,7 @@ export function BankSummary({ bankId }: { bankId: string }) {
             {summary.aggregatedRecommendedFocus.map((tag) => (
               <span
                 key={tag}
-                className="bg-purple-100 dark:bg-purple-900/30 dark:bg-purple-900/30 text-purple-800 dark:text-purple-200 dark:text-purple-300 px-3 py-1 rounded-full text-sm font-medium"
+                className="bg-purple-100 dark:bg-purple-900/30 text-purple-800 dark:text-purple-200 px-3 py-1 rounded-full text-sm font-medium"
               >
                 {tag}
               </span>

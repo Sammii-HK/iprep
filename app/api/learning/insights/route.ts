@@ -31,11 +31,12 @@ export async function GET(request: NextRequest) {
           aggregatedWeakTags: string[];
           aggregatedStrongTags: string[];
           topFocusAreas: string[];
+          topForgottenPoints: unknown;
           totalSessions: number;
           totalQuestions: number;
           lastUpdated: Date;
         }>>(
-          `SELECT id, "userId", "aggregatedWeakTags", "aggregatedStrongTags", "topFocusAreas", "totalSessions", "totalQuestions", "lastUpdated" 
+          `SELECT id, "userId", "aggregatedWeakTags", "aggregatedStrongTags", "topFocusAreas", "topForgottenPoints", "totalSessions", "totalQuestions", "lastUpdated" 
            FROM "UserLearningInsight" 
            WHERE "userId" = $1`,
           user.id
