@@ -323,15 +323,15 @@ export default function PracticeSessionPage() {
                 // Scroll to top
                 window.scrollTo(0, 0);
               }}
-              className="px-6 py-3 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors font-semibold"
+              className="px-6 py-3 bg-green-100 dark:bg-green-900/30 hover:bg-green-200 dark:hover:bg-green-900/50 text-green-800 dark:text-green-200 rounded-lg transition-all font-semibold shadow-md hover:shadow-lg"
             >
-              🔄 Practice Again
+              Practice Again
             </button>
             <button
               onClick={() => router.push('/practice')}
-              className="px-6 py-3 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors font-semibold"
+              className="px-6 py-3 bg-purple-200 dark:bg-purple-800 hover:bg-purple-300 dark:hover:bg-purple-700 text-purple-800 dark:text-purple-200 rounded-lg transition-all font-semibold shadow-md hover:shadow-lg"
             >
-              ← Back to Practice Sessions
+              Back to Practice Sessions
             </button>
             <button
               onClick={() => router.push('/learning')}
@@ -364,7 +364,7 @@ export default function PracticeSessionPage() {
           <div className="text-slate-600 dark:text-slate-400 mb-4">Session not found or has no questions.</div>
           <button
             onClick={() => router.push('/practice')}
-            className="px-6 py-3 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
+            className="px-6 py-3 bg-purple-200 dark:bg-purple-800 hover:bg-purple-300 dark:hover:bg-purple-700 text-purple-800 dark:text-purple-200 rounded-lg transition-all font-medium shadow-md hover:shadow-lg"
           >
             Back to Practice Sessions
           </button>
@@ -418,7 +418,7 @@ export default function PracticeSessionPage() {
                   <button
                     onClick={handleFinishSession}
                     disabled={isCompleting || sessionItems.length === 0}
-                    className="w-full px-6 py-3 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed font-semibold"
+                    className="w-full px-6 py-3 bg-green-100 dark:bg-green-900/30 hover:bg-green-200 dark:hover:bg-green-900/50 text-green-800 dark:text-green-200 rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed font-semibold shadow-md hover:shadow-lg"
                   >
                     {isCompleting ? 'Completing Session...' : 'Finish Session & View Summary'}
                   </button>
@@ -452,7 +452,7 @@ export default function PracticeSessionPage() {
           {loading ? (
             <div className="bg-white dark:bg-slate-800 rounded-lg shadow-md p-6 border border-slate-200 dark:border-slate-700">
               <div className="flex flex-col items-center justify-center py-12">
-                <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mb-4"></div>
+                <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-purple-500 mb-4"></div>
                 <p className="text-slate-700 dark:text-slate-300 font-medium">Processing your answer...</p>
                 <p className="text-sm text-slate-500 dark:text-slate-400 mt-2">Analyzing speech patterns and content</p>
               </div>

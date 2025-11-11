@@ -7,7 +7,7 @@ export default function Home() {
 				{/* Hero Section */}
 				<div className="space-y-6">
 					<div className="inline-block">
-						<h1 className="text-6xl md:text-7xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 dark:from-blue-400 dark:to-purple-400 bg-clip-text text-transparent">
+						<h1 className="text-6xl md:text-7xl font-bold bg-gradient-to-r from-purple-400 to-purple-600 dark:from-purple-300 dark:to-purple-500 bg-clip-text text-transparent">
 							iPrep
 						</h1>
 					</div>
@@ -18,7 +18,7 @@ export default function Home() {
 					<div className="flex flex-col sm:flex-row gap-4 justify-center items-center pt-4">
 						<Link
 							href="/banks"
-							className="px-8 py-4 bg-blue-600 dark:bg-blue-500 text-white rounded-xl hover:bg-blue-700 dark:hover:bg-blue-600 transition-all font-semibold text-lg shadow-lg hover:shadow-xl transform hover:-translate-y-0.5"
+							className="px-8 py-4 bg-purple-200 dark:bg-purple-800 hover:bg-purple-300 dark:hover:bg-purple-700 text-purple-800 dark:text-purple-200 rounded-xl transition-all font-semibold text-lg shadow-lg hover:shadow-xl transform hover:-translate-y-0.5"
 						>
 							Get Started
 						</Link>
@@ -34,9 +34,9 @@ export default function Home() {
 				{/* Features Grid */}
 				<div className="mt-16 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 max-w-6xl w-full">
 					<div className="p-6 bg-white/80 dark:bg-slate-800/80 backdrop-blur-sm rounded-2xl shadow-lg hover:shadow-xl transition-all border border-slate-200 dark:border-slate-700">
-						<div className="w-12 h-12 bg-blue-100 dark:bg-blue-900 rounded-lg flex items-center justify-center mb-4 mx-auto">
+						<div className="w-12 h-12 bg-purple-100 dark:bg-purple-900/30 rounded-lg flex items-center justify-center mb-4 mx-auto">
 							<svg
-								className="w-6 h-6 text-blue-600 dark:text-blue-400"
+								className="w-6 h-6 text-purple-600 dark:text-purple-400 dark:text-purple-400"
 								fill="none"
 								stroke="currentColor"
 								viewBox="0 0 24 24"

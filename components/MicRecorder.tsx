@@ -478,7 +478,7 @@ export function MicRecorder({
 						? "bg-red-500 hover:bg-red-600"
 						: disabled
 						? "bg-slate-400 cursor-not-allowed"
-						: "bg-blue-500 hover:bg-blue-600"
+						: "bg-purple-200 dark:bg-purple-800 hover:bg-purple-300 dark:hover:bg-purple-700"
 				}`}
 			>
 				{isRecording ? "Stop" : disabled ? "Processing..." : "Record"}

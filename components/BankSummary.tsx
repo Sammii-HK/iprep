@@ -93,9 +93,9 @@ export function BankSummary({ bankId }: { bankId: string }) {
       </div>
 
       {summary.averageOverallScore !== null && (
-        <div className="bg-blue-50 dark:bg-blue-900/20 rounded-lg p-4">
+        <div className="bg-purple-50 dark:bg-purple-900/20 rounded-lg p-4">
           <div className="text-sm text-slate-600 dark:text-slate-400">Average Overall Score</div>
-          <div className="text-3xl font-bold text-blue-600 dark:text-blue-400">
+          <div className="text-3xl font-bold text-purple-600 dark:text-purple-400 dark:text-purple-400">
             {summary.averageOverallScore.toFixed(1)} / 5.0
           </div>
         </div>
@@ -168,7 +168,7 @@ export function BankSummary({ bankId }: { bankId: string }) {
             {summary.aggregatedRecommendedFocus.map((tag) => (
               <span
                 key={tag}
-                className="bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300 px-3 py-1 rounded-full text-sm font-medium"
+                className="bg-purple-100 dark:bg-purple-900/30 dark:bg-purple-900/30 text-purple-800 dark:text-purple-200 dark:text-purple-300 px-3 py-1 rounded-full text-sm font-medium"
               >
                 {tag}
               </span>

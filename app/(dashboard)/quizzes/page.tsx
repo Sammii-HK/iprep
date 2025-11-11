@@ -146,7 +146,7 @@ export default function QuizzesPage() {
       <div className="flex justify-end mb-6">
         <button
           onClick={() => setShowCreateQuiz(!showCreateQuiz)}
-          className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
+          className="px-4 py-2 bg-purple-200 dark:bg-purple-800 text-white rounded-lg hover:bg-purple-300 dark:hover:bg-purple-700 transition-colors"
         >
           Create Quiz
         </button>
@@ -251,7 +251,7 @@ export default function QuizzesPage() {
             <div className="flex gap-2">
               <button
                 onClick={createQuiz}
-                className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
+                className="px-4 py-2 bg-purple-200 dark:bg-purple-800 text-white rounded-lg hover:bg-purple-300 dark:hover:bg-purple-700 transition-colors"
               >
                 Create Quiz
               </button>
@@ -288,11 +288,11 @@ export default function QuizzesPage() {
                     className="block"
                   >
                     <div className="flex items-start justify-between mb-2">
-                      <h3 className="text-xl font-semibold text-slate-900 dark:text-slate-100 hover:text-blue-600 dark:hover:text-blue-400 transition-colors">{quiz.title}</h3>
+                      <h3 className="text-xl font-semibold text-slate-900 dark:text-slate-100 hover:text-purple-600 dark:text-purple-400 dark:hover:text-purple-400 transition-colors">{quiz.title}</h3>
                       <span
                         className={`px-2 py-1 rounded text-xs font-semibold ${
                           quiz.type === 'SPOKEN'
-                            ? 'bg-blue-100 text-blue-800'
+                            ? 'bg-purple-100 dark:bg-purple-900/30 text-purple-800 dark:text-purple-200'
                             : 'bg-green-100 text-green-800'
                         }`}
                       >

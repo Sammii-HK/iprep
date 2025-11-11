@@ -11,7 +11,7 @@ export default function RegisterPage() {
           </h2>
           <p className="mt-2 text-center text-sm text-gray-600">
             Or{' '}
-            <Link href="/login" className="font-medium text-blue-600 hover:text-blue-500">
+            <Link href="/login" className="font-medium text-purple-600 dark:text-purple-400 hover:text-purple-500">
               sign in to your existing account
             </Link>
           </p>

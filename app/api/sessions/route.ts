@@ -80,6 +80,13 @@ export async function GET(request: NextRequest) {
       where: {
         userId: user.id,
       },
+      include: {
+        _count: {
+          select: {
+            items: true,
+          },
+        },
+      },
       orderBy: {
         createdAt: 'desc',
       },
@@ -97,6 +104,7 @@ export async function GET(request: NextRequest) {
         isCompleted: session.isCompleted,
         completedAt: session.completedAt?.toISOString() || null,
         filterTags: sessionWithFilterTags.filterTags || [],
+        itemCount: session._count.items,
       };
     });
 

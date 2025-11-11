@@ -275,7 +275,7 @@ export default function BanksPage() {
         <h1 className="text-3xl font-bold">Question Banks</h1>
         <button
           onClick={() => setShowImport(!showImport)}
-          className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
+          className="px-4 py-2 bg-purple-200 dark:bg-purple-800 text-white rounded-lg hover:bg-purple-300 dark:hover:bg-purple-700 transition-colors"
         >
           Import Bank
         </button>
@@ -300,7 +300,7 @@ export default function BanksPage() {
               }}
               className={`px-4 py-2 rounded-lg transition-colors ${
                 importMode === 'single'
-                  ? 'bg-blue-500 text-white'
+                  ? 'bg-purple-200 dark:bg-purple-800 text-white'
                   : 'bg-slate-200 dark:bg-slate-700 text-slate-900 dark:text-slate-100'
               }`}
             >
@@ -318,7 +318,7 @@ export default function BanksPage() {
               }}
               className={`px-4 py-2 rounded-lg transition-colors ${
                 importMode === 'bulk'
-                  ? 'bg-blue-500 text-white'
+                  ? 'bg-purple-200 dark:bg-purple-800 text-white'
                   : 'bg-slate-200 dark:bg-slate-700 text-slate-900 dark:text-slate-100'
               }`}
             >
@@ -335,7 +335,7 @@ export default function BanksPage() {
                     type="text"
                     value={importTitle}
                     onChange={(e) => setImportTitle(e.target.value)}
-                    className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 placeholder:text-slate-500 dark:placeholder:text-slate-400 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 placeholder:text-slate-500 dark:placeholder:text-slate-400 focus:ring-2 focus:ring-purple-500 focus:border-transparent"
                     placeholder="e.g., Software Engineering Interviews"
                     required
                   />
@@ -355,7 +355,7 @@ export default function BanksPage() {
                     onClick={() => fileInputRef.current?.click()}
                     className={`border-2 border-dashed rounded-lg p-8 text-center cursor-pointer transition-colors ${
                       isDragging
-                        ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20'
+                        ? 'border-purple-500 bg-purple-50 dark:bg-purple-900/20'
                         : importFile
                         ? 'border-green-500 bg-green-50 dark:bg-green-900/20'
                         : 'border-gray-300 dark:border-gray-600 hover:border-gray-400 dark:hover:border-gray-500'
@@ -395,7 +395,7 @@ export default function BanksPage() {
                           </svg>
                         </div>
                         <p className="text-slate-700 dark:text-slate-300">
-                          <span className="font-medium text-blue-600 dark:text-blue-400">Click to upload</span> or drag and drop
+                          <span className="font-medium text-purple-600 dark:text-purple-400 dark:text-purple-400">Click to upload</span> or drag and drop
                         </p>
                         <p className="text-sm text-slate-600 dark:text-slate-400">CSV or JSON files only</p>
                       </div>
@@ -427,7 +427,7 @@ export default function BanksPage() {
                   onClick={() => fileInputRef.current?.click()}
                   className={`border-2 border-dashed rounded-lg p-8 text-center cursor-pointer transition-colors ${
                     isDragging
-                      ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20'
+                      ? 'border-purple-500 bg-purple-50 dark:bg-purple-900/20'
                       : importFiles.length > 0
                       ? 'border-green-500 bg-green-50 dark:bg-green-900/20'
                       : 'border-gray-300 dark:border-gray-600 hover:border-gray-400 dark:hover:border-gray-500'
@@ -472,7 +472,7 @@ export default function BanksPage() {
                         </svg>
                       </div>
                       <p className="text-slate-700 dark:text-slate-300">
-                        <span className="font-medium text-blue-600 dark:text-blue-400">Click to upload</span> or drag and drop multiple files
+                        <span className="font-medium text-purple-600 dark:text-purple-400 dark:text-purple-400">Click to upload</span> or drag and drop multiple files
                       </p>
                       <p className="text-sm text-slate-600 dark:text-slate-400">CSV or JSON files only. Each file becomes a separate bank.</p>
                     </div>
@@ -506,7 +506,7 @@ export default function BanksPage() {
                   (importMode === 'single' && (!importFile || !importTitle.trim())) ||
                   (importMode === 'bulk' && importFiles.length === 0)
                 }
-                className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                className="px-4 py-2 bg-purple-200 dark:bg-purple-800 text-white rounded-lg hover:bg-purple-300 dark:hover:bg-purple-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {importing
                   ? importMode === 'bulk'
@@ -563,13 +563,13 @@ export default function BanksPage() {
                         handleEditCancel();
                       }
                     }}
-                    className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-purple-500 focus:border-transparent"
                     autoFocus
                   />
                   <div className="flex gap-2">
                     <button
                       onClick={() => handleEditSave(bank.id)}
-                      className="px-3 py-1 bg-blue-500 text-white rounded text-sm hover:bg-blue-600 transition-colors"
+                      className="px-3 py-1 bg-purple-200 dark:bg-purple-800 text-white rounded text-sm hover:bg-purple-300 dark:hover:bg-purple-700 transition-colors"
                     >
                       Save
                     </button>
@@ -587,7 +587,7 @@ export default function BanksPage() {
                     href={`/banks/${bank.id}`}
                     className="block mb-2"
                   >
-                    <h3 className="text-xl font-semibold mb-2 text-slate-900 dark:text-slate-100 hover:text-blue-600 dark:hover:text-blue-400 transition-colors">
+                    <h3 className="text-xl font-semibold mb-2 text-slate-900 dark:text-slate-100 hover:text-purple-600 dark:text-purple-400 dark:hover:text-purple-400 transition-colors">
                       {bank.title}
                     </h3>
                   </Link>
@@ -600,7 +600,7 @@ export default function BanksPage() {
                   <div className="flex gap-2 mt-3 opacity-0 group-hover:opacity-100 transition-opacity">
                     <button
                       onClick={(e) => handleEditStart(e, bank)}
-                      className="px-3 py-1 bg-blue-500 text-white rounded text-sm hover:bg-blue-600 transition-colors"
+                      className="px-3 py-1 bg-purple-200 dark:bg-purple-800 text-white rounded text-sm hover:bg-purple-300 dark:hover:bg-purple-700 transition-colors"
                       title="Edit bank name"
                     >
                       Edit

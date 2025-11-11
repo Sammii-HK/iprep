@@ -59,7 +59,7 @@ export default function DashboardLayout({
 											href={link.href}
 											className={`${
 												isActive(link.href)
-													? "border-blue-500 text-slate-900 dark:text-slate-100"
+													? "border-purple-500 text-slate-900 dark:text-slate-100"
 													: "border-transparent text-slate-600 dark:text-slate-400 hover:border-slate-300 dark:hover:border-slate-600 hover:text-slate-900 dark:hover:text-slate-100"
 											} inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium transition-colors`}
 										>
@@ -93,7 +93,7 @@ export default function DashboardLayout({
 							<div className="sm:hidden flex items-center">
 								<button
 									onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-									className="inline-flex items-center justify-center p-2 rounded-md text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 hover:bg-slate-100 dark:hover:bg-slate-700 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-blue-500"
+									className="inline-flex items-center justify-center p-2 rounded-md text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 hover:bg-slate-100 dark:hover:bg-slate-700 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-purple-500"
 									aria-expanded="false"
 									aria-label="Toggle menu"
 								>

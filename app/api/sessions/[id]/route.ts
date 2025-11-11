@@ -84,24 +84,24 @@ export async function GET(
 		// Find the question with the least attempts (prioritize unanswered, then least attempts)
 		let bestQuestionIndex = 0;
 		let minAttempts = Infinity;
-		
+
 		for (let i = 0; i < questions.length; i++) {
 			const questionId = questions[i].id;
 			const attempts = attemptCounts.get(questionId) || 0;
-			
+
 			// If unanswered, prioritize it
 			if (!answeredQuestionIds.has(questionId)) {
 				bestQuestionIndex = i;
 				break;
 			}
-			
+
 			// Otherwise, find the one with least attempts
 			if (attempts < minAttempts) {
 				minAttempts = attempts;
 				bestQuestionIndex = i;
 			}
 		}
-		
+
 		const firstUnansweredIndex = bestQuestionIndex;
 		const items = session.items.map(
 			(item: {

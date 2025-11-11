@@ -142,7 +142,7 @@ export function QuestionCard({
   
   const difficultyColors = {
     1: 'bg-green-100 text-green-800',
-    2: 'bg-blue-100 text-blue-800',
+    2: 'bg-purple-100 dark:bg-purple-900/30 text-purple-800 dark:text-purple-200',
     3: 'bg-yellow-100 text-yellow-800',
     4: 'bg-orange-100 text-orange-800',
     5: 'bg-red-100 text-red-800',
@@ -185,7 +185,7 @@ export function QuestionCard({
               {!showHintState ? (
                 <button
                   onClick={() => setHintStates((prev) => ({ ...prev, [question.id]: true }))}
-                  className="w-full px-4 py-2 bg-purple-500 hover:bg-purple-600 text-white rounded-lg transition-colors text-sm"
+                  className="w-full px-4 py-2 bg-purple-200 dark:bg-purple-800 hover:bg-purple-300 dark:hover:bg-purple-700 text-purple-800 dark:text-purple-200 rounded-lg transition-colors text-sm font-medium"
                 >
                   Show Hint
                 </button>
@@ -232,7 +232,7 @@ export function QuestionCard({
         {onRetryWithHint && (
           <button
             onClick={onRetryWithHint}
-            className="px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded transition-colors"
+            className="px-4 py-2 bg-purple-200 dark:bg-purple-800 hover:bg-purple-300 dark:hover:bg-purple-700 text-white rounded transition-colors"
           >
             Retry with Hint
           </button>
@@ -243,7 +243,7 @@ export function QuestionCard({
               setHintStates((prev) => ({ ...prev, [question.id]: false })); // Hide hint when moving to next question
               onNext?.();
             }}
-            className="px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded transition-colors ml-auto"
+            className="px-4 py-2 bg-purple-200 dark:bg-purple-800 hover:bg-purple-300 dark:hover:bg-purple-700 text-white rounded transition-colors ml-auto"
           >
             Next
           </button>

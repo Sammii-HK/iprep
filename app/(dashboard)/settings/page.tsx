@@ -77,7 +77,7 @@ export default function SettingsPage() {
                       value={style}
                       checked={preferences.style === style}
                       onChange={(e) => setPreferences({ ...preferences, style: e.target.value as CoachingStyle })}
-                      className="w-4 h-4 text-blue-600"
+                      className="w-4 h-4 text-purple-600 dark:text-purple-400"
                     />
                     <div>
                       <span className="font-medium text-slate-900 dark:text-slate-100 capitalize">{style}</span>
@@ -126,7 +126,7 @@ export default function SettingsPage() {
                       value={depth}
                       checked={preferences.feedbackDepth === depth}
                       onChange={(e) => setPreferences({ ...preferences, feedbackDepth: e.target.value as FeedbackDepth })}
-                      className="w-4 h-4 text-blue-600"
+                      className="w-4 h-4 text-purple-600 dark:text-purple-400"
                     />
                     <div>
                       <span className="font-medium text-slate-900 dark:text-slate-100 capitalize">{depth}</span>
@@ -162,7 +162,7 @@ export default function SettingsPage() {
                           setPreferences({ ...preferences, focusAreas: newAreas.length > 0 ? newAreas : ['all'] });
                         }
                       }}
-                      className="w-4 h-4 text-blue-600"
+                      className="w-4 h-4 text-purple-600 dark:text-purple-400"
                     />
                     <span className="font-medium text-slate-900 dark:text-slate-100 capitalize">{area}</span>
                   </label>
@@ -208,7 +208,7 @@ export default function SettingsPage() {
             <div className="flex gap-3">
               <button
                 onClick={handleSave}
-                className="px-6 py-3 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors font-semibold"
+                className="px-6 py-3 bg-purple-200 dark:bg-purple-800 text-white rounded-lg hover:bg-purple-300 dark:hover:bg-purple-700 transition-colors font-semibold"
               >
                 {saved ? '✓ Saved' : 'Save Preferences'}
               </button>

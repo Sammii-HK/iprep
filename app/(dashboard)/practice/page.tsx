@@ -18,6 +18,7 @@ interface Session {
 	bankId: string | null;
 	isCompleted: boolean;
 	completedAt: string | null;
+	itemCount: number;
 }
 
 export default function PracticePage() {
@@ -304,7 +305,7 @@ export default function PracticePage() {
 						<div className="flex gap-2">
 							<button
 								onClick={createSession}
-								className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
+								className="px-4 py-2 bg-purple-200 dark:bg-purple-800 hover:bg-purple-300 dark:hover:bg-purple-700 text-purple-800 dark:text-purple-200 rounded-lg transition-colors font-medium"
 							>
 								Start Session
 							</button>
@@ -326,11 +327,11 @@ export default function PracticePage() {
 				<div className="mb-6">
 					<button
 						onClick={() => setShowNewSession(true)}
-						className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
+						className="px-4 py-2 bg-purple-200 dark:bg-purple-800 hover:bg-purple-300 dark:hover:bg-purple-700 text-purple-800 dark:text-purple-200 rounded-lg transition-colors font-medium"
 					>
 						New Practice Session
 					</button>
-					<div className="mt-4 p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
+					<div className="mt-4 p-4 bg-purple-50 dark:bg-purple-900/20 rounded-lg border border-purple-200 dark:border-purple-800">
 						<p className="text-sm text-slate-700 dark:text-slate-300">
 							<strong className="font-semibold">Practice Mode:</strong> Retry
 							questions multiple times, view all your previous attempts, and
@@ -362,7 +363,7 @@ export default function PracticePage() {
 										</h3>
 										{session.isCompleted && (
 											<span className="px-2 py-1 bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300 rounded text-xs font-medium">
-												Completed
+												Completed ({session.itemCount})
 											</span>
 										)}
 									</div>
@@ -382,12 +383,20 @@ export default function PracticePage() {
 											e.stopPropagation();
 											router.push(`/practice/session/${session.id}`);
 										}}
-										className="px-3 py-1.5 bg-blue-500 text-white rounded text-sm hover:bg-blue-600 transition-colors font-medium"
-										title="Continue or restart this session"
+										className={`px-4 py-2 rounded-lg transition-all font-medium text-sm ${
+											session.isCompleted
+												? "bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 dark:hover:bg-slate-600 text-slate-800 dark:text-slate-200"
+												: "bg-purple-200 dark:bg-purple-800 hover:bg-purple-300 dark:hover:bg-purple-700 text-purple-800 dark:text-purple-200"
+										}`}
+										title={
+											session.isCompleted
+												? "Restart this completed session"
+												: "Continue this session"
+										}
 									>
 										{session.isCompleted
-											? "🔄 Restart Session"
-											: "▶️ Continue Session"}
+											? "Restart Session"
+											: "Continue Session"}
 									</button>
 									{session.isCompleted && session.bankId && (
 										<button
@@ -396,12 +405,12 @@ export default function PracticePage() {
 												handlePracticeWeakTopics(session.id, session.bankId);
 											}}
 											disabled={creatingWeakTopicsSession === session.id}
-											className="px-3 py-1.5 bg-amber-500 text-white rounded text-sm hover:bg-amber-600 disabled:bg-amber-400 transition-colors font-medium"
+											className="px-4 py-2 bg-amber-100 dark:bg-amber-900/30 hover:bg-amber-200 dark:hover:bg-amber-900/50 text-amber-800 dark:text-amber-200 rounded-lg text-sm transition-all font-medium disabled:opacity-50 disabled:cursor-not-allowed"
 											title="Practice weak topics from this session"
 										>
 											{creatingWeakTopicsSession === session.id
 												? "Creating..."
-												: "🎯 Practice Weak Topics"}
+												: "Practice Weak Topics"}
 										</button>
 									)}
 									<button
@@ -409,10 +418,10 @@ export default function PracticePage() {
 											e.stopPropagation();
 											setDeletingSessionId(session.id);
 										}}
-										className="px-3 py-1.5 bg-red-500 text-white rounded text-sm hover:bg-red-600 transition-colors font-medium"
+										className="px-4 py-2 bg-red-100 dark:bg-red-900/30 hover:bg-red-200 dark:hover:bg-red-900/50 text-red-800 dark:text-red-200 rounded-lg text-sm transition-all font-medium ml-auto"
 										title="Delete session"
 									>
-										🗑️ Delete
+										Delete
 									</button>
 								</div>
 							</div>
@@ -442,7 +451,7 @@ export default function PracticePage() {
 							</button>
 							<button
 								onClick={() => handleDeleteSession(deletingSessionId)}
-								className="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors"
+								className="px-4 py-2 bg-red-100 dark:bg-red-900/30 hover:bg-red-200 dark:hover:bg-red-900/50 text-red-800 dark:text-red-200 rounded-lg transition-all font-medium"
 							>
 								Delete
 							</button>

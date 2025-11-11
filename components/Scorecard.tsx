@@ -140,8 +140,8 @@ export function Scorecard({
 					)}
 
 					{whatWasWrong && whatWasWrong.length > 0 && (
-						<div className="mb-3 p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
-							<h4 className="text-sm font-semibold text-blue-700 dark:text-blue-300 mb-2">
+						<div className="mb-3 p-3 bg-purple-50 dark:bg-purple-900/20 rounded-lg border border-purple-200 dark:border-purple-800">
+							<h4 className="text-sm font-semibold text-purple-700 dark:text-purple-300 dark:text-purple-300 mb-2">
 								📝 Points to Remember:
 							</h4>
 							<ul className="list-disc list-inside space-y-1 text-sm text-slate-700 dark:text-slate-300">
@@ -167,7 +167,7 @@ export function Scorecard({
 
 					{betterWording && betterWording.length > 0 && (
 						<div className="mb-3">
-							<h4 className="text-sm font-semibold text-blue-700 dark:text-blue-300 mb-2">
+							<h4 className="text-sm font-semibold text-purple-700 dark:text-purple-300 dark:text-purple-300 mb-2">
 								💡 Better Wording Suggestions:
 							</h4>
 							<ul className="list-disc list-inside space-y-2 text-sm text-slate-700 dark:text-slate-300">

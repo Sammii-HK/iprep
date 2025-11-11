@@ -101,7 +101,7 @@ export function NotificationSettings() {
 						className={`px-4 py-2 rounded-lg font-medium transition-colors ${
 							isSubscribed
 								? 'bg-red-500 hover:bg-red-600 text-white'
-								: 'bg-blue-500 hover:bg-blue-600 text-white'
+								: 'bg-purple-200 dark:bg-purple-800 hover:bg-purple-300 dark:hover:bg-purple-700 text-white'
 						} disabled:opacity-50 disabled:cursor-not-allowed`}
 					>
 						{isLoading

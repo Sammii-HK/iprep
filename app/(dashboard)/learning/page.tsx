@@ -70,9 +70,9 @@ export default function LearningPage() {
           Your Learning Insights
         </h1>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-          <div className="bg-blue-50 dark:bg-blue-900/20 rounded-lg p-4">
+          <div className="bg-purple-50 dark:bg-purple-900/20 rounded-lg p-4">
             <div className="text-sm text-gray-600 dark:text-gray-400">Total Sessions</div>
-            <div className="text-2xl font-bold text-blue-600 dark:text-blue-400">
+            <div className="text-2xl font-bold text-purple-600 dark:text-purple-400 dark:text-purple-400">
               {insights.totalSessions}
             </div>
           </div>
@@ -130,7 +130,7 @@ export default function LearningPage() {
             {insights.topFocusAreas.map((tag) => (
               <span
                 key={tag}
-                className="bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300 px-3 py-1 rounded-full text-sm font-medium"
+                className="bg-purple-100 dark:bg-purple-900/30 dark:bg-purple-900/30 text-purple-800 dark:text-purple-200 dark:text-purple-300 px-3 py-1 rounded-full text-sm font-medium"
               >
                 {tag}
               </span>

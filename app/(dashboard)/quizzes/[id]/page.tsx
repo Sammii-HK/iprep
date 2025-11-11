@@ -173,7 +173,7 @@ export default function QuizPage() {
         <div className="flex items-center gap-4">
           <div className="flex-1 bg-slate-200 dark:bg-slate-700 rounded-full h-2">
             <div
-              className="bg-blue-500 h-2 rounded-full transition-all"
+              className="bg-purple-200 dark:bg-purple-800 h-2 rounded-full transition-all"
               style={{ width: `${progress}%` }}
             />
           </div>
@@ -226,7 +226,7 @@ export default function QuizPage() {
               />
               {loading && (
                 <div className="text-center py-4">
-                  <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
+                  <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-purple-500"></div>
                   <p className="mt-2 text-slate-700 dark:text-slate-300">Processing...</p>
                 </div>
               )}
@@ -243,7 +243,7 @@ export default function QuizPage() {
               <button
                 onClick={handleWrittenSubmit}
                 disabled={loading || !writtenAnswer.trim()}
-                className="mt-4 w-full px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                className="mt-4 w-full px-4 py-2 bg-purple-200 dark:bg-purple-800 text-white rounded-lg hover:bg-purple-300 dark:hover:bg-purple-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {loading ? 'Submitting...' : 'Submit Answer'}
               </button>
@@ -258,12 +258,12 @@ export default function QuizPage() {
               <h2 className="text-2xl font-bold mb-4 text-slate-900 dark:text-slate-100">Results</h2>
               {scorecard.score !== null && (
                 <div className="mb-4">
-                  <div className="text-4xl font-bold text-blue-600 dark:text-blue-400 mb-2">
+                  <div className="text-4xl font-bold text-purple-600 dark:text-purple-400 dark:text-purple-400 mb-2">
                     {scorecard.score}/100
                   </div>
                   <div className="w-full bg-slate-200 dark:bg-slate-700 rounded-full h-2">
                     <div
-                      className="bg-blue-500 h-2 rounded-full transition-all"
+                      className="bg-purple-200 dark:bg-purple-800 h-2 rounded-full transition-all"
                       style={{ width: `${scorecard.score}%` }}
                     />
                   </div>

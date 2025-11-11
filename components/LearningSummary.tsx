@@ -148,18 +148,18 @@ export function LearningSummary({ sessionId }: { sessionId: string }) {
       </div>
 
       {summary.overallScore !== null && (
-        <div className="bg-blue-50 dark:bg-blue-900/20 rounded-lg p-4">
+        <div className="bg-purple-50 dark:bg-purple-900/20 rounded-lg p-4 border border-purple-200 dark:border-purple-800">
           <div className="text-sm text-gray-600 dark:text-gray-400 mb-1">Overall Score</div>
-          <div className="text-3xl font-bold text-blue-600 dark:text-blue-400 mb-2">
+          <div className="text-3xl font-bold text-purple-600 dark:text-purple-400 mb-2">
             {summary.overallScore.toFixed(1)} / 5.0
           </div>
           {summary.overallScore < 3.5 && (needsReview.length > 0 || summary.weakTags.length > 0) && (
-            <p className="text-sm text-blue-700 dark:text-blue-300">
+            <p className="text-sm text-purple-700 dark:text-purple-300">
               Focus on the topics below to improve your overall performance
             </p>
           )}
           {summary.overallScore < 3.5 && needsReview.length === 0 && summary.weakTags.length === 0 && (
-            <p className="text-sm text-blue-700 dark:text-blue-300">
+            <p className="text-sm text-purple-700 dark:text-purple-300">
               Great job! Keep practicing to maintain your performance.
             </p>
           )}
@@ -170,17 +170,16 @@ export function LearningSummary({ sessionId }: { sessionId: string }) {
       {(needsReview.length > 0 || summary.weakTags.length > 0) && (
         <div className="bg-amber-50 dark:bg-amber-900/20 rounded-lg p-5 border-2 border-amber-200 dark:border-amber-800">
           <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
-            <h3 className="text-lg font-bold text-amber-900 dark:text-amber-100 flex items-center gap-2">
-              <span>📚</span>
-              <span>What to Review Next</span>
+            <h3 className="text-lg font-bold text-amber-900 dark:text-amber-100">
+              What to Review Next
             </h3>
             {bankId ? (
               <button
                 onClick={handlePracticeWeakTopics}
                 disabled={creatingSession}
-                className="px-4 py-2 bg-amber-600 hover:bg-amber-700 disabled:bg-amber-400 text-white rounded-lg text-sm font-medium transition-colors whitespace-nowrap"
+                className="px-4 py-2 bg-amber-100 dark:bg-amber-900/30 hover:bg-amber-200 dark:hover:bg-amber-900/50 text-amber-800 dark:text-amber-200 rounded-lg text-sm font-medium transition-all shadow-md hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
               >
-                {creatingSession ? 'Creating...' : '🎯 Practice Weak Topics'}
+                {creatingSession ? 'Creating...' : 'Practice Weak Topics'}
               </button>
             ) : (
               <p className="text-xs text-amber-700 dark:text-amber-300">
@@ -389,7 +388,7 @@ export function LearningSummary({ sessionId }: { sessionId: string }) {
                               ? 'bg-red-500' 
                               : isStrong
                               ? 'bg-green-500'
-                              : 'bg-blue-500'
+                              : 'bg-purple-500'
                           }`}
                           style={{ width: `${(typedData.avgScore / 5) * 100}%` }}
                         />
