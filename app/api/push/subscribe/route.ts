@@ -69,6 +69,7 @@ export async function POST(request: NextRequest) {
 		});
 	} catch (error) {
 		const errorData = handleApiError(error);
+		console.error('Push subscription error:', error);
 		return NextResponse.json(
 			{ error: errorData.message, code: errorData.code, details: errorData.details },
 			{ status: errorData.statusCode }

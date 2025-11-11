@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/db';
 import { requireAuth } from '@/lib/auth';
 import { handleApiError, NotFoundError, ValidationError } from '@/lib/errors';
@@ -28,12 +29,11 @@ export async function GET(
       throw new ValidationError('You do not have access to this question bank');
     }
 
-    // Get all completed sessions for this bank
-    const sessions = await prisma.session.findMany({
+    // Get all sessions for this bank (including incomplete ones with items)
+    const allSessions = await prisma.session.findMany({
       where: {
         bankId,
         userId: user.id,
-        isCompleted: true,
       },
       include: {
         summary: true,
@@ -47,6 +47,72 @@ export async function GET(
         completedAt: 'desc',
       },
     });
+
+    // Auto-complete sessions that have items but aren't marked as completed
+    const { analyzeSessionPerformance } = await import('@/lib/learning-analytics');
+    
+    for (const session of allSessions) {
+      if (!session.isCompleted && session.items.length > 0) {
+        try {
+          const analysis = await analyzeSessionPerformance(session.id, user.id);
+          
+          await prisma.session.update({
+            where: { id: session.id },
+            data: {
+              isCompleted: true,
+              completedAt: session.completedAt || new Date(),
+            },
+          });
+
+          await prisma.learningSummary.upsert({
+            where: { sessionId: session.id },
+            create: {
+              userId: user.id,
+              sessionId: session.id,
+              bankId: session.bankId || null,
+              commonMistakes: JSON.parse(JSON.stringify(analysis.commonMistakes)) as Prisma.InputJsonValue,
+              frequentlyForgottenPoints: JSON.parse(JSON.stringify(analysis.frequentlyForgottenPoints)) as Prisma.InputJsonValue,
+              weakTags: analysis.weakTags,
+              strongTags: analysis.strongTags,
+              recommendedFocus: analysis.recommendedFocus,
+              performanceByTag: JSON.parse(JSON.stringify(analysis.performanceByTag)) as Prisma.InputJsonValue,
+              overallScore: analysis.overallScore,
+            },
+            update: {
+              commonMistakes: JSON.parse(JSON.stringify(analysis.commonMistakes)) as Prisma.InputJsonValue,
+              frequentlyForgottenPoints: JSON.parse(JSON.stringify(analysis.frequentlyForgottenPoints)) as Prisma.InputJsonValue,
+              weakTags: analysis.weakTags,
+              strongTags: analysis.strongTags,
+              recommendedFocus: analysis.recommendedFocus,
+              performanceByTag: JSON.parse(JSON.stringify(analysis.performanceByTag)) as Prisma.InputJsonValue,
+              overallScore: analysis.overallScore,
+            },
+          });
+
+          // Reload session with summary
+          const updatedSession = await prisma.session.findUnique({
+            where: { id: session.id },
+            include: {
+              summary: true,
+              items: {
+                include: {
+                  question: true,
+                },
+              },
+            },
+          });
+          if (updatedSession) {
+            Object.assign(session, updatedSession);
+          }
+        } catch (error) {
+          console.error(`Error auto-completing session ${session.id}:`, error);
+          // Continue with other sessions
+        }
+      }
+    }
+
+    // Filter to only completed sessions
+    const sessions = allSessions.filter(s => s.isCompleted);
 
     if (sessions.length === 0) {
       return NextResponse.json({

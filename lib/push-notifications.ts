@@ -64,7 +64,10 @@ export async function subscribeToPushNotifications(): Promise<PushSubscription |
 	});
 
 	if (!subscribeResponse.ok) {
-		throw new Error('Failed to subscribe to push notifications');
+		const errorData = await subscribeResponse.json().catch(() => ({ error: 'Unknown error' }));
+		const errorMessage = errorData.error || errorData.message || 'Failed to subscribe to push notifications';
+		console.error('Push subscription error:', errorData);
+		throw new Error(errorMessage);
 	}
 
 	return subscription;

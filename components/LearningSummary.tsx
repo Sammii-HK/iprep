@@ -47,8 +47,12 @@ export function LearningSummary({ sessionId }: { sessionId: string }) {
         const response = await fetch(`/api/sessions/${sessionId}/summary`);
         if (response.ok) {
           const data = await response.json();
+          console.log('Summary data received:', data);
           setSummary(data.summary);
           setBankId(data.bankId);
+        } else {
+          const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
+          console.error('Failed to fetch summary:', errorData);
         }
       } catch (error) {
         console.error('Error fetching summary:', error);
@@ -61,11 +65,21 @@ export function LearningSummary({ sessionId }: { sessionId: string }) {
   }, [sessionId]);
 
   if (loading) {
-    return <div className="text-gray-600">Loading summary...</div>;
+    return (
+      <div className="bg-white dark:bg-slate-800 rounded-lg shadow p-6">
+        <div className="text-slate-600 dark:text-slate-400">Loading summary...</div>
+      </div>
+    );
   }
 
   if (!summary) {
-    return null;
+    return (
+      <div className="bg-white dark:bg-slate-800 rounded-lg shadow p-6">
+        <p className="text-slate-600 dark:text-slate-400">
+          Summary not available. Please complete the session first.
+        </p>
+      </div>
+    );
   }
 
   // Calculate what needs most review
