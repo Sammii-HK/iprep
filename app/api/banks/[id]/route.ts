@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { z } from 'zod';
-import { handleApiError, NotFoundError, ValidationError } from '@/lib/errors';
+import { handleApiError, NotFoundError } from '@/lib/errors';
 
 const UpdateBankSchema = z.object({
   title: z.string().min(1, 'Title is required').max(200),

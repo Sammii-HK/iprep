@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { TrendChart } from '@/components/TrendChart';
 import { NotificationSettings } from '@/components/NotificationSettings';
 
@@ -24,11 +24,7 @@ export default function AnalyticsPage() {
   const [loading, setLoading] = useState(true);
   const [range, setRange] = useState(30);
 
-  useEffect(() => {
-    fetchAnalytics();
-  }, [range]);
-
-  const fetchAnalytics = async () => {
+  const fetchAnalytics = useCallback(async () => {
     try {
       const response = await fetch(`/api/analytics/summary?range=${range}`);
       if (response.ok) {
@@ -40,7 +36,11 @@ export default function AnalyticsPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [range]);
+
+  useEffect(() => {
+    fetchAnalytics();
+  }, [fetchAnalytics]);
 
   if (loading) {
     return <div className="text-center py-12">Loading...</div>;

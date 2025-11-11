@@ -228,8 +228,8 @@ export async function analyzeTechnicalKnowledge(
     2 + (complexSentences > 2 ? 1 : 0) + (termMatches.length > 5 ? 1 : 0) + (specificityScore > 3 ? 1 : 0)
   )));
 
-  // Use LLM to assess technical accuracy (requires domain knowledge)
-  const accuracyScore = await assessTechnicalAccuracy(transcript, questionTags, domain);
+    // Use LLM to assess technical accuracy (requires domain knowledge)
+    const accuracyScore = await assessTechnicalAccuracy(transcript);
 
   return {
     terminologyScore,
@@ -243,9 +243,7 @@ export async function analyzeTechnicalKnowledge(
  * Use LLM to assess technical accuracy
  */
 async function assessTechnicalAccuracy(
-  transcript: string,
-  questionTags: string[],
-  domain: string
+  transcript: string
 ): Promise<number> {
   try {
     // Enhanced prompt for technical accuracy assessment

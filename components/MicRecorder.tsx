@@ -48,7 +48,7 @@ export function MicRecorder({
 			if (source) {
 				try {
 					source.disconnect();
-				} catch (error) {
+				} catch {
 					// Source might already be disconnected
 				}
 			}
@@ -438,11 +438,12 @@ export function MicRecorder({
 	};
 
 	// Function to explicitly release microphone (optional, for cleanup)
+	// eslint-disable-next-line @typescript-eslint/no-unused-vars
 	const releaseMicrophone = () => {
 		if (sourceRef.current) {
 			try {
 				sourceRef.current.disconnect();
-			} catch (error) {
+			} catch {
 				// Source might already be disconnected
 			}
 			sourceRef.current = null;

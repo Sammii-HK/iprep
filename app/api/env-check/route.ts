@@ -34,7 +34,7 @@ export async function GET() {
         };
       }
     }
-  } catch (error) {
+  } catch {
     checks.database = {
       status: 'error',
       message: 'Database configuration error',
@@ -154,6 +154,7 @@ export async function GET() {
   // Test OpenAI connection
   if (config.openai.apiKey) {
     try {
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
       const openai = new OpenAI({ apiKey: config.openai.apiKey });
       // Just check if client initializes (no API call to avoid costs)
       checks.openai_connection = {
@@ -181,6 +182,7 @@ export async function GET() {
 
   // Summary
   const allOk = Object.values(checks).every((check) => check.status === 'ok');
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const hasMissing = Object.values(checks).some((check) => check.status === 'missing');
   const hasErrors = Object.values(checks).some((check) => check.status === 'error');
 

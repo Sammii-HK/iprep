@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { handleApiError, NotFoundError } from '@/lib/errors';
-import { transcribeAudio, analyzeTranscriptEnhanced } from '@/lib/ai';
+import { transcribeAudio } from '@/lib/ai';
 import { analyzeTranscriptOptimized } from '@/lib/ai-optimized';
 import { uploadAudio, getAudioUrl } from '@/lib/r2';
 import {
@@ -89,8 +89,8 @@ export async function POST(request: NextRequest) {
       answerText = transcribedText;
 
       // Calculate metrics
-      const wordCount = countWords(transcript);
-      const fillerCount = countFillers(transcript);
+      const wordCount = countWords(transcript || '');
+      const fillerCount = countFillers(transcript || '');
       const longPauses = wordTimestamps ? detectLongPauses(wordTimestamps) : 0;
 
       // Use optimized analysis (70% token reduction + caching)
@@ -98,7 +98,7 @@ export async function POST(request: NextRequest) {
       let analysis;
       try {
         analysis = await analyzeTranscriptOptimized(
-          transcript,
+          transcript || '',
           question.id, // questionId for caching
           questionTags,
           'Senior Design Engineer / Design Engineering Leader',
