@@ -41,6 +41,7 @@ export function QuestionCard({
   // Get hint state for current question - use showHint prop if provided, otherwise use stored state
   const showHintState = showHint || (hintStates[question.id] ?? false);
   
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const setShowHint = (show: boolean) => {
     setHintStates((prev) => ({
       ...prev,
