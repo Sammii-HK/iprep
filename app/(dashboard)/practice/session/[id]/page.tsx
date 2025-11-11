@@ -119,19 +119,9 @@ export default function PracticeSessionPage() {
       prevQuestionIndexRef.current = currentQuestionIndex;
       setScorecard(null); // Hide scorecard when moving to new question
       setShowAnswer(false); // Hide answer when moving to new question
-      
-      // If there's a recent attempt for this question, show it
-      const currentQ = questions[currentQuestionIndex];
-      if (currentQ) {
-        const recentAttempt = sessionItems.find(
-          item => item.questionId === currentQ.id
-        );
-        if (recentAttempt) {
-          setScorecard(recentAttempt);
-        }
-      }
+      // Don't auto-restore previous attempts - user must click to view them
     }
-  }, [currentQuestionIndex, questions, sessionItems]);
+  }, [currentQuestionIndex, questions]);
 
   const handleRecordingComplete = async (blob: Blob) => {
     if (questions.length === 0) return;
@@ -166,7 +156,12 @@ export default function PracticeSessionPage() {
       if (response.ok) {
         const result = await response.json();
         
-        // Set scorecard - we know it's for the current question since we just sent it
+        // Show answer immediately when we get transcript (before full AI analysis if needed)
+        if (result.transcript) {
+          setShowAnswer(true);
+        }
+        
+        // Set scorecard with full analysis - this will update dontForget and bold highlighting
         setScorecard({
           id: result.id,
           questionId: currentQuestion.id,
@@ -182,7 +177,6 @@ export default function PracticeSessionPage() {
           betterWording: result.betterWording,
           dontForget: result.dontForget,
         });
-        setShowAnswer(true); // Show answer/hint after AI analysis completes
         
         // Add the new session item to the local state without re-fetching questions
         // This prevents question reordering during the session
