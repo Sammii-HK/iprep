@@ -36,6 +36,9 @@ export default function PracticePage() {
 	const [creatingWeakTopicsSession, setCreatingWeakTopicsSession] = useState<
 		string | null
 	>(null);
+	const [sessionsWithWeakTopics, setSessionsWithWeakTopics] = useState<
+		Set<string>
+	>(new Set());
 
 	useEffect(() => {
 		fetchData();
@@ -56,6 +59,64 @@ export default function PracticePage() {
 			if (sessionsRes.ok) {
 				const sessionsData = await sessionsRes.json();
 				setSessions(sessionsData);
+
+				// Check which completed sessions have weak topics
+				const completedSessions = sessionsData.filter(
+					(s: Session) => s.isCompleted && s.bankId
+				);
+				const weakTopicsSet = new Set<string>();
+
+				// Fetch summaries in parallel to check for weak topics
+				const summaryPromises = completedSessions.map(
+					async (session: Session) => {
+						try {
+							const summaryResponse = await fetch(
+								`/api/sessions/${session.id}/summary`
+							);
+							if (summaryResponse.ok) {
+								const summaryData = await summaryResponse.json();
+								const summary = summaryData.summary;
+
+								// Check if there are weak tags
+								const weakTags =
+									summary.weakTags && summary.weakTags.length > 0
+										? summary.weakTags
+										: [];
+
+								if (weakTags.length === 0) {
+									// Try to calculate from performanceByTag
+									const performanceByTag = summary.performanceByTag || {};
+									const needsReview = Object.entries(performanceByTag)
+										.filter(([, data]) => {
+											const typedData = data as { avgScore?: number };
+											return (
+												typeof typedData === "object" &&
+												typedData !== null &&
+												typeof typedData.avgScore === "number" &&
+												typedData.avgScore < 3.5
+											);
+										})
+										.map(([tag]) => tag);
+
+									if (needsReview.length > 0) {
+										weakTopicsSet.add(session.id);
+									}
+								} else {
+									weakTopicsSet.add(session.id);
+								}
+							}
+						} catch (error) {
+							// Silently fail - button will just not show
+							console.error(
+								`Error checking weak topics for session ${session.id}:`,
+								error
+							);
+						}
+					}
+				);
+
+				await Promise.all(summaryPromises);
+				setSessionsWithWeakTopics(weakTopicsSet);
 			}
 		} catch (error) {
 			console.error("Error fetching data:", error);
@@ -390,27 +451,33 @@ export default function PracticePage() {
 										}`}
 										title={
 											session.isCompleted
-												? "Restart this completed session"
-												: "Continue this session"
+												? "Practice this session again"
+												: !session.isCompleted && session.itemCount > 0
+												? "Continue this unfinished session"
+												: "Start this session"
 										}
 									>
 										{session.isCompleted
-											? "Restart Session"
-											: "Continue Session"}
+											? "Practice Again"
+											: !session.isCompleted && session.itemCount > 0
+											? "Continue Session"
+											: "Start Session"}
 									</button>
-									{session.isCompleted && session.bankId && (
-										<button
-											onClick={(e) => {
-												e.stopPropagation();
-												handlePracticeWeakTopics(session.id, session.bankId);
-											}}
-											disabled={creatingWeakTopicsSession === session.id}
-											className="px-4 py-2 bg-amber-100 dark:bg-amber-900/30 hover:bg-amber-200 dark:hover:bg-amber-900/50 text-amber-800 dark:text-amber-200 rounded-lg text-sm transition-all font-medium disabled:opacity-50 disabled:cursor-not-allowed"
-											title="Practice weak topics from this session"
-										>
-											Practice Weak Topics
-										</button>
-									)}
+									{session.isCompleted &&
+										session.bankId &&
+										sessionsWithWeakTopics.has(session.id) && (
+											<button
+												onClick={(e) => {
+													e.stopPropagation();
+													handlePracticeWeakTopics(session.id, session.bankId);
+												}}
+												disabled={creatingWeakTopicsSession === session.id}
+												className="px-4 py-2 bg-amber-100 dark:bg-amber-900/30 hover:bg-amber-200 dark:hover:bg-amber-900/50 text-amber-800 dark:text-amber-200 rounded-lg text-sm transition-all font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+												title="Practice weak topics from this session"
+											>
+												Practice Weak Topics
+											</button>
+										)}
 									<button
 										onClick={(e) => {
 											e.stopPropagation();

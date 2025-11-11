@@ -343,8 +343,8 @@ export async function POST(request: NextRequest) {
 			}
 
 			// Only proceed with AI analysis if we have sufficient content
-			// Require at least 10 words OR at least 5 seconds of audio
-			const hasMinimumContent = wordCount >= 10;
+			// Require at least 5 words OR at least 5 seconds of audio (more lenient for short answers)
+			const hasMinimumContent = wordCount >= 5;
 
 			if (!hasMinimumContent) {
 				// Return a helpful message instead of default fallback
@@ -355,7 +355,7 @@ export async function POST(request: NextRequest) {
 					betterWording: [
 						`Try speaking for at least ${
 							actualDuration ? Math.ceil(5 - actualDuration) : 5
-						} more seconds or provide more detail (aim for 20+ words)`,
+						} more seconds or provide more detail (aim for 10+ words for better feedback)`,
 						"Structure your answer with clear examples",
 					],
 					dontForget: [],
@@ -365,8 +365,8 @@ export async function POST(request: NextRequest) {
 					technicalAccuracy: 1,
 					terminologyUsage: 1,
 					tips: [
-						"Your response was too brief. Try speaking for 30-60 seconds.",
-						`You provided ${wordCount} words - aim for 20+ words for better feedback`,
+						"Your response was too brief. Try speaking for 10-30 seconds.",
+						`You provided ${wordCount} words - aim for 10+ words for better feedback`,
 						"Include specific examples and structure your answer clearly",
 					],
 				};

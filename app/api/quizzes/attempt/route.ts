@@ -23,6 +23,7 @@ export async function POST(request: NextRequest) {
     const questionId = formData.get('questionId') as string;
     const answer = formData.get('answer') as string | null; // For written
     const audioFile = formData.get('audio') as File | null; // For spoken
+    const hintUsed = formData.get('hintUsed') === 'true'; // Whether hint was shown
 
     if (!quizId || !questionId) {
       return NextResponse.json(
@@ -218,6 +219,7 @@ export async function POST(request: NextRequest) {
         transcript,
         score: score ? Math.round(score * 20) : null, // Convert 0-5 to 0-100
         feedback,
+        hintUsed,
         completedAt: new Date(),
       },
       include: {

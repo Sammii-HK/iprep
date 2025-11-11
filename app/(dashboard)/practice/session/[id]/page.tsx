@@ -219,7 +219,8 @@ export default function PracticeSessionPage() {
       if (response.ok) {
         const result = await response.json();
         
-        // Show answer immediately when we get transcript (before full AI analysis if needed)
+        // Answer is already shown from onStop callback, but ensure it stays visible
+        // The transcript confirms the recording was processed
         if (result.transcript) {
           setShowAnswer(true);
         }
@@ -393,19 +394,7 @@ export default function PracticeSessionPage() {
                     setShowAnswer(false); // Hide answer when moving to next
                   }
                 }}
-                onPrevious={() => {
-                  if (currentQuestionIndex > 0) {
-                    setCurrentQuestionIndex(currentQuestionIndex - 1);
-                    setScorecard(null);
-                    setShowAnswer(false); // Hide answer when going back
-                  }
-                }}
                 hasNext={currentQuestionIndex < questions.length - 1}
-                hasPrevious={currentQuestionIndex > 0}
-                onRetryWithHint={() => {
-                  // TODO: Implement retry with hint
-                  alert('Retry with hint feature coming soon!');
-                }}
               />
               {/* Finish Session Button - Show on last question */}
               {isLastQuestion && (
@@ -439,9 +428,10 @@ export default function PracticeSessionPage() {
             onStart={() => setIsRecording(true)}
             onStop={() => {
               setIsRecording(false);
-              // Don't show answer until AI analysis completes
+              // Show answer immediately when recording stops
+              setShowAnswer(true);
             }}
-            disabled={loading}
+            disabled={loading || !currentQuestion || (sessionItems.some(item => item.questionId === currentQuestion.id))}
           />
           {/* Only show LiveCaption when recording - consolidate into one box */}
           {isRecording && <LiveCaption isRecording={isRecording} />}

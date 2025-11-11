@@ -35,6 +35,7 @@ export default function QuizPage() {
     feedback?: string[];
   } | null>(null);
   const [completedQuestions, setCompletedQuestions] = useState<Set<string>>(new Set());
+  const [hintsUsed, setHintsUsed] = useState<Set<string>>(new Set()); // Track which questions had hints shown
 
   const fetchQuiz = useCallback(async () => {
     try {
@@ -92,6 +93,7 @@ export default function QuizPage() {
       formData.append('audio', blob, 'recording.webm');
       formData.append('quizId', quizId);
       formData.append('questionId', currentQuestion.id);
+      formData.append('hintUsed', hintsUsed.has(currentQuestion.id) ? 'true' : 'false');
 
       const response = await fetch('/api/quizzes/attempt', {
         method: 'POST',
@@ -132,6 +134,7 @@ export default function QuizPage() {
       formData.append('answer', writtenAnswer);
       formData.append('quizId', quizId);
       formData.append('questionId', currentQuestion.id);
+      formData.append('hintUsed', hintsUsed.has(currentQuestion.id) ? 'true' : 'false');
 
       const response = await fetch('/api/quizzes/attempt', {
         method: 'POST',
@@ -207,6 +210,12 @@ export default function QuizPage() {
               }}
               hasNext={currentQuestionIndex < quiz.questions.length - 1}
               hasPrevious={currentQuestionIndex > 0}
+              onHintShown={() => {
+                // Track that hint was used for this question
+                if (!hintsUsed.has(currentQuestion.id)) {
+                  setHintsUsed(new Set([...hintsUsed, currentQuestion.id]));
+                }
+              }}
             />
           ) : (
             <div className="bg-white dark:bg-slate-800 rounded-lg shadow-md p-6 border border-slate-200 dark:border-slate-700">

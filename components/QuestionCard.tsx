@@ -13,14 +13,14 @@ interface Question {
 interface QuestionCardProps {
   question: Question;
   onNext?: () => void;
-  onPrevious?: () => void;
+  onPrevious?: () => void; // Optional - only used in quizzes
   hasNext?: boolean;
-  hasPrevious?: boolean;
-  onRetryWithHint?: () => void;
+  hasPrevious?: boolean; // Optional - only used in quizzes
   currentQuestionNumber?: number; // e.g., 1
   totalQuestions?: number; // e.g., 20
   showHint?: boolean; // Show hint/answer immediately
   dontForget?: string[]; // Points that were forgotten - will be bolded in hint
+  onHintShown?: () => void; // Callback when hint is shown (for tracking in quizzes)
 }
 
 export function QuestionCard({
@@ -29,11 +29,11 @@ export function QuestionCard({
   onPrevious,
   hasNext = false,
   hasPrevious = false,
-  onRetryWithHint,
   currentQuestionNumber,
   totalQuestions,
   showHint = false, // Default to false, can be overridden
   dontForget = [], // Points that were forgotten
+  onHintShown,
 }: QuestionCardProps) {
   // Store hint state keyed by question ID to automatically reset when question changes
   const [hintStates, setHintStates] = useState<Record<string, boolean>>({});
@@ -41,12 +41,20 @@ export function QuestionCard({
   // Get hint state for current question - use showHint prop if provided, otherwise use stored state
   const showHintState = showHint || (hintStates[question.id] ?? false);
   
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const setShowHint = (show: boolean) => {
-    setHintStates((prev) => ({
-      ...prev,
-      [question.id]: show,
-    }));
+    setHintStates((prev) => {
+      const newState = {
+        ...prev,
+        [question.id]: show,
+      };
+      
+      // Track hint usage if showing hint for the first time
+      if (show && !prev[question.id] && onHintShown) {
+        onHintShown();
+      }
+      
+      return newState;
+    });
   };
 
   /**
@@ -180,61 +188,52 @@ export function QuestionCard({
 
       <div className="text-lg mb-6 text-slate-900 dark:text-slate-100">{question.text}</div>
       
-      {onRetryWithHint && (
-            <div className="mb-4">
-              {!showHintState ? (
+      {/* Show/Hide Hint Button - Always available */}
+      <div className="mb-4">
+        {!showHintState ? (
+          <button
+            onClick={() => setShowHint(true)}
+            className="w-full px-4 py-2 bg-purple-200 dark:bg-purple-800 hover:bg-purple-300 dark:hover:bg-purple-700 text-purple-800 dark:text-purple-200 rounded-lg transition-colors text-sm font-medium"
+          >
+            Show Hint
+          </button>
+        ) : (
+          <div className="p-4 bg-purple-50 dark:bg-purple-900/20 rounded-lg border border-purple-200 dark:border-purple-800">
+            <div className="flex justify-between items-start mb-2">
+              <strong className="font-semibold text-slate-900 dark:text-slate-100">Answer/Hint:</strong>
+              {!showHint && (
                 <button
-                  onClick={() => setHintStates((prev) => ({ ...prev, [question.id]: true }))}
-                  className="w-full px-4 py-2 bg-purple-200 dark:bg-purple-800 hover:bg-purple-300 dark:hover:bg-purple-700 text-purple-800 dark:text-purple-200 rounded-lg transition-colors text-sm font-medium"
+                  onClick={() => setShowHint(false)}
+                  className="px-2 py-1 text-xs bg-purple-200 dark:bg-purple-800 hover:bg-purple-300 dark:hover:bg-purple-700 text-purple-800 dark:text-purple-200 rounded transition-colors"
                 >
-                  Show Hint
+                  Hide
                 </button>
-              ) : (
-                <div className="p-4 bg-purple-50 dark:bg-purple-900/20 rounded-lg border border-purple-200 dark:border-purple-800">
-                  <div className="flex justify-between items-start mb-2">
-                    <strong className="font-semibold text-slate-900 dark:text-slate-100">Answer/Hint:</strong>
-                    {!showHint && (
-                      <button
-                        onClick={() => setHintStates((prev) => ({ ...prev, [question.id]: false }))}
-                        className="px-2 py-1 text-xs bg-purple-200 dark:bg-purple-800 hover:bg-purple-300 dark:hover:bg-purple-700 text-purple-800 dark:text-purple-200 rounded transition-colors"
-                      >
-                        Hide
-                      </button>
-                    )}
-                  </div>
-                  <p className="text-sm text-slate-700 dark:text-slate-300 leading-relaxed whitespace-pre-wrap">
-                    {question.hint ? (
-                      highlightForgottenParts(question.hint)
-                    ) : (
-                      `Use the question tags as context. Think about the key concepts related to: ${question.tags.join(', ')}. Structure your answer clearly and provide examples.`
-                    )}
-                  </p>
-                  {/* Debug: Show dontForget if present */}
-                  {dontForget && dontForget.length > 0 && process.env.NODE_ENV === 'development' && (
-                    <div className="mt-2 text-xs text-slate-500 dark:text-slate-400">
-                      Debug: dontForget = {JSON.stringify(dontForget)}
-                    </div>
-                  )}
-                </div>
               )}
             </div>
-          )}
+            <p className="text-sm text-slate-700 dark:text-slate-300 leading-relaxed whitespace-pre-wrap">
+              {question.hint ? (
+                highlightForgottenParts(question.hint)
+              ) : (
+                `Use the question tags as context. Think about the key concepts related to: ${question.tags.join(', ')}. Structure your answer clearly and provide examples.`
+              )}
+            </p>
+            {/* Debug: Show dontForget if present */}
+            {dontForget && dontForget.length > 0 && process.env.NODE_ENV === 'development' && (
+              <div className="mt-2 text-xs text-slate-500 dark:text-slate-400">
+                Debug: dontForget = {JSON.stringify(dontForget)}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
 
       <div className="flex gap-2">
-        {hasPrevious && (
+        {hasPrevious && onPrevious && (
           <button
             onClick={onPrevious}
             className="px-4 py-2 bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 dark:hover:bg-slate-600 text-slate-900 dark:text-slate-100 rounded transition-colors"
           >
             Previous
-          </button>
-        )}
-        {onRetryWithHint && (
-          <button
-            onClick={onRetryWithHint}
-            className="px-4 py-2 bg-purple-200 dark:bg-purple-800 hover:bg-purple-300 dark:hover:bg-purple-700 text-purple-800 dark:text-purple-200 rounded-lg transition-all font-medium"
-          >
-            Retry with Hint
           </button>
         )}
         {hasNext && (

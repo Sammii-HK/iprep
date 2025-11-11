@@ -132,6 +132,7 @@ model QuizAttempt {
   transcript  String?  // For spoken quizzes
   score       Float?   // 0..100
   feedback    String?
+  hintUsed    Boolean  @default(false) // Whether the user viewed the hint for this question
   startedAt   DateTime @default(now())
   completedAt DateTime?
   quiz        Quiz     @relation(fields: [quizId], references: [id])
