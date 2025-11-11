@@ -48,7 +48,7 @@ export default function DashboardLayout({
 							<div className="flex">
 								<Link href="/" className="flex items-center px-2">
 									<span className="text-xl font-bold text-slate-900 dark:text-slate-100">
-										Interview Coach
+										iPrep
 									</span>
 								</Link>
 								{/* Desktop Navigation */}

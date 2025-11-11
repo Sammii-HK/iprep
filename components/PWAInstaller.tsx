@@ -62,7 +62,7 @@ export function PWAInstaller() {
 	return (
 		<div className="fixed bottom-4 right-4 bg-blue-600 dark:bg-blue-500 text-white px-4 py-3 rounded-lg shadow-lg z-50 flex items-center gap-3">
 			<div>
-				<p className="text-sm font-semibold">Install Interview Coach</p>
+				<p className="text-sm font-semibold">Install iPrep</p>
 				<p className="text-xs opacity-90">
 					Get practice reminders and faster access
 				</p>

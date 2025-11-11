@@ -6,63 +6,74 @@ import { PWAInstaller } from "@/components/PWAInstaller";
 import { AuthProvider } from "@/lib/auth-context";
 
 const geistSans = Geist({
-  variable: "--font-geist-sans",
-  subsets: ["latin"],
+	variable: "--font-geist-sans",
+	subsets: ["latin"],
 });
 
 const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
+	variable: "--font-geist-mono",
+	subsets: ["latin"],
 });
 
 export const metadata: Metadata = {
-  title: "Interview Coach",
-  description: "AI-powered spoken interview practice with automatic transcription, scoring, and actionable feedback",
-  manifest: "/manifest.json",
-  appleWebApp: {
-    capable: true,
-    statusBarStyle: "default",
-    title: "Interview Coach",
-  },
+	title: "iPrep",
+	description:
+		"AI-powered spoken interview practice with automatic transcription, scoring, and actionable feedback",
+	manifest: "/manifest.json",
+	appleWebApp: {
+		capable: true,
+		statusBarStyle: "default",
+		title: "iPrep",
+	},
 };
 
 export const viewport: Viewport = {
-  width: "device-width",
-  initialScale: 1,
-  maximumScale: 1,
-  userScalable: false,
-  themeColor: "#3b82f6",
+	width: "device-width",
+	initialScale: 1,
+	maximumScale: 1,
+	userScalable: false,
+	themeColor: "#3b82f6",
 };
 
 export default function RootLayout({
-  children,
+	children,
 }: Readonly<{
-  children: React.ReactNode;
+	children: React.ReactNode;
 }>) {
-  return (
-    <html lang="en" suppressHydrationWarning>
-      <head>
-        <link rel="manifest" href="/manifest.json" />
-        <link rel="icon" href="/favicon.ico" />
-        <link rel="icon" type="image/png" sizes="32x32" href="/icon-32x32.png" />
-        <link rel="icon" type="image/png" sizes="16x16" href="/icon-16x16.png" />
-        <link rel="apple-touch-icon" sizes="180x180" href="/icon-192x192.png" />
-        <meta name="apple-mobile-web-app-capable" content="yes" />
-        <meta name="apple-mobile-web-app-status-bar-style" content="default" />
-        <meta name="apple-mobile-web-app-title" content="Interview Coach" />
-      </head>
-      <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
-      >
-        <ErrorBoundary>
-          <AuthProvider>
-            {children}
-            <PWAInstaller />
-          </AuthProvider>
-        </ErrorBoundary>
-        <script
-          dangerouslySetInnerHTML={{
-            __html: `
+	return (
+		<html lang="en" suppressHydrationWarning>
+			<head>
+				<link rel="manifest" href="/manifest.json" />
+				<link rel="icon" href="/favicon.ico" />
+				<link
+					rel="icon"
+					type="image/png"
+					sizes="32x32"
+					href="/icon-32x32.png"
+				/>
+				<link
+					rel="icon"
+					type="image/png"
+					sizes="16x16"
+					href="/icon-16x16.png"
+				/>
+				<link rel="apple-touch-icon" sizes="180x180" href="/icon-192x192.png" />
+				<meta name="apple-mobile-web-app-capable" content="yes" />
+				<meta name="apple-mobile-web-app-status-bar-style" content="default" />
+				<meta name="apple-mobile-web-app-title" content="iPrep" />
+			</head>
+			<body
+				className={`${geistSans.variable} ${geistMono.variable} antialiased`}
+			>
+				<ErrorBoundary>
+					<AuthProvider>
+						{children}
+						<PWAInstaller />
+					</AuthProvider>
+				</ErrorBoundary>
+				<script
+					dangerouslySetInnerHTML={{
+						__html: `
               if ('serviceWorker' in navigator) {
                 window.addEventListener('load', () => {
                   navigator.serviceWorker.register('/sw.js')
@@ -75,9 +86,9 @@ export default function RootLayout({
                 });
               }
             `,
-          }}
-        />
-      </body>
-    </html>
-  );
+					}}
+				/>
+			</body>
+		</html>
+	);
 }

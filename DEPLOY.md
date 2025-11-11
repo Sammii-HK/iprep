@@ -1,8 +1,9 @@
-# Deployment Guide - Interview Coach
+# Deployment Guide - iPrep
 
 ## Recommended Platform: Vercel
 
 Vercel is the best choice for Next.js apps because:
+
 - ✅ Zero-config deployment
 - ✅ Automatic SSL/HTTPS
 - ✅ Edge functions support
@@ -24,6 +25,7 @@ git push origin main
 ### Step 2: Deploy to Vercel
 
 **Option A: Via Vercel Dashboard (Recommended)**
+
 1. Go to [vercel.com](https://vercel.com) and sign up/login
 2. Click "Add New Project"
 3. Import your GitHub repository
@@ -31,6 +33,7 @@ git push origin main
 5. Click "Deploy"
 
 **Option B: Via CLI**
+
 ```bash
 npm i -g vercel
 vercel login
@@ -75,6 +78,7 @@ NODE_ENV=production
 After deployment, run migrations:
 
 **Option A: Via Vercel CLI**
+
 ```bash
 vercel env pull .env.local
 npm run db:generate
@@ -82,6 +86,7 @@ npx prisma migrate deploy
 ```
 
 **Option B: Via Supabase Dashboard**
+
 - Go to Supabase SQL Editor
 - Run migrations manually (or use Prisma migrate)
 
@@ -90,6 +95,7 @@ npx prisma migrate deploy
 ### 1. Database Options
 
 **Option A: Neon (Recommended - Free tier available)**
+
 1. Go to [neon.tech](https://neon.tech) or use Vercel Marketplace
 2. Create a new project
 3. Copy the connection string from dashboard
@@ -97,6 +103,7 @@ npx prisma migrate deploy
 5. Neon provides free tier: 0.5GB storage, unlimited projects
 
 **Option B: Supabase (Free tier: 500MB)**
+
 1. Go to [supabase.com](https://supabase.com)
 2. Create a new project
 3. Go to Settings → Database
@@ -104,6 +111,7 @@ npx prisma migrate deploy
 5. Format: `postgresql://postgres:[YOUR-PASSWORD]@db.[PROJECT-REF].supabase.co:5432/postgres`
 
 **Other Options:**
+
 - **Vercel Postgres** (via Vercel dashboard - integrated)
 - **Railway PostgreSQL** (free tier available)
 - **Render PostgreSQL** (free tier available)
@@ -123,6 +131,7 @@ npx prisma migrate deploy
 6. Endpoint: `https://[ACCOUNT_ID].r2.cloudflarestorage.com`
 
 **Alternative: AWS S3**
+
 - Use AWS S3 instead of R2
 - Same endpoint format, different credentials
 
@@ -177,21 +186,25 @@ npx prisma migrate deploy
 ## Troubleshooting
 
 ### Database Connection Issues
+
 - Verify `DATABASE_URL` includes `?sslmode=require`
 - Check database firewall allows Vercel IPs
 - Verify credentials are correct
 
 ### R2 Upload Fails
+
 - Check bucket permissions
 - Verify endpoint format
 - Check CORS settings (if accessing from browser)
 
 ### OpenAI API Errors
+
 - Check API key is valid
 - Verify account has credits
 - Check rate limits
 
 ### Build Fails
+
 - Check Node.js version (should be 18+)
 - Verify all dependencies install correctly
 - Check for TypeScript errors: `npm run typecheck`
@@ -199,12 +212,14 @@ npx prisma migrate deploy
 ## Cost Estimates (Monthly)
 
 **Free Tier:**
+
 - Vercel: Free (Hobby plan)
 - Neon: Free (0.5GB database, unlimited projects)
 - Cloudflare R2: Free (10GB storage, 1M requests)
 - OpenAI: Pay-as-you-go (~$0.002 per transcription)
 
 **Production (estimated):**
+
 - Vercel Pro: $20/month
 - Supabase Pro: $25/month
 - R2: ~$5-10/month (depends on storage)

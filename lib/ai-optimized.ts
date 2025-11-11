@@ -61,7 +61,7 @@ function buildOptimizedSystemPrompt(
 			? "deep expertise, strong metrics"
 			: "strategic vision, executive presence";
 
-	return `Expert ${level} interview coach. ${style}
+	return `Expert ${level} iPrep. ${style}
 
 Return JSON only:
 {

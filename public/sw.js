@@ -1,4 +1,4 @@
-// Service Worker for Interview Coach PWA
+// Service Worker for iPrep PWA
 const CACHE_NAME = 'interview-coach-v1';
 const urlsToCache = [
   '/',
@@ -82,7 +82,7 @@ async function checkScheduledNotifications() {
 
     const notifications = await getAllNotifications();
     const now = Date.now();
-    
+
     for (const notification of notifications) {
       if (notification.scheduledFor <= now) {
         // Show notification
@@ -118,7 +118,7 @@ if (typeof self !== 'undefined' && self.registration) {
 // Push notification event
 self.addEventListener('push', (event) => {
   let notificationData = {
-    title: 'Interview Coach',
+    title: 'iPrep',
     body: 'Time to practice!',
     icon: '/icon-192x192.png',
     badge: '/icon-192x192.png',

@@ -148,7 +148,7 @@ export async function analyzeTranscript(
 		"performance",
 	]
 ): Promise<AnalysisResponse> {
-	const systemPrompt = `You are a concise interview coach.
+	const systemPrompt = `You are a concise iPrep.
 
 Given a transcript, return strict JSON with:
 - starScore 0..5 (Situation, Task, Action, Result present & balanced)
@@ -268,7 +268,7 @@ export async function analyzeTranscriptEnhanced(
 		coachingPrefs.feedbackDepth
 	);
 
-	const systemPrompt = `You are an expert interview coach specializing in technical interviews for ${
+	const systemPrompt = `You are an expert iPrep specializing in technical interviews for ${
 		coachingPrefs.experienceLevel
 	} engineering roles with deep knowledge of industry best practices, common pitfalls, and effective feedback techniques.
 

@@ -1,4 +1,4 @@
-# Using Neon Database with Interview Coach
+# Using Neon Database with iPrep
 
 ## Why Neon?
 
@@ -32,6 +32,7 @@
    - Postgres version: 15 or 16 (recommended)
 5. Click **"Create Project"**
 6. Copy the connection string:
+
    - It will look like: `postgresql://[user]:[password]@[hostname]/[database]?sslmode=require`
    - Or click "Connection string" button for formatted version
 
@@ -57,11 +58,13 @@ npx prisma migrate deploy
 ## Connection String Format
 
 Neon connection string format:
+
 ```
 postgresql://[user]:[password]@[hostname]/[database]?sslmode=require
 ```
 
 Example:
+
 ```
 postgresql://neondb_owner:password123@ep-cool-name-123456.us-east-2.aws.neon.tech/neondb?sslmode=require
 ```
@@ -83,11 +86,13 @@ postgresql://neondb_owner:password123@ep-cool-name-123456.us-east-2.aws.neon.tec
 ## Troubleshooting
 
 ### Connection Issues
+
 - Make sure connection string includes `?sslmode=require`
 - Check Neon dashboard for connection status
 - Verify IP is not blocked (Neon allows all IPs by default)
 
 ### Migration Issues
+
 - Use `npx prisma migrate deploy` (not `dev`)
 - Make sure DATABASE_URL is set correctly
 - Check Neon SQL Editor for errors

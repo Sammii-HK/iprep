@@ -1,55 +1,54 @@
 {
-  "name": "Interview Coach",
-  "short_name": "Interview Coach",
-  "description": "AI-powered spoken interview practice with automatic transcription, scoring, and actionable feedback",
-  "start_url": "/",
-  "display": "standalone",
-  "background_color": "#ffffff",
-  "theme_color": "#3b82f6",
-  "orientation": "portrait-primary",
-  "icons": [
-    {
-      "src": "/icon-192x192.png",
-      "sizes": "192x192",
-      "type": "image/png",
-      "purpose": "any maskable"
-    },
-    {
-      "src": "/icon-512x512.png",
-      "sizes": "512x512",
-      "type": "image/png",
-      "purpose": "any maskable"
-    },
-    {
-      "src": "/icon-128x128.png",
-      "sizes": "128x128",
-      "type": "image/png",
-      "purpose": "any"
-    },
-    {
-      "src": "/icon-64x64.png",
-      "sizes": "64x64",
-      "type": "image/png",
-      "purpose": "any"
-    }
-  ],
-  "categories": ["education", "productivity"],
-  "screenshots": [],
-  "shortcuts": [
-    {
-      "name": "Practice",
-      "short_name": "Practice",
-      "description": "Start a practice session",
-      "url": "/practice",
-      "icons": [{ "src": "/icon-192x192.png", "sizes": "192x192" }]
-    },
-    {
-      "name": "Analytics",
-      "short_name": "Analytics",
-      "description": "View your progress",
-      "url": "/analytics",
-      "icons": [{ "src": "/icon-192x192.png", "sizes": "192x192" }]
-    }
-  ]
+	"name": "iPrep",
+	"short_name": "iPrep",
+	"description": "AI-powered spoken interview practice with automatic transcription, scoring, and actionable feedback",
+	"start_url": "/",
+	"display": "standalone",
+	"background_color": "#ffffff",
+	"theme_color": "#3b82f6",
+	"orientation": "portrait-primary",
+	"icons": [
+		{
+			"src": "/icon-192x192.png",
+			"sizes": "192x192",
+			"type": "image/png",
+			"purpose": "any maskable"
+		},
+		{
+			"src": "/icon-512x512.png",
+			"sizes": "512x512",
+			"type": "image/png",
+			"purpose": "any maskable"
+		},
+		{
+			"src": "/icon-128x128.png",
+			"sizes": "128x128",
+			"type": "image/png",
+			"purpose": "any"
+		},
+		{
+			"src": "/icon-64x64.png",
+			"sizes": "64x64",
+			"type": "image/png",
+			"purpose": "any"
+		}
+	],
+	"categories": ["education", "productivity"],
+	"screenshots": [],
+	"shortcuts": [
+		{
+			"name": "Practice",
+			"short_name": "Practice",
+			"description": "Start a practice session",
+			"url": "/practice",
+			"icons": [{ "src": "/icon-192x192.png", "sizes": "192x192" }]
+		},
+		{
+			"name": "Analytics",
+			"short_name": "Analytics",
+			"description": "View your progress",
+			"url": "/analytics",
+			"icons": [{ "src": "/icon-192x192.png", "sizes": "192x192" }]
+		}
+	]
 }
-
