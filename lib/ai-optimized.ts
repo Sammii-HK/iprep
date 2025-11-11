@@ -138,9 +138,11 @@ function buildOptimizedUserPrompt(
 		processedTranscript = `${firstPart}... [${
 			wordCount - 800
 		} words omitted] ...${lastPart}`;
-		console.log(
-			`Truncated transcript from ${wordCount} to ~800 words for faster processing`
-		);
+		if (process.env.NODE_ENV === "development") {
+			console.log(
+				`Truncated transcript from ${wordCount} to ~800 words for faster processing`
+			);
+		}
 	}
 
 	// Build concise prompt - removed redundant instructions (already in system prompt)
@@ -202,15 +204,17 @@ export async function analyzeTranscriptOptimized(
 		);
 	}
 
-	console.log("analyzeTranscriptOptimized called", {
-		transcriptLength: trimmedTranscript.length,
-		questionId,
-		questionTags: questionTags.length,
-		hasQuestionText: !!questionText,
-		hasQuestionHint: !!questionHint,
-		hasMetrics: !!metrics,
-		hasPreferences: !!preferences,
-	});
+	if (process.env.NODE_ENV === "development") {
+		console.log("analyzeTranscriptOptimized called", {
+			transcriptLength: trimmedTranscript.length,
+			questionId,
+			questionTags: questionTags.length,
+			hasQuestionText: !!questionText,
+			hasQuestionHint: !!questionHint,
+			hasMetrics: !!metrics,
+			hasPreferences: !!preferences,
+		});
+	}
 
 	// Merge preferences
 	const coachingPrefs: CoachingPreferences = {
@@ -230,7 +234,9 @@ export async function analyzeTranscriptOptimized(
 	);
 
 	if (cached) {
-		console.log("Using cached analysis result");
+		if (process.env.NODE_ENV === "development") {
+			console.log("Using cached analysis result");
+		}
 		return cached;
 	}
 
@@ -244,17 +250,19 @@ export async function analyzeTranscriptOptimized(
 		metrics
 	);
 
-	console.log("Prompts built", {
-		systemPromptLength: systemPrompt.length,
-		userPromptLength: userPrompt.length,
-		transcriptInPrompt: trimmedTranscript.substring(0, 50) + "...",
-	});
+	if (process.env.NODE_ENV === "development") {
+		console.log("Prompts built", {
+			systemPromptLength: systemPrompt.length,
+			userPromptLength: userPrompt.length,
+			transcriptInPrompt: trimmedTranscript.substring(0, 50) + "...",
+		});
 
-	console.log("Optimized prompt lengths:", {
-		system: systemPrompt.length,
-		user: userPrompt.length,
-		estimatedTokens: Math.ceil((systemPrompt.length + userPrompt.length) / 4), // Rough estimate: 4 chars per token
-	});
+		console.log("Optimized prompt lengths:", {
+			system: systemPrompt.length,
+			user: userPrompt.length,
+			estimatedTokens: Math.ceil((systemPrompt.length + userPrompt.length) / 4), // Rough estimate: 4 chars per token
+		});
+	}
 
 	let attempts = 0;
 	const maxAttempts = 2; // Reduced from 3 for faster failure recovery
@@ -278,13 +286,15 @@ export async function analyzeTranscriptOptimized(
 				throw new Error("No content in response from OpenAI");
 			}
 
-			// Log the raw response for debugging
-			console.log("OpenAI raw response:", {
-				length: fullText.length,
-				preview: fullText.substring(0, 500),
-				endsWithBrace: fullText.trim().endsWith("}"),
-				startsWithBrace: fullText.trim().startsWith("{"),
-			});
+			// Log the raw response for debugging (dev only)
+			if (process.env.NODE_ENV === "development") {
+				console.log("OpenAI raw response:", {
+					length: fullText.length,
+					preview: fullText.substring(0, 500),
+					endsWithBrace: fullText.trim().endsWith("}"),
+					startsWithBrace: fullText.trim().startsWith("{"),
+				});
+			}
 
 			// Parse JSON response
 			// When response_format: { type: "json_object" } is used, OpenAI returns pure JSON

@@ -13,13 +13,8 @@ export const prisma =
 
 if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = prisma;
 
-// Add connection error handling
-prisma.$connect().catch((error: unknown) => {
-  console.error('Failed to connect to database:', error);
-  if (process.env.NODE_ENV === 'production') {
-    process.exit(1);
-  }
-});
+// Lazy connect - only connect when first query is made (reduces CPU on startup)
+// Prisma will auto-connect on first query, so we don't need to call $connect() explicitly
 
 // Graceful shutdown
 process.on('beforeExit', async () => {

@@ -49,10 +49,16 @@ export async function GET(
     });
 
     // Auto-complete sessions that have items but aren't marked as completed
+    // OPTIMIZE: Process in parallel instead of sequentially to reduce CPU time
     const { analyzeSessionPerformance } = await import('@/lib/learning-analytics');
     
-    for (const session of allSessions) {
-      if (!session.isCompleted && session.items.length > 0) {
+    const incompleteSessions = allSessions.filter(s => !s.isCompleted && s.items.length > 0);
+    
+    // Process sessions in parallel (limit to 5 concurrent to avoid overwhelming CPU)
+    const BATCH_SIZE = 5;
+    for (let i = 0; i < incompleteSessions.length; i += BATCH_SIZE) {
+      const batch = incompleteSessions.slice(i, i + BATCH_SIZE);
+      await Promise.all(batch.map(async (session) => {
         try {
           const analysis = await analyzeSessionPerformance(session.id, user.id);
           
@@ -71,47 +77,49 @@ export async function GET(
                 userId: user.id,
                 sessionId: session.id,
                 bankId: session.bankId || null,
-                commonMistakes: JSON.parse(JSON.stringify(analysis.commonMistakes)) as Prisma.InputJsonValue,
-                frequentlyForgottenPoints: JSON.parse(JSON.stringify(analysis.frequentlyForgottenPoints)) as Prisma.InputJsonValue,
+                commonMistakes: analysis.commonMistakes as unknown as Prisma.InputJsonValue,
+                frequentlyForgottenPoints: analysis.frequentlyForgottenPoints as unknown as Prisma.InputJsonValue,
                 weakTags: analysis.weakTags,
                 strongTags: analysis.strongTags,
                 recommendedFocus: analysis.recommendedFocus,
-                performanceByTag: JSON.parse(JSON.stringify(analysis.performanceByTag)) as Prisma.InputJsonValue,
+                performanceByTag: analysis.performanceByTag as Prisma.InputJsonValue,
                 overallScore: analysis.overallScore,
               },
               update: {
-                commonMistakes: JSON.parse(JSON.stringify(analysis.commonMistakes)) as Prisma.InputJsonValue,
-                frequentlyForgottenPoints: JSON.parse(JSON.stringify(analysis.frequentlyForgottenPoints)) as Prisma.InputJsonValue,
+                commonMistakes: analysis.commonMistakes as unknown as Prisma.InputJsonValue,
+                frequentlyForgottenPoints: analysis.frequentlyForgottenPoints as unknown as Prisma.InputJsonValue,
                 weakTags: analysis.weakTags,
                 strongTags: analysis.strongTags,
                 recommendedFocus: analysis.recommendedFocus,
-                performanceByTag: JSON.parse(JSON.stringify(analysis.performanceByTag)) as Prisma.InputJsonValue,
+                performanceByTag: analysis.performanceByTag as Prisma.InputJsonValue,
                 overallScore: analysis.overallScore,
               },
             });
           } catch (error) {
             // If frequentlyForgottenPoints column doesn't exist, create/update without it
             if (error instanceof Error && error.message.includes('frequentlyForgottenPoints')) {
-              console.warn(`frequentlyForgottenPoints column not found for session ${session.id}, creating/updating without it`);
+              if (process.env.NODE_ENV === "development") {
+                console.warn(`frequentlyForgottenPoints column not found for session ${session.id}, creating/updating without it`);
+              }
               await prisma.learningSummary.upsert({
                 where: { sessionId: session.id },
                 create: {
                   userId: user.id,
                   sessionId: session.id,
                   bankId: session.bankId || null,
-                  commonMistakes: JSON.parse(JSON.stringify(analysis.commonMistakes)) as Prisma.InputJsonValue,
+                  commonMistakes: analysis.commonMistakes as unknown as Prisma.InputJsonValue,
                   weakTags: analysis.weakTags,
                   strongTags: analysis.strongTags,
                   recommendedFocus: analysis.recommendedFocus,
-                  performanceByTag: JSON.parse(JSON.stringify(analysis.performanceByTag)) as Prisma.InputJsonValue,
+                  performanceByTag: analysis.performanceByTag as Prisma.InputJsonValue,
                   overallScore: analysis.overallScore,
                 },
                 update: {
-                  commonMistakes: JSON.parse(JSON.stringify(analysis.commonMistakes)) as Prisma.InputJsonValue,
+                  commonMistakes: analysis.commonMistakes as unknown as Prisma.InputJsonValue,
                   weakTags: analysis.weakTags,
                   strongTags: analysis.strongTags,
                   recommendedFocus: analysis.recommendedFocus,
-                  performanceByTag: JSON.parse(JSON.stringify(analysis.performanceByTag)) as Prisma.InputJsonValue,
+                  performanceByTag: analysis.performanceByTag as Prisma.InputJsonValue,
                   overallScore: analysis.overallScore,
                 },
               });
@@ -136,10 +144,12 @@ export async function GET(
             Object.assign(session, updatedSession);
           }
         } catch (error) {
-          console.error(`Error auto-completing session ${session.id}:`, error);
+          if (process.env.NODE_ENV === "development") {
+            console.error(`Error auto-completing session ${session.id}:`, error);
+          }
           // Continue with other sessions
         }
-      }
+      }));
     }
 
     // Filter to only completed sessions

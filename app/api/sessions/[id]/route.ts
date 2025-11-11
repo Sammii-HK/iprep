@@ -24,6 +24,13 @@ export async function GET(
 				bank: {
 					include: {
 						questions: {
+							select: {
+								id: true,
+								text: true,
+								hint: true,
+								tags: true,
+								difficulty: true,
+							},
 							orderBy: {
 								id: "asc",
 							},
@@ -33,9 +40,6 @@ export async function GET(
 				items: {
 					orderBy: {
 						createdAt: "desc",
-					},
-					include: {
-						question: true,
 					},
 				},
 			},
@@ -59,8 +63,8 @@ export async function GET(
 		let questions = session.bank.questions || [];
 		const filterTags = (session as { filterTags?: string[] }).filterTags;
 		if (filterTags && filterTags.length > 0) {
-			questions = questions.filter((q) =>
-				q.tags.some((tag) => filterTags.includes(tag))
+			questions = questions.filter((q: { tags: string[] }) =>
+				q.tags.some((tag: string) => filterTags.includes(tag))
 			);
 		}
 
@@ -75,7 +79,7 @@ export async function GET(
 		// Track which questions have been answered and count attempts per question
 		const answeredQuestionIds = new Set<string>();
 		const attemptCounts = new Map<string, number>();
-		session.items.forEach((item) => {
+		session.items.forEach((item: { questionId: string }) => {
 			answeredQuestionIds.add(item.questionId);
 			const count = attemptCounts.get(item.questionId) || 0;
 			attemptCounts.set(item.questionId, count + 1);
@@ -103,7 +107,33 @@ export async function GET(
 		}
 
 		const firstUnansweredIndex = bestQuestionIndex;
-		const items = session.items.map(
+		const items = (
+			session.items as unknown as Array<{
+				id: string;
+				questionId: string;
+				audioUrl: string | null;
+				transcript: string | null;
+				words: number | null;
+				wpm: number | null;
+				fillerCount: number | null;
+				fillerRate: number | null;
+				longPauses: number | null;
+				confidenceScore: number | null;
+				intonationScore: number | null;
+				starScore: number | null;
+				impactScore: number | null;
+				clarityScore: number | null;
+				technicalAccuracy: number | null;
+				terminologyUsage: number | null;
+				questionAnswered: boolean | null;
+				answerQuality: number | null;
+				whatWasRight: string[];
+				whatWasWrong: string[];
+				betterWording: string[];
+				aiFeedback: string | null;
+				dontForget: string[];
+			}>
+		).map(
 			(item: {
 				id: string;
 				questionId: string;

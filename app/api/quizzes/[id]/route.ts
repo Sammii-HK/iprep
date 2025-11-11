@@ -18,10 +18,24 @@ export async function GET(
 
 		const quiz = await prisma.quiz.findUnique({
 			where: { id },
-			include: {
+			select: {
+				id: true,
+				title: true,
+				description: true,
+				type: true,
+				userId: true,
+				createdAt: true,
 				bank: {
-					include: {
+					select: {
+						id: true,
 						questions: {
+							select: {
+								id: true,
+								text: true,
+								hint: true,
+								tags: true,
+								difficulty: true,
+							},
 							orderBy: {
 								id: "asc",
 							},
@@ -29,8 +43,9 @@ export async function GET(
 					},
 				},
 				attempts: {
-					include: {
-						question: true,
+					select: {
+						id: true,
+						questionId: true,
 					},
 					orderBy: {
 						startedAt: "desc",

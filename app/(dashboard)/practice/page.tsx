@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 
 interface QuestionBank {
@@ -39,12 +39,72 @@ export default function PracticePage() {
 	const [sessionsWithWeakTopics, setSessionsWithWeakTopics] = useState<
 		Set<string>
 	>(new Set());
+	const [checkingWeakTopics, setCheckingWeakTopics] = useState<Set<string>>(
+		new Set()
+	);
 
-	useEffect(() => {
-		fetchData();
-	}, []);
+	// Check if a session has weak topics (lazy load)
+	const checkSessionWeakTopics = async (sessionId: string) => {
+		// If already checked or currently checking, skip
+		if (
+			sessionsWithWeakTopics.has(sessionId) ||
+			checkingWeakTopics.has(sessionId)
+		) {
+			return;
+		}
 
-	const fetchData = async () => {
+		setCheckingWeakTopics((prev) => new Set(prev).add(sessionId));
+
+		try {
+			const summaryResponse = await fetch(`/api/sessions/${sessionId}/summary`);
+			if (summaryResponse.ok) {
+				const summaryData = await summaryResponse.json();
+				const summary = summaryData.summary;
+
+				// Check if there are weak tags
+				const weakTags =
+					summary.weakTags && summary.weakTags.length > 0
+						? summary.weakTags
+						: [];
+
+				if (weakTags.length === 0) {
+					// Try to calculate from performanceByTag
+					const performanceByTag = summary.performanceByTag || {};
+					const needsReview = Object.entries(performanceByTag)
+						.filter(([, data]) => {
+							const typedData = data as { avgScore?: number };
+							return (
+								typeof typedData === "object" &&
+								typedData !== null &&
+								typeof typedData.avgScore === "number" &&
+								typedData.avgScore < 3.5
+							);
+						})
+						.map(([tag]) => tag);
+
+					if (needsReview.length > 0) {
+						setSessionsWithWeakTopics((prev) => new Set(prev).add(sessionId));
+					}
+				} else {
+					setSessionsWithWeakTopics((prev) => new Set(prev).add(sessionId));
+				}
+			}
+		} catch (error) {
+			// Silently fail - button will just not show
+			console.error(
+				`Error checking weak topics for session ${sessionId}:`,
+				error
+			);
+		} finally {
+			setCheckingWeakTopics((prev) => {
+				const next = new Set(prev);
+				next.delete(sessionId);
+				return next;
+			});
+		}
+	};
+
+	const fetchData = useCallback(async () => {
 		try {
 			const [banksRes, sessionsRes] = await Promise.all([
 				fetch("/api/banks"),
@@ -60,70 +120,20 @@ export default function PracticePage() {
 				const sessionsData = await sessionsRes.json();
 				setSessions(sessionsData);
 
-				// Check which completed sessions have weak topics
-				const completedSessions = sessionsData.filter(
-					(s: Session) => s.isCompleted && s.bankId
-				);
-				const weakTopicsSet = new Set<string>();
-
-				// Fetch summaries in parallel to check for weak topics
-				const summaryPromises = completedSessions.map(
-					async (session: Session) => {
-						try {
-							const summaryResponse = await fetch(
-								`/api/sessions/${session.id}/summary`
-							);
-							if (summaryResponse.ok) {
-								const summaryData = await summaryResponse.json();
-								const summary = summaryData.summary;
-
-								// Check if there are weak tags
-								const weakTags =
-									summary.weakTags && summary.weakTags.length > 0
-										? summary.weakTags
-										: [];
-
-								if (weakTags.length === 0) {
-									// Try to calculate from performanceByTag
-									const performanceByTag = summary.performanceByTag || {};
-									const needsReview = Object.entries(performanceByTag)
-										.filter(([, data]) => {
-											const typedData = data as { avgScore?: number };
-											return (
-												typeof typedData === "object" &&
-												typedData !== null &&
-												typeof typedData.avgScore === "number" &&
-												typedData.avgScore < 3.5
-											);
-										})
-										.map(([tag]) => tag);
-
-									if (needsReview.length > 0) {
-										weakTopicsSet.add(session.id);
-									}
-								} else {
-									weakTopicsSet.add(session.id);
-								}
-							}
-						} catch (error) {
-							// Silently fail - button will just not show
-							console.error(
-								`Error checking weak topics for session ${session.id}:`,
-								error
-							);
-						}
-					}
-				);
-
-				await Promise.all(summaryPromises);
-				setSessionsWithWeakTopics(weakTopicsSet);
+				// Lazy load weak topics check - only check when needed (on hover or when button is visible)
+				// This reduces CPU usage by not fetching all summaries on page load
+				// We'll check weak topics individually when the user hovers over a session
 			}
 		} catch (error) {
 			console.error("Error fetching data:", error);
 		} finally {
 			setLoading(false);
 		}
-	};
+	}, []);
+
+	useEffect(() => {
+		fetchData();
+	}, [fetchData]);
 
 	const createSession = async () => {
 		if (!newSessionTitle.trim()) {
@@ -463,21 +473,45 @@ export default function PracticePage() {
 											? "Continue Session"
 											: "Start Session"}
 									</button>
-									{session.isCompleted &&
-										session.bankId &&
-										sessionsWithWeakTopics.has(session.id) && (
-											<button
-												onClick={(e) => {
-													e.stopPropagation();
-													handlePracticeWeakTopics(session.id, session.bankId);
-												}}
-												disabled={creatingWeakTopicsSession === session.id}
-												className="px-4 py-2 bg-amber-100 dark:bg-amber-900/30 hover:bg-amber-200 dark:hover:bg-amber-900/50 text-amber-800 dark:text-amber-200 rounded-lg text-sm transition-all font-medium disabled:opacity-50 disabled:cursor-not-allowed"
-												title="Practice weak topics from this session"
-											>
-												Practice Weak Topics
-											</button>
-										)}
+									{session.isCompleted && session.bankId && (
+										<button
+											onClick={(e) => {
+												e.stopPropagation();
+												handlePracticeWeakTopics(session.id, session.bankId);
+											}}
+											onMouseEnter={() => {
+												// Lazy load weak topics check on hover
+												if (
+													!sessionsWithWeakTopics.has(session.id) &&
+													!checkingWeakTopics.has(session.id)
+												) {
+													checkSessionWeakTopics(session.id);
+												}
+											}}
+											disabled={
+												creatingWeakTopicsSession === session.id ||
+												(!sessionsWithWeakTopics.has(session.id) &&
+													checkingWeakTopics.has(session.id))
+											}
+											className={`px-4 py-2 bg-amber-100 dark:bg-amber-900/30 hover:bg-amber-200 dark:hover:bg-amber-900/50 text-amber-800 dark:text-amber-200 rounded-lg text-sm transition-all font-medium disabled:opacity-50 disabled:cursor-not-allowed ${
+												!sessionsWithWeakTopics.has(session.id) &&
+												!checkingWeakTopics.has(session.id)
+													? "opacity-50"
+													: ""
+											}`}
+											title={
+												checkingWeakTopics.has(session.id)
+													? "Checking for weak topics..."
+													: sessionsWithWeakTopics.has(session.id)
+													? "Practice weak topics from this session"
+													: "Hover to check for weak topics"
+											}
+										>
+											{checkingWeakTopics.has(session.id)
+												? "Checking..."
+												: "Practice Weak Topics"}
+										</button>
+									)}
 									<button
 										onClick={(e) => {
 											e.stopPropagation();

@@ -77,7 +77,9 @@ export function MicRecorder({
 			audioContextRef.current &&
 			audioContextRef.current.state === "suspended"
 		) {
-			audioContextRef.current.resume().catch(console.error);
+			audioContextRef.current.resume().catch(() => {
+				// Audio context resume failed - silently handle
+			});
 		}
 
 		// Check if stream is active
@@ -236,13 +238,7 @@ export function MicRecorder({
 				throw new Error("Audio track is disabled or muted");
 			}
 
-			console.log("Audio track:", {
-				label: audioTrack.label,
-				enabled: audioTrack.enabled,
-				readyState: audioTrack.readyState,
-				muted: audioTrack.muted,
-				settings: audioTrack.getSettings(),
-			});
+			// Audio track initialized
 
 			setMicConnected(true);
 
@@ -261,9 +257,7 @@ export function MicRecorder({
 				if (audioContext.state === "suspended") {
 					try {
 						await audioContext.resume();
-						console.log("AudioContext resumed successfully");
-					} catch (resumeError) {
-						console.warn("Failed to resume AudioContext:", resumeError);
+					} catch {
 						// Continue anyway - some browsers handle this differently
 					}
 				}
@@ -282,9 +276,8 @@ export function MicRecorder({
 				if (sourceRef.current) {
 					try {
 						sourceRef.current.disconnect();
-					} catch (error) {
+					} catch {
 						// Source might already be disconnected, that's okay
-						console.log("Source disconnection:", error);
 					}
 				}
 
@@ -293,17 +286,13 @@ export function MicRecorder({
 					const source = audioContext.createMediaStreamSource(stream);
 					source.connect(analyser);
 					sourceRef.current = source;
-				} catch (error) {
-					console.error("Failed to create/connect source:", error);
+				} catch {
+					// Failed to create/connect source - continue anyway
 				}
 			}
 
 			// Use iOS-compatible MIME type
 			const mimeType = getCompatibleMimeType();
-			console.log(
-				"Using MIME type:",
-				mimeType || "default (browser will choose)"
-			);
 
 			const recorderOptions: MediaRecorderOptions = {};
 			if (mimeType) {
@@ -321,7 +310,6 @@ export function MicRecorder({
 
 			// Check for MediaRecorder errors
 			mediaRecorder.onerror = (event) => {
-				console.error("MediaRecorder error:", event);
 				// eslint-disable-next-line @typescript-eslint/no-explicit-any
 				const error = (event as any).error;
 				if (error) {
@@ -342,11 +330,6 @@ export function MicRecorder({
 				const actualMimeType =
 					mediaRecorder.mimeType || mimeType || "audio/webm";
 				const blob = new Blob(chunksRef.current, { type: actualMimeType });
-				console.log("Recording stopped, blob created:", {
-					size: blob.size,
-					type: blob.type,
-					chunks: chunksRef.current.length,
-				});
 				chunksRef.current = [];
 				onRecordingComplete(blob);
 				// Don't stop the stream tracks - keep them alive for next recording
@@ -365,9 +348,7 @@ export function MicRecorder({
 			// Start with 100ms timeslice for better iOS compatibility
 			try {
 				mediaRecorder.start(isIOS() ? 100 : undefined);
-				console.log("MediaRecorder started successfully");
 			} catch (startError) {
-				console.error("Failed to start MediaRecorder:", startError);
 				throw new Error(
 					`Failed to start recording: ${
 						startError instanceof Error ? startError.message : "Unknown error"
@@ -389,7 +370,6 @@ export function MicRecorder({
 			// Start audio level monitoring
 			checkAudioLevel();
 		} catch (error) {
-			console.error("Error accessing microphone:", error);
 			const errorMessage =
 				error instanceof Error ? error.message : String(error);
 

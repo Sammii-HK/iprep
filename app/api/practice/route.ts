@@ -159,10 +159,12 @@ export async function POST(request: NextRequest) {
 
 		// Start transcription (critical path - must complete)
 		try {
-			console.log("Starting audio transcription...", {
-				audioSize: audioBlob.size,
-				audioType: audioFile.type,
-			});
+			if (process.env.NODE_ENV === "development") {
+				console.log("Starting audio transcription...", {
+					audioSize: audioBlob.size,
+					audioType: audioFile.type,
+				});
+			}
 
 			// Optimize: Skip word timestamps for faster transcription (saves ~30-50% time)
 			// We can estimate pauses from transcript text instead
@@ -277,12 +279,6 @@ export async function POST(request: NextRequest) {
 			},
 			orderBy: { createdAt: "desc" },
 			take: 3, // Get most recent 3 attempts
-			select: {
-				betterWording: true,
-				dontForget: true,
-				whatWasRight: true,
-				transcript: true,
-			},
 		});
 
 		// If we have past attempts, check if current transcript is similar
@@ -300,10 +296,12 @@ export async function POST(request: NextRequest) {
 
 		if (shouldReusePastAttempt && pastAttempts[0]) {
 			// Reuse suggestions from most recent similar attempt
-			console.log(
-				"Reusing suggestions from past attempt to avoid duplicate AI call"
-			);
 			const pastAttempt = pastAttempts[0];
+			const pastDontForget = Array.isArray(
+				(pastAttempt as unknown as { dontForget?: string[] }).dontForget
+			)
+				? (pastAttempt as unknown as { dontForget: string[] }).dontForget
+				: [];
 			analysis = {
 				questionAnswered: wordCount > 20,
 				answerQuality: 3, // Default quality since we're reusing
@@ -315,8 +313,7 @@ export async function POST(request: NextRequest) {
 					pastAttempt.betterWording.length > 0
 						? pastAttempt.betterWording
 						: ["Continue practicing"],
-				dontForget:
-					pastAttempt.dontForget?.length > 0 ? pastAttempt.dontForget : [],
+				dontForget: pastDontForget.length > 0 ? pastDontForget : [],
 				starScore: 3,
 				impactScore: 3,
 				clarityScore: 3,
@@ -371,19 +368,17 @@ export async function POST(request: NextRequest) {
 					],
 				};
 			} else {
-				console.log("Starting AI analysis...", {
-					transcriptLength: transcript.length,
-					trimmedLength: trimmedTranscript.length,
-					wordCount,
-					duration: actualDuration || "estimated",
-					questionTags,
-					hasQuestionText: !!question.text,
-					hasQuestionHint: !!question.hint,
-					transcriptPreview: trimmedTranscript.substring(0, 200),
-					transcriptEnd: trimmedTranscript.substring(
-						Math.max(0, trimmedTranscript.length - 100)
-					),
-				});
+				if (process.env.NODE_ENV === "development") {
+					console.log("Starting AI analysis...", {
+						transcriptLength: transcript.length,
+						trimmedLength: trimmedTranscript.length,
+						wordCount,
+						duration: actualDuration || "estimated",
+						questionTags,
+						hasQuestionText: !!question.text,
+						hasQuestionHint: !!question.hint,
+					});
+				}
 
 				try {
 					// Pass the trimmed transcript to ensure it's clean
@@ -414,16 +409,13 @@ export async function POST(request: NextRequest) {
 						),
 					]);
 
-					console.log("AI analysis completed successfully", {
-						questionAnswered: analysis.questionAnswered,
-						answerQuality: analysis.answerQuality,
-						tipsCount: analysis.tips.length,
-						starScore: analysis.starScore,
-						impactScore: analysis.impactScore,
-						clarityScore: analysis.clarityScore,
-						technicalAccuracy: analysis.technicalAccuracy,
-						terminologyUsage: analysis.terminologyUsage,
-					});
+					if (process.env.NODE_ENV === "development") {
+						console.log("AI analysis completed successfully", {
+							questionAnswered: analysis.questionAnswered,
+							answerQuality: analysis.answerQuality,
+							tipsCount: analysis.tips.length,
+						});
+					}
 				} catch (error) {
 					console.error("Error in AI analysis:", error);
 					console.error("Error details:", {
@@ -535,12 +527,10 @@ export async function POST(request: NextRequest) {
 					betterWording: analysis.betterWording,
 					dontForget: analysis.dontForget || [],
 					aiFeedback: analysis.tips.join(" | "),
-				},
+				} as Parameters<typeof prisma.sessionItem.create>[0]["data"],
 			});
 			sessionItemId = sessionItem.id;
-			console.log("SessionItem saved successfully");
 		} catch (error) {
-			console.error("Failed to save SessionItem:", error);
 			throw new ExternalServiceError(
 				"Database",
 				`Failed to save session item: ${
