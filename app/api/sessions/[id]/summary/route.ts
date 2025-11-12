@@ -140,6 +140,12 @@ export async function GET(
       );
     }
 
+    // Get session again to ensure we have bankId
+    const sessionWithBank = await prisma.session.findUnique({
+      where: { id },
+      select: { bankId: true },
+    });
+
     // Re-compute frequentlyMisusedTerms from session items (since it's not stored in DB)
     // This ensures we always have the latest terminology tracking
     let frequentlyMisusedTerms: Array<{
@@ -167,7 +173,7 @@ export async function GET(
 
     return NextResponse.json({ 
       summary: summaryWithTerms,
-      bankId: session.bankId, // Include bankId so we can create a new session with filtered questions
+      bankId: sessionWithBank?.bankId || session.bankId, // Include bankId so we can create a new session with filtered questions
     });
   } catch (error) {
     const errorData = handleApiError(error);

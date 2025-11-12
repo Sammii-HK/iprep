@@ -108,7 +108,16 @@ export function LearningSummary({ sessionId }: { sessionId: string }) {
     .slice(0, 5);
 
   const handlePracticeWeakTopics = async () => {
-    if (!summary || !bankId) return;
+    if (!summary) {
+      alert('Summary data not loaded yet. Please wait...');
+      return;
+    }
+
+    if (!bankId) {
+      alert('Unable to create practice session: Question bank not found. Please try again or create a session manually.');
+      console.error('bankId is null when trying to practice weak topics');
+      return;
+    }
 
     const weakTags = summary.weakTags.length > 0 
       ? summary.weakTags 
@@ -121,6 +130,7 @@ export function LearningSummary({ sessionId }: { sessionId: string }) {
 
     setCreatingSession(true);
     try {
+      console.log('Creating practice session with:', { bankId, filterTags: weakTags });
       const response = await fetch('/api/sessions', {
         method: 'POST',
         headers: {
@@ -135,14 +145,16 @@ export function LearningSummary({ sessionId }: { sessionId: string }) {
 
       if (response.ok) {
         const session = await response.json();
+        console.log('Session created successfully:', session);
         router.push(`/practice/session/${session.id}`);
       } else {
         const error = await response.json();
-        alert(error.error || 'Failed to create practice session');
+        console.error('Failed to create session:', error);
+        alert(error.error || 'Failed to create practice session. ' + (error.details || ''));
       }
     } catch (error) {
       console.error('Error creating session:', error);
-      alert('Failed to create practice session');
+      alert('Failed to create practice session: ' + (error instanceof Error ? error.message : 'Unknown error'));
     } finally {
       setCreatingSession(false);
     }
