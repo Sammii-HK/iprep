@@ -386,15 +386,19 @@ export async function analyzeTranscriptOptimized(
 				const trimmedResponse = fullText.trim();
 				parsed = JSON.parse(trimmedResponse);
 
-				console.log("Parsed JSON keys:", Object.keys(parsed));
-				console.log(
-					"Parsed JSON preview:",
-					JSON.stringify(parsed).substring(0, 500)
-				);
+				if (process.env.NODE_ENV === "development") {
+					console.log("Parsed JSON keys:", Object.keys(parsed));
+					console.log(
+						"Parsed JSON preview:",
+						JSON.stringify(parsed).substring(0, 500)
+					);
+				}
 
 				// Check if parsed object is empty or missing required fields
 				if (!parsed || Object.keys(parsed).length === 0) {
-					console.error("Parsed JSON is empty!");
+					if (process.env.NODE_ENV === "development") {
+						console.error("Parsed JSON is empty!");
+					}
 					throw new Error("OpenAI returned an empty JSON object");
 				}
 			} catch (parseError) {
@@ -464,12 +468,14 @@ export async function analyzeTranscriptOptimized(
 				coachingPrefs as unknown as Record<string, unknown>
 			);
 
-			console.log("Optimized analysis completed", {
-				questionAnswered: validated.questionAnswered,
-				answerQuality: validated.answerQuality,
-				dontForgetOptimized: optimizedDontForget.length !== validated.dontForget.length,
-				cached: false,
-			});
+			if (process.env.NODE_ENV === "development") {
+				console.log("Optimized analysis completed", {
+					questionAnswered: validated.questionAnswered,
+					answerQuality: validated.answerQuality,
+					dontForgetOptimized: optimizedDontForget.length !== validated.dontForget.length,
+					cached: false,
+				});
+			}
 
 			return optimizedResponse;
 		} catch (error) {

@@ -57,7 +57,9 @@ export function LearningSummary({ sessionId }: { sessionId: string }) {
         const response = await fetch(`/api/sessions/${sessionId}/summary`);
         if (response.ok) {
           const data = await response.json();
-          console.log('Summary data received:', data);
+          if (process.env.NODE_ENV === 'development') {
+            console.log('Summary data received:', data);
+          }
           setSummary(data.summary);
           setBankId(data.bankId);
         } else {
@@ -130,7 +132,9 @@ export function LearningSummary({ sessionId }: { sessionId: string }) {
 
     setCreatingSession(true);
     try {
-      console.log('Creating practice session with:', { bankId, filterTags: weakTags });
+      if (process.env.NODE_ENV === 'development') {
+        console.log('Creating practice session with:', { bankId, filterTags: weakTags });
+      }
       const response = await fetch('/api/sessions', {
         method: 'POST',
         headers: {
@@ -145,7 +149,9 @@ export function LearningSummary({ sessionId }: { sessionId: string }) {
 
       if (response.ok) {
         const session = await response.json();
-        console.log('Session created successfully:', session);
+        if (process.env.NODE_ENV === 'development') {
+          console.log('Session created successfully:', session);
+        }
         router.push(`/practice/session/${session.id}`);
       } else {
         const error = await response.json();
