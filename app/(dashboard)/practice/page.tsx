@@ -19,6 +19,7 @@ interface Session {
 	isCompleted: boolean;
 	completedAt: string | null;
 	itemCount: number;
+	filterTags?: string[]; // Tags used to filter questions for this session
 }
 
 export default function PracticePage() {
@@ -450,9 +451,40 @@ export default function PracticePage() {
 								</div>
 								<div className="mt-3 flex gap-2 flex-wrap">
 									<button
-										onClick={(e) => {
+										onClick={async (e) => {
 											e.stopPropagation();
-											router.push(`/practice/session/${session.id}`);
+											
+											// If session is completed, create a new session with same questions
+											if (session.isCompleted && session.bankId) {
+												try {
+													// Create a new session with the same bank and filterTags
+													const response = await fetch('/api/sessions', {
+														method: 'POST',
+														headers: {
+															'Content-Type': 'application/json',
+														},
+														body: JSON.stringify({
+															title: session.title + ' (Practice Again)',
+															bankId: session.bankId,
+															filterTags: session.filterTags || [],
+														}),
+													});
+
+													if (response.ok) {
+														const newSession = await response.json();
+														router.push(`/practice/session/${newSession.id}`);
+													} else {
+														const error = await response.json();
+														alert(error.error || 'Failed to create new practice session');
+													}
+												} catch (error) {
+													console.error('Error creating new session:', error);
+													alert('Failed to create new practice session');
+												}
+											} else {
+												// For incomplete sessions, just navigate to continue
+												router.push(`/practice/session/${session.id}`);
+											}
 										}}
 										className={`px-4 py-2 rounded-lg transition-all font-medium text-sm ${
 											session.isCompleted
@@ -461,7 +493,7 @@ export default function PracticePage() {
 										}`}
 										title={
 											session.isCompleted
-												? "Practice this session again"
+												? "Create a new practice session with the same questions"
 												: !session.isCompleted && session.itemCount > 0
 												? "Continue this unfinished session"
 												: "Start this session"
