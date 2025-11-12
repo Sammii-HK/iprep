@@ -14,6 +14,15 @@ interface FrequentlyForgottenPoint {
 	tags: string[]; // Tags associated with questions where this was forgotten
 }
 
+interface FrequentlyMisusedTerm {
+	incorrectTerm: string;
+	correctTerm: string;
+	frequency: number;
+	questions: string[]; // Question IDs where this was misused
+	tags: string[]; // Tags associated with questions where this was misused
+	examples: string[]; // Examples of the correction
+}
+
 interface PerformanceByTag {
 	[tag: string]: {
 		avgScore: number;
@@ -28,6 +37,7 @@ export async function analyzeSessionPerformance(
 ): Promise<{
 	commonMistakes: CommonMistake[];
 	frequentlyForgottenPoints: FrequentlyForgottenPoint[];
+	frequentlyMisusedTerms: FrequentlyMisusedTerm[];
 	weakTags: string[];
 	strongTags: string[];
 	recommendedFocus: string[];
@@ -55,6 +65,7 @@ export async function analyzeSessionPerformance(
 		return {
 			commonMistakes: [],
 			frequentlyForgottenPoints: [],
+			frequentlyMisusedTerms: [],
 			weakTags: [],
 			strongTags: [],
 			recommendedFocus: [],
@@ -172,17 +183,68 @@ export async function analyzeSessionPerformance(
 	});
 
 	// Source 3: Extract patterns from betterWording suggestions
+	// Track terminology/nomenclature mistakes separately from general wording patterns
+	const terminologyMistakesMap: Map<string, {
+		incorrectTerm: string;
+		correctTerm: string;
+		frequency: number;
+		questions: Set<string>;
+		tags: Set<string>;
+		examples: Set<string>;
+	}> = new Map();
+	
 	items.forEach((item) => {
 		if (item.betterWording && item.betterWording.length > 0) {
+			const question = item.question;
+			const questionTags = question.tags || [];
+			
 			// Look for common patterns in betterWording suggestions
 			item.betterWording.forEach((suggestion) => {
 				const lower = suggestion.toLowerCase();
-				// Check for common improvement patterns
-				if (lower.includes("instead of") || lower.includes("better:")) {
-					// Extract the improvement pattern
-					const match = suggestion.match(/instead of ['"]([^'"]+)['"]/i) ||
-						suggestion.match(/better:\s*(.+)/i);
-					if (match) {
+				
+				// Check for terminology/nomenclature corrections (format: "Instead of 'X', say 'Y'" or "You said: 'X'. Better: 'Y'")
+				const terminologyPatterns = [
+					// Pattern 1: "Instead of 'incorrect', say 'correct'"
+					/instead of ['"]([^'"]+)['"](?:,|\.)?\s*(?:say|use|better:)\s*['"]([^'"]+)['"]/i,
+					// Pattern 2: "You said: 'incorrect'. Better: 'correct'"
+					/you said:\s*['"]([^'"]+)['"]\s*\.?\s*better:\s*['"]([^'"]+)['"]/i,
+					// Pattern 3: "Better: 'correct' (instead of 'incorrect')"
+					/better:\s*['"]([^'"]+)['"]\s*(?:\(|instead of|rather than)\s*['"]([^'"]+)['"]/i,
+				];
+				
+				let terminologyMatch = null;
+				for (const pattern of terminologyPatterns) {
+					terminologyMatch = suggestion.match(pattern);
+					if (terminologyMatch) break;
+				}
+				
+				if (terminologyMatch) {
+					// Extract incorrect and correct terms
+					const incorrectTerm = terminologyMatch[1]?.trim();
+					const correctTerm = terminologyMatch[2]?.trim();
+					
+					if (incorrectTerm && correctTerm && incorrectTerm !== correctTerm) {
+						// This is a terminology/nomenclature correction
+						const key = `${incorrectTerm.toLowerCase()} -> ${correctTerm.toLowerCase()}`;
+						
+						if (!terminologyMistakesMap.has(key)) {
+							terminologyMistakesMap.set(key, {
+								incorrectTerm: incorrectTerm,
+								correctTerm: correctTerm,
+								frequency: 0,
+								questions: new Set(),
+								tags: new Set(),
+								examples: new Set(),
+							});
+						}
+						
+						const entry = terminologyMistakesMap.get(key)!;
+						entry.frequency++;
+						entry.questions.add(item.question.id);
+						questionTags.forEach(tag => entry.tags.add(tag));
+						entry.examples.add(suggestion);
+					} else {
+						// General wording improvement
 						const pattern = "Could use more precise wording";
 						mistakeFrequency.set(
 							pattern.toLowerCase().trim(),
@@ -193,12 +255,36 @@ export async function analyzeSessionPerformance(
 						}
 						mistakeExamples.get(pattern)?.add(suggestion.substring(0, 100));
 					}
+				} else if (lower.includes("instead of") || lower.includes("better:")) {
+					// General improvement pattern
+					const pattern = "Could use more precise wording";
+					mistakeFrequency.set(
+						pattern.toLowerCase().trim(),
+						(mistakeFrequency.get(pattern.toLowerCase().trim()) || 0) + 1
+					);
+					if (!mistakeExamples.has(pattern)) {
+						mistakeExamples.set(pattern, new Set());
+					}
+					mistakeExamples.get(pattern)?.add(suggestion.substring(0, 100));
 				}
 			});
 		}
 	});
 
-	// Convert to common mistakes array
+	// Convert terminology mistakes to array
+	const frequentlyMisusedTerms: FrequentlyMisusedTerm[] = Array.from(terminologyMistakesMap.values())
+		.map((entry) => ({
+			incorrectTerm: entry.incorrectTerm,
+			correctTerm: entry.correctTerm,
+			frequency: entry.frequency,
+			questions: Array.from(entry.questions),
+			tags: Array.from(entry.tags),
+			examples: Array.from(entry.examples).slice(0, 3),
+		}))
+		.sort((a, b) => b.frequency - a.frequency)
+		.slice(0, 10); // Top 10 most frequently misused terms
+	
+	// Convert general mistakes to array
 	const commonMistakes: CommonMistake[] = Array.from(mistakeFrequency.entries())
 		.map(([pattern, frequency]) => ({
 			pattern,
@@ -338,6 +424,7 @@ export async function analyzeSessionPerformance(
 	return {
 		commonMistakes,
 		frequentlyForgottenPoints,
+		frequentlyMisusedTerms,
 		weakTags,
 		strongTags,
 		recommendedFocus,

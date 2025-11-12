@@ -10,6 +10,15 @@ interface FrequentlyForgottenPoint {
   tags: string[];
 }
 
+interface FrequentlyMisusedTerm {
+  incorrectTerm: string;
+  correctTerm: string;
+  frequency: number;
+  questions: string[];
+  tags: string[];
+  examples: string[];
+}
+
 interface CommonMistake {
   pattern: string;
   frequency: number;
@@ -27,6 +36,7 @@ interface PerformanceByTag {
 interface LearningSummaryData {
   commonMistakes: CommonMistake[];
   frequentlyForgottenPoints?: FrequentlyForgottenPoint[];
+  frequentlyMisusedTerms?: FrequentlyMisusedTerm[];
   weakTags: string[];
   strongTags: string[];
   recommendedFocus: string[];
@@ -278,6 +288,53 @@ export function LearningSummary({ sessionId }: { sessionId: string }) {
                       <span
                         key={tag}
                         className="text-xs bg-amber-100 dark:bg-amber-900/50 text-amber-700 dark:text-amber-300 px-2 py-0.5 rounded"
+                      >
+                        {tag}
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {/* Frequently Misused Terminology/Nomenclature */}
+      {summary.frequentlyMisusedTerms && summary.frequentlyMisusedTerms.length > 0 && (
+        <div className="mb-6">
+          <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-3">
+            📝 Frequently Misused Terminology
+          </h3>
+          <p className="text-sm text-gray-600 dark:text-gray-400 mb-3">
+            Terms you keep using incorrectly. Practice using the correct terminology!
+          </p>
+          <ul className="space-y-3">
+            {summary.frequentlyMisusedTerms.map((term, idx) => (
+              <li key={idx} className="bg-blue-50 dark:bg-blue-900/30 rounded-lg p-4 border border-blue-200 dark:border-blue-800">
+                <div className="flex items-start justify-between mb-2">
+                  <div className="flex-1">
+                    <div className="font-medium text-blue-900 dark:text-blue-100 mb-1">
+                      <span className="line-through text-red-600 dark:text-red-400">{term.incorrectTerm}</span>
+                      {' → '}
+                      <span className="font-bold text-green-600 dark:text-green-400">{term.correctTerm}</span>
+                    </div>
+                    {term.examples.length > 0 && (
+                      <div className="text-sm text-blue-700 dark:text-blue-300 mt-2 italic">
+                        Example: {term.examples[0]}
+                      </div>
+                    )}
+                  </div>
+                  <span className="text-xs bg-blue-200 dark:bg-blue-800 text-blue-800 dark:text-blue-200 px-2 py-1 rounded ml-2">
+                    {term.frequency}x
+                  </span>
+                </div>
+                {term.tags.length > 0 && (
+                  <div className="flex flex-wrap gap-1 mt-2">
+                    {term.tags.slice(0, 3).map((tag) => (
+                      <span
+                        key={tag}
+                        className="text-xs bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300 px-2 py-0.5 rounded"
                       >
                         {tag}
                       </span>
