@@ -187,3 +187,82 @@ export function analyzeIntonationFromTranscript(
   // Round to nearest integer (0-5 scale)
   return Math.min(5, Math.max(0, Math.round(score)));
 }
+
+/**
+ * Analyze transcript for frequently repeated words
+ * Identifies words that are overused (appear too frequently relative to total word count)
+ */
+export function analyzeRepeatedWords(
+  transcript: string,
+  wordCount: number
+): {
+  repeatedWords: Array<{ word: string; count: number; percentage: number }>;
+  hasExcessiveRepetition: boolean;
+} {
+  // Extract words (normalize to lowercase, remove punctuation)
+  const words = transcript
+    .toLowerCase()
+    .replace(/[^\w\s]/g, ' ') // Replace punctuation with spaces
+    .split(/\s+/)
+    .filter(w => w.length > 2); // Filter out very short words (a, an, the, etc.)
+
+  if (words.length === 0) {
+    return { repeatedWords: [], hasExcessiveRepetition: false };
+  }
+
+  // Count word frequency
+  const wordFrequency = new Map<string, number>();
+  words.forEach(word => {
+    wordFrequency.set(word, (wordFrequency.get(word) || 0) + 1);
+  });
+
+  // Common stop words to ignore (these are expected to repeat)
+  const stopWords = new Set([
+    'the', 'a', 'an', 'and', 'or', 'but', 'in', 'on', 'at', 'to', 'for', 'of', 'with',
+    'by', 'from', 'as', 'is', 'are', 'was', 'were', 'be', 'been', 'being', 'have', 'has',
+    'had', 'do', 'does', 'did', 'will', 'would', 'could', 'should', 'may', 'might',
+    'this', 'that', 'these', 'those', 'i', 'you', 'he', 'she', 'it', 'we', 'they',
+    'what', 'which', 'who', 'when', 'where', 'why', 'how', 'can', 'cannot'
+  ]);
+
+  // Calculate repetition threshold
+  // A word is "repeated" if it appears more than expected
+  // For a 200-word answer, a word appearing 5+ times (2.5%+) is notable
+  // For a 100-word answer, a word appearing 3+ times (3%+) is notable
+  const thresholdPercentage = wordCount > 150 ? 2.0 : wordCount > 100 ? 2.5 : 3.0;
+  const minCount = wordCount > 150 ? 4 : wordCount > 100 ? 3 : 2;
+
+  // Find repeated words
+  const repeatedWords: Array<{ word: string; count: number; percentage: number }> = [];
+  
+  wordFrequency.forEach((count, word) => {
+    // Skip stop words unless they appear excessively (10+ times)
+    if (stopWords.has(word) && count < 10) {
+      return;
+    }
+
+    const percentage = (count / words.length) * 100;
+    
+    // Flag words that appear too frequently
+    if (count >= minCount && percentage >= thresholdPercentage) {
+      repeatedWords.push({
+        word,
+        count,
+        percentage: Math.round(percentage * 10) / 10, // Round to 1 decimal
+      });
+    }
+  });
+
+  // Sort by frequency (most repeated first)
+  repeatedWords.sort((a, b) => b.count - a.count);
+
+  // Consider excessive if any word appears >5% of the time (excluding stop words)
+  const hasExcessiveRepetition = repeatedWords.some(
+    r => r.percentage > 5 && !stopWords.has(r.word)
+  );
+
+  return {
+    repeatedWords: repeatedWords.slice(0, 10), // Top 10 most repeated
+    hasExcessiveRepetition,
+  };
+}

@@ -17,6 +17,7 @@ import {
 import {
 	analyzeConfidenceFromTranscript,
 	analyzeIntonationFromTranscript,
+	analyzeRepeatedWords,
 } from "@/lib/audio-analysis";
 import {
 	handleApiError,
@@ -484,6 +485,9 @@ export async function POST(request: NextRequest) {
 			wordCount
 		);
 
+		// Analyze repeated words to identify overused vocabulary
+		const repeatedWordsAnalysis = analyzeRepeatedWords(transcript, wordCount);
+
 		// Save to database (await upload to complete first for audioUrl)
 		// We need the ID to return in the response
 		let sessionItemId: string;
@@ -566,6 +570,8 @@ export async function POST(request: NextRequest) {
 			whatWasWrong: [], // Not returned by AI analysis anymore, but client expects it
 			betterWording: analysis.betterWording,
 			dontForget: analysis.dontForget || [],
+			repeatedWords: repeatedWordsAnalysis.repeatedWords,
+			hasExcessiveRepetition: repeatedWordsAnalysis.hasExcessiveRepetition,
 			audioUrl: audioUrl, // May be null if upload still in progress
 		});
 	} catch (error) {
