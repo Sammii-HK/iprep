@@ -217,12 +217,6 @@ export function QuestionCard({
                 `Use the question tags as context. Think about the key concepts related to: ${question.tags.join(', ')}. Structure your answer clearly and provide examples.`
               )}
             </p>
-            {/* Debug: Show dontForget if present */}
-            {dontForget && dontForget.length > 0 && process.env.NODE_ENV === 'development' && (
-              <div className="mt-2 text-xs text-slate-500 dark:text-slate-400">
-                Debug: dontForget = {JSON.stringify(dontForget)}
-              </div>
-            )}
           </div>
         )}
       </div>

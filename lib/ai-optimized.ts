@@ -242,9 +242,7 @@ function extractDontForgetFromHint(
 	if (dontForget.length > 0) {
 		// Last resort: return empty array if we can't find exact matches
 		// This ensures we only show points that are word-for-word from the hint
-		if (process.env.NODE_ENV === "development") {
-			console.warn("Could not find exact word-for-word matches in hint for:", dontForget);
-		}
+		// (Silently fail in production - better to show nothing than paraphrased text)
 		return []; // Don't use paraphrased text - only exact matches
 	}
 
@@ -496,20 +494,26 @@ export async function analyzeTranscriptOptimized(
 					throw new Error("OpenAI returned an empty JSON object");
 				}
 			} catch (parseError) {
-				console.error("JSON parse error:", parseError);
-				console.error("Response text (full):", fullText);
-				console.error("Response length:", fullText.length);
+				if (process.env.NODE_ENV === "development") {
+					console.error("JSON parse error:", parseError);
+					console.error("Response text (full):", fullText);
+					console.error("Response length:", fullText.length);
+				}
 
-				// Try fallback: extract JSON if wrapped in markdown or other text
-				try {
-					const jsonMatch = fullText.match(/\{[\s\S]*\}/);
-					if (jsonMatch && jsonMatch[0]) {
-						console.log("Attempting fallback JSON extraction...");
-						parsed = JSON.parse(jsonMatch[0]);
-						console.log(
-							"Fallback extraction successful, keys:",
-							Object.keys(parsed)
-						);
+					// Try fallback: extract JSON if wrapped in markdown or other text
+					try {
+						const jsonMatch = fullText.match(/\{[\s\S]*\}/);
+						if (jsonMatch && jsonMatch[0]) {
+							if (process.env.NODE_ENV === "development") {
+								console.log("Attempting fallback JSON extraction...");
+							}
+							parsed = JSON.parse(jsonMatch[0]);
+							if (process.env.NODE_ENV === "development") {
+								console.log(
+									"Fallback extraction successful, keys:",
+									Object.keys(parsed)
+								);
+							}
 					} else {
 						throw parseError;
 					}
@@ -527,12 +531,14 @@ export async function analyzeTranscriptOptimized(
 			try {
 				validated = EnhancedAnalysisResponseSchema.parse(parsed);
 			} catch (schemaError) {
-				console.error("Schema validation error:", schemaError);
-				console.error("Parsed object:", JSON.stringify(parsed, null, 2));
-				console.error(
-					"Expected schema fields:",
-					Object.keys(EnhancedAnalysisResponseSchema.shape)
-				);
+				if (process.env.NODE_ENV === "development") {
+					console.error("Schema validation error:", schemaError);
+					console.error("Parsed object:", JSON.stringify(parsed, null, 2));
+					console.error(
+						"Expected schema fields:",
+						Object.keys(EnhancedAnalysisResponseSchema.shape)
+					);
+				}
 				throw schemaError;
 			}
 
