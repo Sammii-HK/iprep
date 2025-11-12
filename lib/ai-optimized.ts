@@ -31,7 +31,8 @@ const EnhancedAnalysisResponseSchema = z.object({
 	answerQuality: z.number().int().min(0).max(5),
 	whatWasRight: z.array(z.string()).min(2).max(4),
 	betterWording: z.array(z.string()).min(0).max(3), // Concise wording improvements (grammar fixes use "You said" format) - allow 0-3 items
-	dontForget: z.array(z.string()).min(0).max(4), // Vital specific points missing from answer (empty if nothing vital missing)
+	dontForget: z.array(z.string()).min(0).max(4), // OPTIMIZED: If hint provided, return exact phrases from hint that were missing. Otherwise, specific missing points.
+	dontForgetIndices: z.array(z.number()).min(0).max(4).optional(), // OPTIMIZED: Indices of missing key points in hint (0-based, if hint was split by bullets/numbers)
 	starScore: z.number().int().min(0).max(5),
 	impactScore: z.number().int().min(0).max(5),
 	clarityScore: z.number().int().min(0).max(5),
@@ -70,6 +71,7 @@ Return JSON only:
   "whatWasRight": ["item1", "item2", "item3"],
   "betterWording": ["suggestion1", "suggestion2"],
   "dontForget": ["point1"] or [],
+  "dontForgetIndices": [0, 2] or [] (optional, only if hint is numbered),
   "starScore": 0-5,
   "impactScore": 0-5,
   "clarityScore": 0-5,
@@ -80,7 +82,8 @@ Return JSON only:
 
 Formatting:
 - betterWording (0-3): Grammar/English fixes use "You said: '[exact quote]'. Better: '[fix]'". Other improvements: brief (1 sentence). Can be empty if no improvements needed.
-- dontForget (0-4): CRITICAL: If Expected Answer/Key Points are provided, compare the user's answer against those key points. List ONLY the specific key points from the Expected Answer that were MISSING or not adequately covered. These are points they MUST remember. Empty [] if all key points were covered or if no Expected Answer provided. No generic reminders - only specific missing key points.
+- dontForget (0-4): OPTIMIZED - If Expected Answer/Key Points provided: Return EXACT phrases from the Expected Answer that were missing (copy verbatim, don't paraphrase). If no hint: specific missing points. Empty [] if all covered.
+- dontForgetIndices (0-4, optional): If Expected Answer has numbered/bulleted points, return 0-based indices of missing points (e.g., [0, 2] means first and third points missing). Use this when hint is structured.
 - whatWasRight (2-4): Specific correct points from their answer.
 - tips (5): CRITICAL: Provide actionable, specific tips that address the weakest areas in their answer. Each tip should:
   1. Be specific to what's missing or weak (reference scores: technicalAccuracy, clarityScore, impactScore, etc.)
@@ -104,6 +107,57 @@ Context: ${coachingPrefs.priorities
 }
 
 /**
+ * OPTIMIZATION: Extract exact phrases from hint using indices
+ * This reduces AI token usage by having AI return indices instead of regenerating text
+ */
+function extractDontForgetFromHint(
+	dontForget: string[],
+	dontForgetIndices: number[] | undefined,
+	questionHint: string | null | undefined
+): string[] {
+	if (!questionHint) {
+		return dontForget; // No hint, use AI-generated text
+	}
+
+	// If indices provided and hint is structured, use them
+	if (dontForgetIndices && dontForgetIndices.length > 0) {
+		const hintPoints = questionHint
+			.split(/\n+|(?:\d+[\.\)]\s*)|(?:\-\s*)|(?:\*\s*)/)
+			.map(p => p.trim())
+			.filter(p => p.length > 10);
+		
+		if (hintPoints.length >= 2 && hintPoints.length <= 10) {
+			// Extract exact phrases using indices
+			const extracted = dontForgetIndices
+				.filter(idx => idx >= 0 && idx < hintPoints.length)
+				.map(idx => hintPoints[idx])
+				.filter(Boolean);
+			
+			if (extracted.length > 0) {
+				return extracted; // Use exact phrases from hint
+			}
+		}
+	}
+
+	// Fallback: Check if dontForget contains exact phrases from hint
+	// This handles cases where AI copied verbatim but didn't use indices
+	const hintLower = questionHint.toLowerCase();
+	const exactMatches = dontForget.filter(point => {
+		const pointLower = point.toLowerCase().trim();
+		// Check if point appears verbatim in hint (allowing for minor whitespace differences)
+		return hintLower.includes(pointLower) || 
+		       pointLower.length > 20 && hintLower.includes(pointLower.substring(0, 20));
+	});
+
+	if (exactMatches.length > 0) {
+		return exactMatches; // AI already copied verbatim
+	}
+
+	// Last resort: use AI-generated text (may be paraphrased)
+	return dontForget;
+}
+
+/**
  * Build optimized user prompt (condensed from ~1000 to ~300 tokens)
  */
 function buildOptimizedUserPrompt(
@@ -118,7 +172,7 @@ function buildOptimizedUserPrompt(
 		wpm: number;
 		longPauses: number;
 	}
-): string {
+): { prompt: string; hintPoints?: string[] } {
 	const wordCount =
 		metrics?.wordCount ||
 		transcript
@@ -157,13 +211,32 @@ function buildOptimizedUserPrompt(
 		prompt += `Q: ${questionText}\n`;
 	}
 	if (questionHint) {
-		// Truncate hint if too long (keep first 300 chars for better context)
-		const hint =
-			questionHint.length > 300
-				? questionHint.substring(0, 300) + "..."
-				: questionHint;
-		prompt += `Expected Answer/Key Points: ${hint}\n`;
-		prompt += `CRITICAL: Compare their answer against these key points. For dontForget, identify which specific key points from above were MISSING or not adequately covered in their answer. These are critical points they must remember.\n`;
+		// OPTIMIZATION: Parse hint into structured points for reference-based responses
+		// Split by common delimiters (numbered lists, bullets, line breaks)
+		const hintPoints = questionHint
+			.split(/\n+|(?:\d+[\.\)]\s*)|(?:\-\s*)|(?:\*\s*)/)
+			.map(p => p.trim())
+			.filter(p => p.length > 10); // Filter out very short fragments
+		
+		// Use full hint if structured parsing didn't work well
+		const useStructured = hintPoints.length >= 2 && hintPoints.length <= 10;
+		
+		if (useStructured) {
+			// Provide structured hint with indices for reference
+			prompt += `Expected Answer/Key Points (numbered for reference):\n`;
+			hintPoints.forEach((point, idx) => {
+				prompt += `${idx}. ${point}\n`;
+			});
+			prompt += `\nOPTIMIZATION: For dontForget, return EXACT phrases from above (copy verbatim). Also provide dontForgetIndices array with 0-based indices of missing points (e.g., [0, 2] if points 1 and 3 are missing).\n`;
+		} else {
+			// Use full hint (may be paragraph format)
+			const hint =
+				questionHint.length > 500
+					? questionHint.substring(0, 500) + "..."
+					: questionHint;
+			prompt += `Expected Answer/Key Points: ${hint}\n`;
+			prompt += `OPTIMIZATION: For dontForget, return EXACT phrases from the Expected Answer above that were missing (copy verbatim, don't paraphrase). This ensures consistency with the source material.\n`;
+		}
 	}
 	if (questionTags.length > 0) {
 		prompt += `Tags: ${questionTags.slice(0, 3).join(", ")}\n`; // Reduced to 3 tags
@@ -177,7 +250,7 @@ function buildOptimizedUserPrompt(
 	// Add instruction to focus tips on weak areas
 	prompt += `\nIMPORTANT: When generating tips, prioritize addressing the weakest scores (lowest rated areas). Make tips specific, actionable, and include examples.`;
 
-	return prompt;
+	return { prompt, hintPoints: useStructured ? hintPoints : undefined };
 }
 
 /**
@@ -250,7 +323,7 @@ export async function analyzeTranscriptOptimized(
 
 	// Build optimized prompts (use trimmed transcript)
 	const systemPrompt = buildOptimizedSystemPrompt(coachingPrefs);
-	const userPrompt = buildOptimizedUserPrompt(
+	const { prompt: userPrompt, hintPoints } = buildOptimizedUserPrompt(
 		trimmedTranscript, // Use trimmed transcript
 		questionText,
 		questionHint,
@@ -365,12 +438,28 @@ export async function analyzeTranscriptOptimized(
 				throw schemaError;
 			}
 
+			// OPTIMIZATION: Extract exact phrases from hint using indices/references
+			// This reduces token usage and ensures consistency with CSV source
+			const optimizedDontForget = extractDontForgetFromHint(
+				validated.dontForget,
+				validated.dontForgetIndices,
+				questionHint
+			);
+
+			// Create optimized response with exact phrases from hint
+			const optimizedResponse = {
+				...validated,
+				dontForget: optimizedDontForget,
+				// Remove indices from response (internal optimization detail)
+				dontForgetIndices: undefined,
+			};
+
 			// Cache the result (use trimmed transcript for cache key)
 			analysisCache.set(
 				trimmedTranscript, // Use trimmed transcript for cache
 				questionId,
 				questionTags,
-				validated,
+				optimizedResponse,
 				24 * 60 * 60 * 1000, // 24 hours TTL
 				coachingPrefs as unknown as Record<string, unknown>
 			);
@@ -378,10 +467,11 @@ export async function analyzeTranscriptOptimized(
 			console.log("Optimized analysis completed", {
 				questionAnswered: validated.questionAnswered,
 				answerQuality: validated.answerQuality,
+				dontForgetOptimized: optimizedDontForget.length !== validated.dontForget.length,
 				cached: false,
 			});
 
-			return validated;
+			return optimizedResponse;
 		} catch (error) {
 			const errorMessage =
 				error instanceof Error ? error.message : String(error);
