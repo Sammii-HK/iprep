@@ -271,12 +271,8 @@ function buildOptimizedUserPrompt(
 			.trim()
 			.split(/\s+/)
 			.filter((w) => w.length > 0).length;
-	// eslint-disable-next-line @typescript-eslint/no-unused-vars
-	const fillerCount = metrics?.fillerCount || 0;
 	const fillerRate = metrics?.fillerRate || 0;
 	const wpm = metrics?.wpm || 0;
-	// eslint-disable-next-line @typescript-eslint/no-unused-vars
-	const longPauses = metrics?.longPauses || 0;
 
 	// OPTIMIZE: Truncate long transcripts for faster processing while keeping quality
 	// Keep first 600 words (context) and last 200 words (conclusion) - total ~800 words
