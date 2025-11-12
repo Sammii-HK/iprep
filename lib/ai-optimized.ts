@@ -82,7 +82,12 @@ Formatting:
 - betterWording (0-3): Grammar/English fixes use "You said: '[exact quote]'. Better: '[fix]'". Other improvements: brief (1 sentence). Can be empty if no improvements needed.
 - dontForget (0-4): CRITICAL: If Expected Answer/Key Points are provided, compare the user's answer against those key points. List ONLY the specific key points from the Expected Answer that were MISSING or not adequately covered. These are points they MUST remember. Empty [] if all key points were covered or if no Expected Answer provided. No generic reminders - only specific missing key points.
 - whatWasRight (2-4): Specific correct points from their answer.
-- tips (5): Actionable, concise tips.
+- tips (5): CRITICAL: Provide actionable, specific tips that address the weakest areas in their answer. Each tip should:
+  1. Be specific to what's missing or weak (reference scores: technicalAccuracy, clarityScore, impactScore, etc.)
+  2. Include concrete examples or before/after suggestions
+  3. Focus on the most critical improvements first
+  4. Reference specific parts of their answer when possible
+  5. Be actionable (what to do, not just what's wrong)
 
 Scoring (0-5):
 - answerQuality: 5=complete, 4=good, 3=partial, 2=tangential, 1=barely, 0=none
@@ -168,6 +173,9 @@ function buildOptimizedUserPrompt(
 	prompt += `Metrics: ${wordCount}w, ${fillerRate.toFixed(
 		1
 	)}% fillers, ${wpm}wpm\n`;
+	
+	// Add instruction to focus tips on weak areas
+	prompt += `\nIMPORTANT: When generating tips, prioritize addressing the weakest scores (lowest rated areas). Make tips specific, actionable, and include examples.`;
 
 	return prompt;
 }

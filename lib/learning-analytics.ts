@@ -63,10 +63,14 @@ export async function analyzeSessionPerformance(
 		};
 	}
 
-	// Collect all mistakes from whatWasWrong arrays
+	// Collect mistakes from multiple sources:
+	// 1. Legacy whatWasWrong arrays (for backward compatibility)
+	// 2. Score patterns (derive from consistently low scores)
+	// 3. betterWording patterns (common phrasing issues)
 	const mistakeFrequency: Map<string, number> = new Map();
 	const mistakeExamples: Map<string, Set<string>> = new Map();
 
+	// Source 1: Legacy whatWasWrong (for backward compatibility with old data)
 	items.forEach((item) => {
 		if (item.whatWasWrong && item.whatWasWrong.length > 0) {
 			item.whatWasWrong.forEach((mistake) => {
@@ -79,6 +83,117 @@ export async function analyzeSessionPerformance(
 					mistakeExamples.set(normalized, new Set());
 				}
 				mistakeExamples.get(normalized)?.add(mistake);
+			});
+		}
+	});
+
+	// Source 2: Derive patterns from consistently low scores
+	const scorePatterns: Map<string, number> = new Map();
+	const lowScoreThreshold = 3; // Scores below 3 indicate issues
+	
+	items.forEach((item) => {
+		// Technical accuracy issues
+		if (item.technicalAccuracy !== null && item.technicalAccuracy < lowScoreThreshold) {
+			const pattern = "Lacks technical depth or accuracy";
+			scorePatterns.set(pattern, (scorePatterns.get(pattern) || 0) + 1);
+			if (!mistakeExamples.has(pattern)) {
+				mistakeExamples.set(pattern, new Set());
+			}
+			mistakeExamples.get(pattern)?.add(
+				`Technical accuracy: ${item.technicalAccuracy}/5`
+			);
+		}
+		
+		// Terminology usage issues
+		if (item.terminologyUsage !== null && item.terminologyUsage < lowScoreThreshold) {
+			const pattern = "Uses generic terms instead of domain-specific language";
+			scorePatterns.set(pattern, (scorePatterns.get(pattern) || 0) + 1);
+			if (!mistakeExamples.has(pattern)) {
+				mistakeExamples.set(pattern, new Set());
+			}
+			mistakeExamples.get(pattern)?.add(
+				`Terminology usage: ${item.terminologyUsage}/5`
+			);
+		}
+		
+		// Clarity/structure issues
+		if (item.clarityScore !== null && item.clarityScore < lowScoreThreshold) {
+			const pattern = "Unclear structure or organization";
+			scorePatterns.set(pattern, (scorePatterns.get(pattern) || 0) + 1);
+			if (!mistakeExamples.has(pattern)) {
+				mistakeExamples.set(pattern, new Set());
+			}
+			mistakeExamples.get(pattern)?.add(
+				`Clarity score: ${item.clarityScore}/5`
+			);
+		}
+		
+		// Impact/metrics issues (for behavioral questions)
+		if (item.impactScore !== null && item.impactScore < lowScoreThreshold) {
+			const pattern = "Missing specific metrics or impact statements";
+			scorePatterns.set(pattern, (scorePatterns.get(pattern) || 0) + 1);
+			if (!mistakeExamples.has(pattern)) {
+				mistakeExamples.set(pattern, new Set());
+			}
+			mistakeExamples.get(pattern)?.add(
+				`Impact score: ${item.impactScore}/5`
+			);
+		}
+		
+		// STAR structure issues (for behavioral questions)
+		if (item.starScore !== null && item.starScore < lowScoreThreshold) {
+			const pattern = "Incomplete STAR structure (missing Situation/Task/Action/Result)";
+			scorePatterns.set(pattern, (scorePatterns.get(pattern) || 0) + 1);
+			if (!mistakeExamples.has(pattern)) {
+				mistakeExamples.set(pattern, new Set());
+			}
+			mistakeExamples.get(pattern)?.add(
+				`STAR score: ${item.starScore}/5`
+			);
+		}
+		
+		// Question not answered
+		if (item.questionAnswered === false) {
+			const pattern = "Answer doesn't fully address the question";
+			scorePatterns.set(pattern, (scorePatterns.get(pattern) || 0) + 1);
+			if (!mistakeExamples.has(pattern)) {
+				mistakeExamples.set(pattern, new Set());
+			}
+			mistakeExamples.get(pattern)?.add("Question not fully answered");
+		}
+	});
+
+	// Merge score patterns into mistake frequency
+	scorePatterns.forEach((frequency, pattern) => {
+		mistakeFrequency.set(
+			pattern.toLowerCase().trim(),
+			(mistakeFrequency.get(pattern.toLowerCase().trim()) || 0) + frequency
+		);
+	});
+
+	// Source 3: Extract patterns from betterWording suggestions
+	items.forEach((item) => {
+		if (item.betterWording && item.betterWording.length > 0) {
+			// Look for common patterns in betterWording suggestions
+			item.betterWording.forEach((suggestion) => {
+				const lower = suggestion.toLowerCase();
+				// Check for common improvement patterns
+				if (lower.includes("instead of") || lower.includes("better:")) {
+					// Extract the improvement pattern
+					const match = suggestion.match(/instead of ['"]([^'"]+)['"]/i) ||
+						suggestion.match(/better:\s*(.+)/i);
+					if (match) {
+						const pattern = "Could use more precise wording";
+						mistakeFrequency.set(
+							pattern.toLowerCase().trim(),
+							(mistakeFrequency.get(pattern.toLowerCase().trim()) || 0) + 1
+						);
+						if (!mistakeExamples.has(pattern)) {
+							mistakeExamples.set(pattern, new Set());
+						}
+						mistakeExamples.get(pattern)?.add(suggestion.substring(0, 100));
+					}
+				}
 			});
 		}
 	});
