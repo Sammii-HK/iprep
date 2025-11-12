@@ -80,7 +80,7 @@ Return JSON only:
 
 Formatting:
 - betterWording (0-3): Grammar/English fixes use "You said: '[exact quote]'. Better: '[fix]'". Other improvements: brief (1 sentence). Can be empty if no improvements needed.
-- dontForget (0-4): Only VITAL, SPECIFIC missing points. Empty [] if nothing vital missing. No generic reminders.
+- dontForget (0-4): CRITICAL: If Expected Answer/Key Points are provided, compare the user's answer against those key points. List ONLY the specific key points from the Expected Answer that were MISSING or not adequately covered. These are points they MUST remember. Empty [] if all key points were covered or if no Expected Answer provided. No generic reminders - only specific missing key points.
 - whatWasRight (2-4): Specific correct points from their answer.
 - tips (5): Actionable, concise tips.
 
@@ -158,7 +158,7 @@ function buildOptimizedUserPrompt(
 				? questionHint.substring(0, 300) + "..."
 				: questionHint;
 		prompt += `Expected Answer/Key Points: ${hint}\n`;
-		prompt += `Compare their answer to these key points.\n`;
+		prompt += `CRITICAL: Compare their answer against these key points. For dontForget, identify which specific key points from above were MISSING or not adequately covered in their answer. These are critical points they must remember.\n`;
 	}
 	if (questionTags.length > 0) {
 		prompt += `Tags: ${questionTags.slice(0, 3).join(", ")}\n`; // Reduced to 3 tags
