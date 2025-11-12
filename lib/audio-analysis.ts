@@ -226,11 +226,34 @@ export function analyzeRepeatedWords(
   ]);
 
   // Calculate repetition threshold
-  // A word is "repeated" if it appears more than expected
-  // For a 200-word answer, a word appearing 5+ times (2.5%+) is notable
-  // For a 100-word answer, a word appearing 3+ times (3%+) is notable
-  const thresholdPercentage = wordCount > 150 ? 2.0 : wordCount > 100 ? 2.5 : 3.0;
-  const minCount = wordCount > 150 ? 4 : wordCount > 100 ? 3 : 2;
+  // Adjusted for concise answers (often 30-50 words for study cards)
+  // A word is "repeated" if it appears more than expected for the answer length
+  // For very short answers (<50 words): flag words appearing 2+ times (≥4%)
+  // For short answers (50-100 words): flag words appearing 2+ times (≥2.5%)
+  // For medium answers (100-150 words): flag words appearing 3+ times (≥2.5%)
+  // For long answers (>150 words): flag words appearing 4+ times (≥2.0%)
+  let thresholdPercentage: number;
+  let minCount: number;
+  
+  if (wordCount < 50) {
+    // Very concise answers (study cards, ~30-50 words) - be more sensitive
+    // In a 30-word answer, a word appearing 2 times = 6.7% (definitely notable)
+    // In a 50-word answer, a word appearing 2 times = 4% (notable)
+    thresholdPercentage = 3.0; // Flag if word is ≥3% of total (more sensitive for short answers)
+    minCount = 2; // At least 2 occurrences
+  } else if (wordCount < 100) {
+    // Short answers
+    thresholdPercentage = 2.5;
+    minCount = 2;
+  } else if (wordCount < 150) {
+    // Medium answers
+    thresholdPercentage = 2.5;
+    minCount = 3;
+  } else {
+    // Long answers
+    thresholdPercentage = 2.0;
+    minCount = 4;
+  }
 
   // Find repeated words
   const repeatedWords: Array<{ word: string; count: number; percentage: number }> = [];
@@ -256,9 +279,11 @@ export function analyzeRepeatedWords(
   // Sort by frequency (most repeated first)
   repeatedWords.sort((a, b) => b.count - a.count);
 
-  // Consider excessive if any word appears >5% of the time (excluding stop words)
+  // Consider excessive repetition based on answer length
+  // For short answers, even lower thresholds indicate excessive repetition
+  const excessiveThreshold = wordCount < 50 ? 6.0 : wordCount < 100 ? 5.0 : 5.0;
   const hasExcessiveRepetition = repeatedWords.some(
-    r => r.percentage > 5 && !stopWords.has(r.word)
+    r => r.percentage > excessiveThreshold && !stopWords.has(r.word)
   );
 
   return {
