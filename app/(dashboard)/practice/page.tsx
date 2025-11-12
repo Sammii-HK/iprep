@@ -435,7 +435,7 @@ export default function PracticePage() {
 										</h3>
 										{session.isCompleted && (
 											<span className="px-2 py-1 bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300 rounded text-xs font-medium">
-												Completed Sessions ({session.itemCount})
+												Completed ({session.itemCount} {session.itemCount === 1 ? 'answer' : 'answers'})
 											</span>
 										)}
 									</div>
