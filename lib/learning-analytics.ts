@@ -204,24 +204,35 @@ export async function analyzeSessionPerformance(
 				
 				// Check for terminology/nomenclature corrections (format: "Instead of 'X', say 'Y'" or "You said: 'X'. Better: 'Y'")
 				const terminologyPatterns = [
-					// Pattern 1: "Instead of 'incorrect', say 'correct'"
-					/instead of ['"]([^'"]+)['"](?:,|\.)?\s*(?:say|use|better:)\s*['"]([^'"]+)['"]/i,
-					// Pattern 2: "You said: 'incorrect'. Better: 'correct'"
-					/you said:\s*['"]([^'"]+)['"]\s*\.?\s*better:\s*['"]([^'"]+)['"]/i,
-					// Pattern 3: "Better: 'correct' (instead of 'incorrect')"
-					/better:\s*['"]([^'"]+)['"]\s*(?:\(|instead of|rather than)\s*['"]([^'"]+)['"]/i,
+					// Pattern 1: "Instead of 'incorrect', say 'correct'" - group 1=incorrect, group 2=correct
+					{ pattern: /instead of ['"]([^'"]+)['"](?:,|\.)?\s*(?:say|use|better:)\s*['"]([^'"]+)['"]/i, swapGroups: false },
+					// Pattern 2: "You said: 'incorrect'. Better: 'correct'" - group 1=incorrect, group 2=correct
+					{ pattern: /you said:\s*['"]([^'"]+)['"]\s*\.?\s*better:\s*['"]([^'"]+)['"]/i, swapGroups: false },
+					// Pattern 3: "Better: 'correct' (instead of 'incorrect')" - group 1=correct, group 2=incorrect (REVERSED)
+					{ pattern: /better:\s*['"]([^'"]+)['"]\s*(?:\(|instead of|rather than)\s*['"]([^'"]+)['"]/i, swapGroups: true },
 				];
 				
-				let terminologyMatch = null;
-				for (const pattern of terminologyPatterns) {
+				let terminologyMatch: RegExpMatchArray | null = null;
+				let shouldSwapGroups = false;
+				
+				for (const { pattern, swapGroups } of terminologyPatterns) {
 					terminologyMatch = suggestion.match(pattern);
-					if (terminologyMatch) break;
+					if (terminologyMatch) {
+						shouldSwapGroups = swapGroups;
+						break;
+					}
 				}
 				
 				if (terminologyMatch) {
 					// Extract incorrect and correct terms
-					const incorrectTerm = terminologyMatch[1]?.trim();
-					const correctTerm = terminologyMatch[2]?.trim();
+					// Note: Pattern 3 has groups reversed, so we swap if needed
+					let incorrectTerm = terminologyMatch[1]?.trim();
+					let correctTerm = terminologyMatch[2]?.trim();
+					
+					// Swap if Pattern 3 matched (where correct comes first)
+					if (shouldSwapGroups && incorrectTerm && correctTerm) {
+						[incorrectTerm, correctTerm] = [correctTerm, incorrectTerm];
+					}
 					
 					if (incorrectTerm && correctTerm && incorrectTerm !== correctTerm) {
 						// This is a terminology/nomenclature correction
