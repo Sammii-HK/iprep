@@ -43,6 +43,8 @@ interface SessionItem {
   whatWasWrong?: string[];
   betterWording?: string[];
   dontForget?: string[];
+  repeatedWords?: Array<{ word: string; count: number; percentage: number }>;
+  hasExcessiveRepetition?: boolean;
 }
 
 export default function PracticeSessionPage() {
@@ -240,6 +242,8 @@ export default function PracticeSessionPage() {
           whatWasWrong: result.whatWasWrong,
           betterWording: result.betterWording,
           dontForget: result.dontForget,
+          repeatedWords: result.repeatedWords,
+          hasExcessiveRepetition: result.hasExcessiveRepetition,
         });
         
         // Add the new session item to the local state without re-fetching questions
@@ -259,6 +263,8 @@ export default function PracticeSessionPage() {
             whatWasWrong: result.whatWasWrong,
             betterWording: result.betterWording,
             dontForget: result.dontForget,
+            repeatedWords: result.repeatedWords,
+            hasExcessiveRepetition: result.hasExcessiveRepetition,
           },
           ...prev,
         ]);
@@ -459,6 +465,8 @@ export default function PracticeSessionPage() {
             whatWasWrong={scorecard.whatWasWrong}
             betterWording={scorecard.betterWording}
             dontForget={scorecard.dontForget}
+            repeatedWords={scorecard.repeatedWords}
+            hasExcessiveRepetition={scorecard.hasExcessiveRepetition}
             questionTags={questions[currentQuestionIndex]?.tags}
           />
           ) : (

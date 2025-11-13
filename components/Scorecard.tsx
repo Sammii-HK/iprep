@@ -25,6 +25,8 @@ interface ScorecardProps {
 	whatWasWrong?: string[];
 	betterWording?: string[];
 	dontForget?: string[];
+	repeatedWords?: Array<{ word: string; count: number; percentage: number }>;
+	hasExcessiveRepetition?: boolean;
 	questionTags?: string[]; // To determine if question is technical
 }
 
@@ -87,6 +89,8 @@ export function Scorecard({
 	whatWasWrong,
 	betterWording,
 	dontForget,
+	repeatedWords,
+	hasExcessiveRepetition,
 	questionTags,
 }: ScorecardProps) {
 	const isTechnical = isTechnicalQuestion(questionTags);
@@ -104,7 +108,8 @@ export function Scorecard({
 				whatWasRight ||
 				whatWasWrong ||
 				betterWording ||
-				dontForget) && (
+				dontForget ||
+				repeatedWords) && (
 				<div className="mb-6 p-4 rounded-lg border-2 border-slate-200 dark:border-slate-700">
 					<h3 className="text-lg font-semibold mb-3 text-slate-900 dark:text-slate-100">
 						Answer Feedback
@@ -215,6 +220,45 @@ export function Scorecard({
 									<li key={index}>{item}</li>
 								))}
 							</ul>
+						</div>
+					)}
+
+					{/* Repeated Words Analysis */}
+					{repeatedWords && repeatedWords.length > 0 && (
+						<div className={`mb-3 p-3 rounded-lg border ${
+							hasExcessiveRepetition
+								? "bg-orange-50 dark:bg-orange-900/20 border-orange-200 dark:border-orange-800"
+								: "bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800"
+						}`}>
+							<h4 className={`text-sm font-semibold mb-2 ${
+								hasExcessiveRepetition
+									? "text-orange-700 dark:text-orange-300"
+									: "text-blue-700 dark:text-blue-300"
+							}`}>
+								{hasExcessiveRepetition ? "⚠️" : "📊"} Repeated Words:
+							</h4>
+							<p className="text-xs text-slate-600 dark:text-slate-400 mb-2">
+								{hasExcessiveRepetition
+									? "You're overusing these words. Try using synonyms or varying your vocabulary."
+									: "These words appear frequently in your answer. Consider using synonyms for variety."}
+							</p>
+							<div className="flex flex-wrap gap-2">
+								{repeatedWords.map((item, index) => (
+									<div
+										key={index}
+										className={`px-2 py-1 rounded text-xs font-medium ${
+											hasExcessiveRepetition
+												? "bg-orange-100 dark:bg-orange-900/30 text-orange-800 dark:text-orange-200"
+												: "bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-200"
+										}`}
+									>
+										<span className="font-semibold">"{item.word}"</span>
+										<span className="ml-1 opacity-75">
+											({item.count}x, {item.percentage}%)
+										</span>
+									</div>
+								))}
+							</div>
 						</div>
 					)}
 				</div>

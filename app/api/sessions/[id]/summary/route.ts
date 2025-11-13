@@ -111,8 +111,14 @@ export async function GET(
             }
           }
 
+          // Include frequentlyMisusedTerms in response (not stored in DB yet, computed on-the-fly)
+          const summaryWithTerms = {
+            ...summary,
+            frequentlyMisusedTerms: analysis.frequentlyMisusedTerms || [],
+          };
+
           return NextResponse.json({ 
-            summary,
+            summary: summaryWithTerms,
             bankId: session.bankId,
           });
         } catch (error) {
@@ -134,9 +140,40 @@ export async function GET(
       );
     }
 
+    // Get session again to ensure we have bankId
+    const sessionWithBank = await prisma.session.findUnique({
+      where: { id },
+      select: { bankId: true },
+    });
+
+    // Re-compute frequentlyMisusedTerms from session items (since it's not stored in DB)
+    // This ensures we always have the latest terminology tracking
+    let frequentlyMisusedTerms: Array<{
+      incorrectTerm: string;
+      correctTerm: string;
+      frequency: number;
+      questions: string[];
+      tags: string[];
+      examples: string[];
+    }> = [];
+    
+    try {
+      const { analyzeSessionPerformance } = await import('@/lib/learning-analytics');
+      const analysis = await analyzeSessionPerformance(id, user.id);
+      frequentlyMisusedTerms = analysis.frequentlyMisusedTerms || [];
+    } catch (error) {
+      console.error('Error computing frequentlyMisusedTerms:', error);
+      // Continue without it if computation fails
+    }
+
+    const summaryWithTerms = {
+      ...summary,
+      frequentlyMisusedTerms,
+    };
+
     return NextResponse.json({ 
-      summary,
-      bankId: session.bankId, // Include bankId so we can create a new session with filtered questions
+      summary: summaryWithTerms,
+      bankId: sessionWithBank?.bankId || session.bankId, // Include bankId so we can create a new session with filtered questions
     });
   } catch (error) {
     const errorData = handleApiError(error);

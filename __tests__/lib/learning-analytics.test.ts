@@ -28,6 +28,7 @@ describe('Learning Analytics', () => {
 
 			expect(result.commonMistakes).toEqual([]);
 			expect(result.frequentlyForgottenPoints).toEqual([]);
+			expect(result.frequentlyMisusedTerms).toEqual([]);
 			expect(result.weakTags).toEqual([]);
 			expect(result.strongTags).toEqual([]);
 			expect(result.overallScore).toBe(0);
@@ -47,6 +48,7 @@ describe('Learning Analytics', () => {
 						technicalAccuracy: 4,
 						terminologyUsage: 4,
 						whatWasWrong: [],
+						betterWording: [],
 						dontForget: [],
 						question: {
 							id: 'q-1',
@@ -62,6 +64,7 @@ describe('Learning Analytics', () => {
 						technicalAccuracy: 2,
 						terminologyUsage: 2,
 						whatWasWrong: ['Missing details'],
+						betterWording: [],
 						dontForget: ['Key point 1'],
 						question: {
 							id: 'q-2',
@@ -96,6 +99,7 @@ describe('Learning Analytics', () => {
 						technicalAccuracy: 3,
 						terminologyUsage: 3,
 						whatWasWrong: [],
+						betterWording: [],
 						dontForget: ['Point A', 'Point B'],
 						question: {
 							id: 'q-1',
@@ -111,6 +115,7 @@ describe('Learning Analytics', () => {
 						technicalAccuracy: 3,
 						terminologyUsage: 3,
 						whatWasWrong: [],
+						betterWording: [],
 						dontForget: ['Point A'],
 						question: {
 							id: 'q-2',
