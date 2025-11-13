@@ -294,6 +294,8 @@ function buildOptimizedUserPrompt(
 
 	// Build concise prompt - removed redundant instructions (already in system prompt)
 	let prompt = "";
+	let hintPoints: string[] | undefined;
+	let useStructured = false;
 
 	if (questionText) {
 		prompt += `Q: ${questionText}\n`;
@@ -301,13 +303,13 @@ function buildOptimizedUserPrompt(
 	if (questionHint) {
 		// OPTIMIZATION: Parse hint into structured points for reference-based responses
 		// Split by common delimiters (numbered lists, bullets, line breaks)
-		const hintPoints = questionHint
+		hintPoints = questionHint
 			.split(/\n+|(?:\d+[\.\)]\s*)|(?:\-\s*)|(?:\*\s*)/)
 			.map(p => p.trim())
 			.filter(p => p.length > 10); // Filter out very short fragments
 		
 		// Use full hint if structured parsing didn't work well
-		const useStructured = hintPoints.length >= 2 && hintPoints.length <= 10;
+		useStructured = hintPoints.length >= 2 && hintPoints.length <= 10;
 		
 		if (useStructured) {
 			// Provide structured hint with indices for reference
