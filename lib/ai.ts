@@ -9,19 +9,27 @@ import {
 	getFeedbackDepthInstructions,
 } from "./coaching-config";
 
-// Initialize OpenAI client with validation
+// Initialize OpenAI client lazily to avoid build-time errors
+let openaiClient: OpenAI | null = null;
+
 const getOpenAIClient = () => {
+	if (openaiClient) return openaiClient;
+	
 	const apiKey = process.env.OPENAI_API_KEY;
 	if (!apiKey) {
 		console.error("OPENAI_API_KEY is not set!");
 		throw new Error("OPENAI_API_KEY environment variable is required");
 	}
-	return new OpenAI({
-		apiKey,
-	});
+	openaiClient = new OpenAI({ apiKey });
+	return openaiClient;
 };
 
-const openai = getOpenAIClient();
+// Lazy getter - only initializes when actually used
+const openai = new Proxy({} as OpenAI, {
+	get(_, prop) {
+		return getOpenAIClient()[prop as keyof OpenAI];
+	},
+});
 
 const AnalysisResponseSchema = z.object({
 	starScore: z.number().int().min(0).max(5),

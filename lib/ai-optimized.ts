@@ -15,16 +15,26 @@ import {
 } from "./coaching-config";
 import { analysisCache } from "./ai-cache";
 
-// Initialize OpenAI client
+// Initialize OpenAI client lazily to avoid build-time errors
+let openaiClient: OpenAI | null = null;
+
 const getOpenAIClient = () => {
+	if (openaiClient) return openaiClient;
+	
 	const apiKey = process.env.OPENAI_API_KEY;
 	if (!apiKey) {
 		throw new Error("OPENAI_API_KEY environment variable is required");
 	}
-	return new OpenAI({ apiKey });
+	openaiClient = new OpenAI({ apiKey });
+	return openaiClient;
 };
 
-const openai = getOpenAIClient();
+// Lazy getter - only initializes when actually used
+const openai = new Proxy({} as OpenAI, {
+	get(_, prop) {
+		return getOpenAIClient()[prop as keyof OpenAI];
+	},
+});
 
 const EnhancedAnalysisResponseSchema = z.object({
 	questionAnswered: z.boolean(),
