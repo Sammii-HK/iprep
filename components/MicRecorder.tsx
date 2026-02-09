@@ -200,41 +200,34 @@ export function MicRecorder({
 		if (disabled) return;
 
 		try {
-			// Reuse existing stream if available and active
-			let stream = streamRef.current;
-
-			// Check if existing stream is still active
-			if (stream) {
-				const audioTracks = stream.getAudioTracks();
-				const isStreamActive =
-					audioTracks.length > 0 &&
-					audioTracks.some(
-						(track) => track.readyState === "live" && track.enabled
-					);
-
-				if (!isStreamActive) {
-					// Stream is dead, need to get a new one
-					stream = null;
-					streamRef.current = null;
+			// Always request a fresh stream for each recording.
+			// Reusing streams in PWAs can deliver silence after the app
+			// goes to background and returns — the track reports "live"
+			// but produces no audio data.
+			if (streamRef.current) {
+				streamRef.current.getTracks().forEach((track) => track.stop());
+				streamRef.current = null;
+			}
+			if (sourceRef.current) {
+				try {
+					sourceRef.current.disconnect();
+				} catch {
+					// Already disconnected
 				}
+				sourceRef.current = null;
 			}
 
-			// Only request new stream if we don't have an active one
-			if (!stream) {
-				// Request microphone with iOS-compatible constraints
-				const constraints: MediaStreamConstraints = {
-					audio: {
-						echoCancellation: true,
-						noiseSuppression: true,
-						autoGainControl: true,
-						// iOS-specific: don't request sampleRate (let iOS choose)
-						...(isIOS() ? {} : { sampleRate: 44100 }),
-					},
-				};
+			const constraints: MediaStreamConstraints = {
+				audio: {
+					echoCancellation: true,
+					noiseSuppression: true,
+					autoGainControl: true,
+					...(isIOS() ? {} : { sampleRate: 44100 }),
+				},
+			};
 
-				stream = await navigator.mediaDevices.getUserMedia(constraints);
-				streamRef.current = stream;
-			}
+			const stream = await navigator.mediaDevices.getUserMedia(constraints);
+			streamRef.current = stream;
 
 			// Check if stream has audio tracks
 			const audioTracks = stream.getAudioTracks();
@@ -298,18 +291,8 @@ export function MicRecorder({
 				analyserRef.current = analyser;
 			}
 
-			// Reconnect source if needed (in case it was disconnected or doesn't exist)
+			// Connect new source to analyser for audio level monitoring
 			if (audioContext && analyser) {
-				// Disconnect old source if it exists
-				if (sourceRef.current) {
-					try {
-						sourceRef.current.disconnect();
-					} catch {
-						// Source might already be disconnected, that's okay
-					}
-				}
-
-				// Create and connect new source
 				try {
 					const source = audioContext.createMediaStreamSource(stream);
 					source.connect(analyser);
