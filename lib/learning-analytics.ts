@@ -31,9 +31,29 @@ interface PerformanceByTag {
 	};
 }
 
+type SessionWithItems = {
+	id: string;
+	items: Array<{
+		questionAnswered: boolean | null;
+		whatWasWrong: string[];
+		betterWording: string[];
+		dontForget: string[];
+		technicalAccuracy: number | null;
+		terminologyUsage: number | null;
+		clarityScore: number | null;
+		impactScore: number | null;
+		starScore: number | null;
+		question: {
+			id: string;
+			tags: string[];
+		};
+	}>;
+};
+
 export async function analyzeSessionPerformance(
 	sessionId: string,
-	userId: string
+	userId: string,
+	preloadedSession?: SessionWithItems
 ): Promise<{
 	commonMistakes: CommonMistake[];
 	frequentlyForgottenPoints: FrequentlyForgottenPoint[];
@@ -44,20 +64,27 @@ export async function analyzeSessionPerformance(
 	performanceByTag: PerformanceByTag;
 	overallScore: number;
 }> {
-	// Get all session items with questions
-	const session = await prisma.session.findUnique({
-		where: { id: sessionId, userId },
-		include: {
-			items: {
-				include: {
-					question: true,
+	let session: SessionWithItems;
+
+	if (preloadedSession) {
+		session = preloadedSession;
+	} else {
+		// Fetch from DB only if not preloaded
+		const fetched = await prisma.session.findUnique({
+			where: { id: sessionId, userId },
+			include: {
+				items: {
+					include: {
+						question: true,
+					},
 				},
 			},
-		},
-	});
+		});
 
-	if (!session) {
-		throw new Error("Session not found");
+		if (!fetched) {
+			throw new Error("Session not found");
+		}
+		session = fetched;
 	}
 
 	const items = session.items;

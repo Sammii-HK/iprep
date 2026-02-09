@@ -26,6 +26,7 @@ export default function LearningPage() {
   const router = useRouter();
   const [insights, setInsights] = useState<UserInsights | null>(null);
   const [loading, setLoading] = useState(true);
+  const [premiumRequired, setPremiumRequired] = useState(false);
 
   useEffect(() => {
     async function fetchInsights() {
@@ -38,8 +39,7 @@ export default function LearningPage() {
           const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
           console.error('Error fetching insights:', errorData);
           if (response.status === 403) {
-            // Premium required - but don't redirect, just show message
-            console.log('Premium access required for learning insights');
+            setPremiumRequired(true);
           }
         }
       } catch (error) {
@@ -58,13 +58,39 @@ export default function LearningPage() {
     return <div className="text-gray-600">Loading insights...</div>;
   }
 
-  if (!insights) {
+  if (premiumRequired) {
     return (
-      <div className="bg-white dark:bg-slate-800 rounded-lg shadow p-6">
-        <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100 mb-4">
+      <div className="bg-white dark:bg-slate-800 rounded-lg shadow-md p-6 border border-slate-200 dark:border-slate-700">
+        <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100 mb-4">
           Learning Insights
         </h1>
-        <p className="text-gray-600 dark:text-gray-400">
+        <div className="p-4 bg-purple-50 dark:bg-purple-900/20 rounded-lg border border-purple-200 dark:border-purple-800">
+          <p className="text-purple-800 dark:text-purple-200 font-medium mb-2">
+            Premium Feature
+          </p>
+          <p className="text-slate-600 dark:text-slate-400 text-sm">
+            Learning Insights aggregates your performance across all sessions and quizzes to identify patterns, track progress, and highlight areas for improvement. This feature is coming soon for all users.
+          </p>
+        </div>
+        <div className="mt-4">
+          <button
+            onClick={() => router.push('/practice')}
+            className="px-4 py-2 bg-purple-200 dark:bg-purple-800 hover:bg-purple-300 dark:hover:bg-purple-700 text-purple-800 dark:text-purple-200 rounded-lg transition-colors font-medium"
+          >
+            Back to Practice
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  if (!insights) {
+    return (
+      <div className="bg-white dark:bg-slate-800 rounded-lg shadow-md p-6 border border-slate-200 dark:border-slate-700">
+        <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100 mb-4">
+          Learning Insights
+        </h1>
+        <p className="text-slate-600 dark:text-slate-400">
           Complete some practice sessions to see your learning insights.
         </p>
       </div>

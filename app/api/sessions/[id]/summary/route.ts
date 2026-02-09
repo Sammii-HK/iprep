@@ -44,7 +44,7 @@ export async function GET(
         // Auto-complete the session to generate summary
         try {
           const { analyzeSessionPerformance } = await import('@/lib/learning-analytics');
-          const analysis = await analyzeSessionPerformance(id, user.id);
+          const analysis = await analyzeSessionPerformance(id, user.id, sessionWithItems);
 
           await prisma.session.update({
             where: { id },

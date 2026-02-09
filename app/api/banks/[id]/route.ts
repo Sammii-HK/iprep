@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { z } from 'zod';
-import { handleApiError, NotFoundError } from '@/lib/errors';
+import { handleApiError, NotFoundError, ValidationError } from '@/lib/errors';
+import { requireAuth } from '@/lib/auth';
 
 const UpdateBankSchema = z.object({
   title: z.string().min(1, 'Title is required').max(200),
@@ -45,6 +46,7 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const user = await requireAuth(request);
     const { id } = await params;
     const body = await request.json();
     const validated = UpdateBankSchema.parse(body);
@@ -55,6 +57,11 @@ export async function PATCH(
 
     if (!bank) {
       throw new NotFoundError('QuestionBank', id);
+    }
+
+    // Verify user owns the bank (unless admin)
+    if (bank.userId && bank.userId !== user.id && user.role !== 'ADMIN') {
+      throw new ValidationError('You do not have access to this question bank');
     }
 
     const updatedBank = await prisma.questionBank.update({
@@ -86,6 +93,7 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const user = await requireAuth(request);
     const { id } = await params;
 
     const bank = await prisma.questionBank.findUnique({
@@ -103,6 +111,11 @@ export async function DELETE(
 
     if (!bank) {
       throw new NotFoundError('QuestionBank', id);
+    }
+
+    // Verify user owns the bank (unless admin)
+    if (bank.userId && bank.userId !== user.id && user.role !== 'ADMIN') {
+      throw new ValidationError('You do not have access to this question bank');
     }
 
     // Delete the bank (cascade will handle related questions, quizzes, sessions)

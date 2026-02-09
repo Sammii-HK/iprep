@@ -163,7 +163,29 @@ export async function POST(request: NextRequest) {
           intonationScore) /
         7;
 
-      feedback = analysis.tips.join(' | ');
+      feedback = JSON.stringify({
+        tips: analysis.tips,
+        scores: {
+          star: analysis.starScore,
+          impact: analysis.impactScore,
+          clarity: analysis.clarityScore,
+          technicalAccuracy: analysis.technicalAccuracy,
+          terminologyUsage: analysis.terminologyUsage,
+          confidence: confidenceScore,
+          intonation: intonationScore,
+        },
+        questionAnswered: analysis.questionAnswered,
+        answerQuality: analysis.answerQuality,
+        whatWasRight: analysis.whatWasRight,
+        betterWording: analysis.betterWording,
+        metrics: {
+          words: wordCount,
+          wpm: wordTimestamps ? Math.round((wordCount / wordTimestamps[wordTimestamps.length - 1].end) * 60) : 0,
+          fillerCount,
+          fillerRate: calculateFillerRate(fillerCount, wordCount),
+          longPauses,
+        },
+      });
     } else {
       // Written quiz - analyze text answer
       if (!answerText || answerText.trim().length === 0) {
@@ -201,7 +223,25 @@ export async function POST(request: NextRequest) {
             analysis.technicalAccuracy +
             analysis.terminologyUsage) /
           5;
-        feedback = analysis.tips.join(' | ');
+        feedback = JSON.stringify({
+          tips: analysis.tips,
+          scores: {
+            star: analysis.starScore,
+            impact: analysis.impactScore,
+            clarity: analysis.clarityScore,
+            technicalAccuracy: analysis.technicalAccuracy,
+            terminologyUsage: analysis.terminologyUsage,
+          },
+          questionAnswered: analysis.questionAnswered,
+          answerQuality: analysis.answerQuality,
+          whatWasRight: analysis.whatWasRight,
+          betterWording: analysis.betterWording,
+          metrics: {
+            words: wordCount,
+            fillerCount: countFillers(answerText),
+            fillerRate: calculateFillerRate(countFillers(answerText), wordCount),
+          },
+        });
       } catch {
         // If analysis fails, still save the attempt
         score = null;
@@ -227,6 +267,17 @@ export async function POST(request: NextRequest) {
       },
     });
 
+    // Parse structured feedback for the response
+    let parsedFeedback = null;
+    if (attempt.feedback) {
+      try {
+        parsedFeedback = JSON.parse(attempt.feedback);
+      } catch {
+        // Legacy format: tips joined by ' | '
+        parsedFeedback = { tips: attempt.feedback.split(' | ') };
+      }
+    }
+
     return NextResponse.json({
       id: attempt.id,
       answer: attempt.answer,
@@ -234,6 +285,7 @@ export async function POST(request: NextRequest) {
       transcript: attempt.transcript,
       score: attempt.score,
       feedback: attempt.feedback,
+      detailedFeedback: parsedFeedback,
       completedAt: attempt.completedAt,
     });
   } catch (error) {

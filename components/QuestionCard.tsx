@@ -8,6 +8,7 @@ interface Question {
   hint?: string | null;
   tags: string[];
   difficulty: number;
+  type?: string;
 }
 
 interface QuestionCardProps {
@@ -175,6 +176,11 @@ export function QuestionCard({
           >
             Difficulty: {question.difficulty}/5
           </span>
+          {question.type && question.type !== 'BEHAVIORAL' && (
+            <span className="px-2 py-1 bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-200 rounded text-xs font-semibold">
+              {question.type.charAt(0) + question.type.slice(1).toLowerCase()}
+            </span>
+          )}
           {question.tags.map((tag) => (
             <span
               key={tag}

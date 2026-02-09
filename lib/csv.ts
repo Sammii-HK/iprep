@@ -22,11 +22,48 @@ const QuestionRowSchemaFrontBack = z.object({
   back: z.string().optional().default(''), // Optional - can be empty
 });
 
+export type QuestionType = 'BEHAVIORAL' | 'TECHNICAL' | 'DEFINITION' | 'SCENARIO' | 'PITCH';
+
 export interface ParsedQuestion {
   text: string;
   hint?: string; // Optional hint/answer from back field
   tags: string[];
   difficulty: number;
+  type?: QuestionType; // Auto-detected or from CSV
+}
+
+/**
+ * Auto-detect question type from question text patterns.
+ */
+export function detectQuestionType(text: string): QuestionType {
+  const lower = text.toLowerCase().trim();
+
+  // Behavioral patterns
+  if (/^(?:tell me about a time|describe a (?:time|situation|scenario)|give (?:me )?an example|share an experience|walk me through a time|have you ever|can you recall)/i.test(lower)) {
+    return 'BEHAVIORAL';
+  }
+
+  // Definition patterns
+  if (/^(?:what (?:is|are|does)|explain |define |describe (?:the |what )|how does .+ work|what do you (?:mean|understand) by)/i.test(lower)) {
+    return 'DEFINITION';
+  }
+
+  // Technical / system design patterns
+  if (/^(?:design (?:a|an)|how would you (?:architect|design|build|implement|scale)|create (?:a|an) (?:system|architecture|service))/i.test(lower)) {
+    return 'TECHNICAL';
+  }
+
+  // Scenario patterns
+  if (/^(?:what would you do (?:if|when)|imagine |suppose |if you (?:were|had|could)|how would you (?:handle|approach|deal|respond|manage))/i.test(lower)) {
+    return 'SCENARIO';
+  }
+
+  // Pitch patterns
+  if (/^(?:pitch |present |sell |convince |why should (?:we|i|they)|what makes .+ (?:unique|special|different)|elevator pitch)/i.test(lower)) {
+    return 'PITCH';
+  }
+
+  return 'BEHAVIORAL'; // Default
 }
 
 export function parseCSV(csvContent: string): ParsedQuestion[] {
@@ -102,6 +139,7 @@ export function parseCSV(csvContent: string): ParsedQuestion[] {
           hint,
           tags: [], // No tags from front,back format
           difficulty: 3, // Default difficulty
+          type: detectQuestionType(validated.front),
         });
       } else {
         // Handle text,tags,difficulty format
@@ -133,6 +171,7 @@ export function parseCSV(csvContent: string): ParsedQuestion[] {
           text: validated.text,
           tags,
           difficulty: validated.difficulty,
+          type: detectQuestionType(validated.text),
         });
       }
     } catch (error) {

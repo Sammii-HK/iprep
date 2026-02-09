@@ -47,6 +47,14 @@ model QuestionBank {
   sessions  Session[]
 }
 
+enum QuestionType {
+  BEHAVIORAL
+  TECHNICAL
+  DEFINITION
+  SCENARIO
+  PITCH
+}
+
 model Question {
   id         String       @id @default(cuid())
   bankId     String
@@ -54,9 +62,12 @@ model Question {
   hint       String?      // Optional answer/hint text from CSV back field
   tags       String[]     // e.g. ["leadership","system-design"]
   difficulty Int          // 1..5
+  type       QuestionType @default(BEHAVIORAL) // Auto-detected or user-specified
   bank       QuestionBank @relation(fields: [bankId], references: [id])
   items      SessionItem[]
   quizAttempts QuizAttempt[]
+
+  @@index([bankId])
 }
 
 model Session {
@@ -72,6 +83,8 @@ model Session {
   bank        QuestionBank?     @relation(fields: [bankId], references: [id])
   items       SessionItem[]
   summary     LearningSummary?
+
+  @@index([userId, createdAt])
 }
 
 model SessionItem {
@@ -85,15 +98,15 @@ model SessionItem {
   fillerCount       Int?
   fillerRate        Float?   // per 100 words
   longPauses        Int?     // >800ms
-  confidenceScore   Int?     // 0..5 (vocal confidence)
-  intonationScore   Int?     // 0..5 (pitch variation, expressiveness)
-  starScore         Int?     // 0..5
-  impactScore       Int?     // 0..5
-  clarityScore      Int?     // 0..5
-  technicalAccuracy Int?     // 0..5
-  terminologyUsage  Int?     // 0..5
+  confidenceScore   Float?   // 0..5 (vocal confidence, 0.5 steps)
+  intonationScore   Float?   // 0..5 (pitch variation, expressiveness, 0.5 steps)
+  starScore         Float?   // 0..5 (0.5 steps)
+  impactScore       Float?   // 0..5 (0.5 steps)
+  clarityScore      Float?   // 0..5 (0.5 steps)
+  technicalAccuracy Float?   // 0..5 (0.5 steps)
+  terminologyUsage  Float?   // 0..5 (0.5 steps)
   questionAnswered  Boolean? // Did the answer address the question?
-  answerQuality     Int?     // 0..5 overall answer quality
+  answerQuality     Float?   // 0..5 overall answer quality (0.5 steps)
   whatWasRight      String[] // Array of what was right
   whatWasWrong      String[] // Array of what needs improvement
   betterWording     String[] // Array of better wording suggestions (with definitions, examples, clarity)
@@ -102,6 +115,8 @@ model SessionItem {
   createdAt         DateTime @default(now())
   session           Session  @relation(fields: [sessionId], references: [id])
   question          Question @relation(fields: [questionId], references: [id])
+
+  @@index([sessionId])
 }
 
 model Quiz {
@@ -137,6 +152,8 @@ model QuizAttempt {
   completedAt DateTime?
   quiz        Quiz     @relation(fields: [quizId], references: [id])
   question    Question @relation(fields: [questionId], references: [id])
+
+  @@index([quizId])
 }
 
 model LearningSummary {
@@ -154,6 +171,8 @@ model LearningSummary {
   createdAt       DateTime @default(now())
   user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   session         Session  @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
 }
 
 model UserLearningInsight {
