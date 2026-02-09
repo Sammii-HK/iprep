@@ -17,7 +17,7 @@ export default function Home() {
 					</p>
 					<div className="flex flex-col sm:flex-row gap-4 justify-center items-center pt-4">
 						<Link
-							href="/banks"
+							href="/dashboard"
 							className="px-8 py-4 bg-purple-200 dark:bg-purple-800 hover:bg-purple-300 dark:hover:bg-purple-700 text-purple-800 dark:text-purple-200 rounded-xl transition-all font-semibold text-lg shadow-lg hover:shadow-xl transform hover:-translate-y-0.5"
 						>
 							Get Started
