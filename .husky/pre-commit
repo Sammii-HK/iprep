@@ -1,2 +1,4 @@
+export PATH="/opt/homebrew/bin:$PATH"
+
 # Run lint-staged on staged files
 npx lint-staged
