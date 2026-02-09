@@ -251,7 +251,7 @@ export function MicRecorder({
 			// The muted property is system-level and can be true briefly when a
 			// track is first created. Wait for it to unmute before proceeding.
 			if (audioTrack.muted) {
-				await new Promise<void>((resolve, reject) => {
+				await new Promise<void>((resolve) => {
 					const timeout = setTimeout(() => {
 						audioTrack.removeEventListener("unmute", onUnmute);
 						// Proceed anyway — many browsers/devices record fine
