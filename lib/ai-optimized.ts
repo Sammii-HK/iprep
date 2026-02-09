@@ -15,6 +15,25 @@ import {
 } from "./coaching-config";
 import { analysisCache } from "./ai-cache";
 
+/**
+ * Sanitize user-provided text before including in AI prompts.
+ * Strips potential prompt injection patterns from question text and hints.
+ */
+function sanitizeForPrompt(text: string): string {
+	return text
+		// Remove common prompt injection patterns
+		.replace(/\b(ignore|disregard|forget)\s+(all\s+)?(previous|above|prior)\s+(instructions?|prompts?|rules?|context)/gi, '[removed]')
+		.replace(/\b(you\s+are\s+now|act\s+as|pretend\s+to\s+be|new\s+instructions?|system\s*:)/gi, '[removed]')
+		.replace(/\b(do\s+not\s+follow|override|bypass)\s+(the\s+)?(system|instructions?|rules?|constraints?)/gi, '[removed]')
+		// Remove attempts to inject JSON structure
+		.replace(/```(?:json|system|assistant)[\s\S]*?```/gi, '[removed]')
+		// Remove role-play injection attempts
+		.replace(/\[\s*(?:system|assistant|user)\s*\]/gi, '[removed]')
+		// Trim excessive whitespace
+		.replace(/\s{3,}/g, ' ')
+		.trim();
+}
+
 // Initialize OpenAI client lazily to avoid build-time errors
 let openaiClient: OpenAI | null = null;
 
@@ -36,18 +55,25 @@ const openai = new Proxy({} as OpenAI, {
 	},
 });
 
+// Helper to round to nearest 0.5
+function roundToHalf(n: number): number {
+	return Math.round(n * 2) / 2;
+}
+
+const ScoreSchema = z.number().min(0).max(5).transform(roundToHalf);
+
 const EnhancedAnalysisResponseSchema = z.object({
 	questionAnswered: z.boolean(),
-	answerQuality: z.number().int().min(0).max(5),
+	answerQuality: ScoreSchema,
 	whatWasRight: z.array(z.string()).min(2).max(4),
 	betterWording: z.array(z.string()).min(0).max(3), // Concise wording improvements (grammar fixes use "You said" format) - allow 0-3 items
 	dontForget: z.array(z.string()).min(0).max(4), // OPTIMIZED: If hint provided, return exact phrases from hint that were missing. Otherwise, specific missing points.
 	dontForgetIndices: z.array(z.number()).min(0).max(4).optional(), // OPTIMIZED: Indices of missing key points in hint (0-based, if hint was split by bullets/numbers)
-	starScore: z.number().int().min(0).max(5),
-	impactScore: z.number().int().min(0).max(5),
-	clarityScore: z.number().int().min(0).max(5),
-	technicalAccuracy: z.number().int().min(0).max(5),
-	terminologyUsage: z.number().int().min(0).max(5),
+	starScore: ScoreSchema,
+	impactScore: ScoreSchema,
+	clarityScore: ScoreSchema,
+	technicalAccuracy: ScoreSchema,
+	terminologyUsage: ScoreSchema,
 	tips: z.array(z.string()).length(5),
 });
 
@@ -77,16 +103,16 @@ function buildOptimizedSystemPrompt(
 Return JSON only:
 {
   "questionAnswered": boolean,
-  "answerQuality": 0-5,
+  "answerQuality": 0-5 (use 0.5 steps),
   "whatWasRight": ["item1", "item2", "item3"],
   "betterWording": ["suggestion1", "suggestion2"],
   "dontForget": ["point1"] or [],
   "dontForgetIndices": [0, 2] or [] (optional, only if hint is numbered),
-  "starScore": 0-5,
-  "impactScore": 0-5,
-  "clarityScore": 0-5,
-  "technicalAccuracy": 0-5,
-  "terminologyUsage": 0-5,
+  "starScore": 0-5 (use 0.5 steps, e.g. 3.5),
+  "impactScore": 0-5 (use 0.5 steps),
+  "clarityScore": 0-5 (use 0.5 steps),
+  "technicalAccuracy": 0-5 (use 0.5 steps),
+  "terminologyUsage": 0-5 (use 0.5 steps),
   "tips": ["tip1", "tip2", "tip3", "tip4", "tip5"]
 }
 
@@ -102,12 +128,17 @@ Formatting:
   4. Reference specific parts of their answer when possible
   5. Be actionable (what to do, not just what's wrong)
 
-Scoring (0-5):
+Scoring (0-5, use 0.5 increments like 2.5, 3.5, 4.5 for nuance):
 - answerQuality: 5=complete, 4=good, 3=partial, 2=tangential, 1=barely, 0=none
 - technicalAccuracy: 5=deep, 4=good, 3=basic, 2=superficial, 1=errors, 0=wrong
 - terminologyUsage: 5=precise, 4=good, 3=mixed, 2=generic, 1=few, 0=none
 - clarityScore: 5=excellent, 4=good, 3=adequate, 2=unclear, 1=confusing, 0=incoherent
 - starScore/impactScore: Use for behavioral/STAR questions only. Set to 3 for pure technical questions.
+
+Scoring examples (calibrate your scoring to these):
+- Strong (4-5): "At my previous role, I led a team of 8 engineers to migrate our monolith to microservices. I identified the 3 highest-risk services, created a phased migration plan, and we completed it in 4 months, reducing deploy time by 70%." → answerQuality:4.5, starScore:5, impactScore:4.5, clarity:4.5
+- Mediocre (2-3): "Yeah so I worked on microservices before. We basically like broke things up into smaller pieces. It went pretty well I think, the team was happy with it." → answerQuality:2.5, starScore:2, impactScore:2, clarity:2.5
+- Weak (0-1): "Um I'm not really sure, I haven't done that exactly." → answerQuality:0.5, starScore:0.5, impactScore:0.5, clarity:1
 
 Context: ${coachingPrefs.priorities
 		.slice(0, 3)
@@ -267,6 +298,7 @@ function buildOptimizedUserPrompt(
 	questionText?: string,
 	questionHint?: string | null,
 	questionTags: string[] = [],
+	questionType?: string,
 	metrics?: {
 		wordCount: number;
 		fillerCount: number;
@@ -308,12 +340,14 @@ function buildOptimizedUserPrompt(
 	let useStructured = false;
 
 	if (questionText) {
-		prompt += `Q: ${questionText}\n`;
+		prompt += `Q: ${sanitizeForPrompt(questionText)}\n`;
 	}
 	if (questionHint) {
+		// Sanitize hint before including in prompt
+		const sanitizedHint = sanitizeForPrompt(questionHint);
 		// OPTIMIZATION: Parse hint into structured points for reference-based responses
 		// Split by common delimiters (numbered lists, bullets, line breaks)
-		hintPoints = questionHint
+		hintPoints = sanitizedHint
 			.split(/\n+|(?:\d+[\.\)]\s*)|(?:\-\s*)|(?:\*\s*)/)
 			.map(p => p.trim())
 			.filter(p => p.length > 10); // Filter out very short fragments
@@ -331,15 +365,25 @@ function buildOptimizedUserPrompt(
 		} else {
 			// Use full hint (may be paragraph format)
 			const hint =
-				questionHint.length > 500
-					? questionHint.substring(0, 500) + "..."
-					: questionHint;
+				sanitizedHint.length > 500
+					? sanitizedHint.substring(0, 500) + "..."
+					: sanitizedHint;
 			prompt += `Expected Answer/Key Points: ${hint}\n`;
 			prompt += `CRITICAL: For dontForget, you MUST return EXACT word-for-word phrases from the Expected Answer above. Copy them character-by-character, preserving punctuation, capitalization, and spacing. Do NOT paraphrase, summarize, or reword. If you cannot find an exact match in the Expected Answer, return empty array []. This ensures consistency with the source material.\n`;
 		}
 	}
 	if (questionTags.length > 0) {
 		prompt += `Tags: ${questionTags.slice(0, 3).join(", ")}\n`; // Reduced to 3 tags
+	}
+	if (questionType) {
+		const typeGuidance: Record<string, string> = {
+			BEHAVIORAL: 'Type: Behavioral. Score using full STAR (Situation, Task, Action, Result). Weight impact highly.',
+			DEFINITION: 'Type: Definition. STAR becomes structure/completeness score. Weight terminology highly.',
+			TECHNICAL: 'Type: Technical. Weight technical accuracy + terminology highest. STAR becomes approach structure.',
+			SCENARIO: 'Type: Scenario. Weight clarity + impact. Assess decision-making framework.',
+			PITCH: 'Type: Pitch. Weight confidence + impact + conciseness highest. Assess time-awareness.',
+		};
+		prompt += `${typeGuidance[questionType] || ''}\n`;
 	}
 
 	prompt += `\nAnswer: ${processedTranscript}\n`;
@@ -371,7 +415,8 @@ export async function analyzeTranscriptOptimized(
 		fillerRate: number;
 		wpm: number;
 		longPauses: number;
-	}
+	},
+	questionType?: string
 ): Promise<EnhancedAnalysisResponse> {
 	// Validate transcript
 	const trimmedTranscript = transcript.trim();
@@ -428,6 +473,7 @@ export async function analyzeTranscriptOptimized(
 		questionText,
 		questionHint,
 		questionTags,
+		questionType,
 		metrics
 	);
 

@@ -1,71 +1,181 @@
-// Filler word patterns (case-insensitive) - expanded list
-// Note: Some patterns use word boundaries, others match standalone to catch variations
-const FILLER_PATTERNS = [
+// Always-filler patterns (no context needed - these are always fillers)
+const ALWAYS_FILLER_PATTERNS = [
   /\buh\b/gi,
   /\bum\b/gi,
   /\buhm\b/gi,
   /\buhh\b/gi,
-  /\ber\b/gi, // British "er" - standalone
-  /\berm\b/gi, // British "erm" - standalone
-  /\ber\s/gi, // "er " (with space after)
-  /\berm\s/gi, // "erm " (with space after)
-  /\serm\b/gi, // " erm" (with space before)
-  /\ser\b/gi, // " er" (with space before)
-  /\berm[,\.!?;:]/gi, // "erm," "erm." etc (with punctuation)
-  /\ber[,\.!?;:]/gi, // "er," "er." etc (with punctuation)
-  /\blike\b/gi,
+  /\berm\b/gi,
   /\byou know\b/gi,
   /\bya know\b/gi,
-  /\by'know\b/gi, // Contraction
-  /\bsort of\b/gi,
-  /\bkind of\b/gi,
+  /\by'know\b/gi,
   /\bkinda\b/gi,
   /\bsorta\b/gi,
-  /\bactually\b/gi,
-  /\bbasically\b/gi,
-  /\bliterally\b/gi,
-  /\bso\b/gi, // "so" as filler (context-dependent, but common)
-  /\bwell\b/gi, // "well" as filler
   /\bI mean\b/gi,
   /\bI guess\b/gi,
-  /\bI think\b/gi, // When used as filler, not actual thinking
   /\byou see\b/gi,
-  /\bright\b/gi, // "right?" as filler
-  /\bokay\b/gi, // "okay" as filler
-  /\bok\b/gi, // "ok" as filler
 ];
 
+/**
+ * Context-aware filler word detection.
+ * Only counts words as fillers when used in filler contexts,
+ * not when they're part of legitimate speech.
+ */
 export function countFillers(transcript: string): number {
   if (!transcript || transcript.trim().length === 0) {
     return 0;
   }
-  
-  // Normalize transcript - lowercase and preserve structure for better matching
-  // Keep punctuation attached to words initially, then normalize
+
   const normalized = transcript
-    .toLowerCase()
-    .replace(/\s+/g, ' ') // Normalize multiple spaces to single space
+    .replace(/\s+/g, ' ')
     .trim();
-  
+  const lower = normalized.toLowerCase();
+
   let count = 0;
-  const foundMatches = new Set<string>(); // Track positions to avoid double-counting
-  
-  for (const pattern of FILLER_PATTERNS) {
-    // Reset regex lastIndex to avoid issues with global regex
+  const counted = new Set<number>(); // Track positions to avoid double-counting
+
+  // 1. Count always-filler patterns
+  for (const pattern of ALWAYS_FILLER_PATTERNS) {
     pattern.lastIndex = 0;
-    
-    // Use exec in a loop to get all matches with their positions
     let match;
-    while ((match = pattern.exec(normalized)) !== null) {
-      // Create a unique key for this match position to avoid double counting
-      const matchKey = `${match.index}-${match.index + match[0].length}`;
-      if (!foundMatches.has(matchKey)) {
-        foundMatches.add(matchKey);
+    while ((match = pattern.exec(lower)) !== null) {
+      if (!counted.has(match.index)) {
+        counted.add(match.index);
         count++;
       }
     }
   }
-  
+
+  // 2. "er" - only count standalone "er" not inside words like "better", "her", "never"
+  // Match "er" only when preceded by space/start and followed by space/punctuation/end
+  const erPattern = /(?:^|\s)(er)(?:\s|[,\.!?;:]|$)/gi;
+  erPattern.lastIndex = 0;
+  let match;
+  while ((match = erPattern.exec(lower)) !== null) {
+    const pos = match.index + match[0].indexOf('er');
+    if (!counted.has(pos)) {
+      counted.add(pos);
+      count++;
+    }
+  }
+
+  // 3. "like" - only as filler, not in comparisons or descriptions
+  // Filler: "I was like, um", "it's like, yeah", "like, I don't know"
+  // NOT filler: "like a database", "looks like", "I like it", "something like that"
+  const likePattern = /\blike\b/gi;
+  likePattern.lastIndex = 0;
+  while ((match = likePattern.exec(lower)) !== null) {
+    if (counted.has(match.index)) continue;
+    const before = lower.substring(Math.max(0, match.index - 15), match.index).trim();
+    const after = lower.substring(match.index + 4, Math.min(lower.length, match.index + 20)).trim();
+
+    // Skip if followed by a noun/adjective/article (comparison usage)
+    if (/^[\s,]*(?:a|an|the|this|that|it|how|when|what)\b/i.test(after)) continue;
+    // Skip if preceded by "looks", "feels", "sounds", "seems", "would", "I"
+    if (/\b(?:looks?|feels?|sounds?|seems?|would|i|we|they|you)\s*$/i.test(before)) continue;
+    // Count if followed by comma, pause marker, or another filler
+    if (/^[\s,]*(?:um|uh|you know|I mean|so|well|,)/i.test(after) ||
+        /[,]\s*$/i.test(before) ||
+        /^(?:\s|$)/.test(after) && /(?:was|is|it's|and|but)\s*$/i.test(before)) {
+      counted.add(match.index);
+      count++;
+    }
+  }
+
+  // 4. "so" - only as filler at sentence start or after a pause, not as conjunction
+  // Filler: "So, I was thinking...", "So basically..."
+  // NOT filler: "so that we could", "so much", "and so on", "did so"
+  const soPattern = /\bso\b/gi;
+  soPattern.lastIndex = 0;
+  while ((match = soPattern.exec(lower)) !== null) {
+    if (counted.has(match.index)) continue;
+    const before = lower.substring(Math.max(0, match.index - 3), match.index).trim();
+    const after = lower.substring(match.index + 2, Math.min(lower.length, match.index + 15)).trim();
+
+    // Only count at sentence start (after period/start) or after comma
+    const atSentenceStart = match.index === 0 || /[.!?]\s*$/.test(before) || before === '';
+    const afterComma = /^,?\s*$/.test(before) || before.endsWith(',');
+
+    // Skip if followed by "that", "much", "many", "far", "on", adjective patterns
+    if (/^(?:that|much|many|far|long|on|few|well|good|bad|great)\b/i.test(after)) continue;
+
+    if (atSentenceStart || afterComma) {
+      counted.add(match.index);
+      count++;
+    }
+  }
+
+  // 5. "well" - only as filler at sentence start, not "well-known", "as well", "well enough"
+  const wellPattern = /\bwell\b/gi;
+  wellPattern.lastIndex = 0;
+  while ((match = wellPattern.exec(lower)) !== null) {
+    if (counted.has(match.index)) continue;
+    const before = lower.substring(Math.max(0, match.index - 5), match.index).trim();
+    const after = lower.substring(match.index + 4, Math.min(lower.length, match.index + 15)).trim();
+
+    // Skip if part of compound: "well-", "as well", "well enough"
+    if (/^-/.test(after) || /\bas\s*$/.test(before) || /^(?:enough|done|known|being)\b/i.test(after)) continue;
+
+    // Only count at sentence start
+    const atSentenceStart = match.index === 0 || /[.!?]\s*$/.test(before) || before === '';
+    if (atSentenceStart) {
+      counted.add(match.index);
+      count++;
+    }
+  }
+
+  // 6. "right" - only as filler when sentence-final with question intonation
+  const rightPattern = /\bright\s*\?/gi;
+  rightPattern.lastIndex = 0;
+  while ((match = rightPattern.exec(lower)) !== null) {
+    if (!counted.has(match.index)) {
+      counted.add(match.index);
+      count++;
+    }
+  }
+
+  // 7. "I think" - only as filler when followed by hedging ("maybe", "probably", "perhaps")
+  const iThinkPattern = /\bI think\b/gi;
+  iThinkPattern.lastIndex = 0;
+  while ((match = iThinkPattern.exec(lower)) !== null) {
+    if (counted.has(match.index)) continue;
+    const after = lower.substring(match.index + 7, Math.min(lower.length, match.index + 25)).trim();
+    if (/^(?:maybe|probably|perhaps|I guess|like|sort of|kind of)\b/i.test(after)) {
+      counted.add(match.index);
+      count++;
+    }
+  }
+
+  // 8. "okay/ok" - only as filler at sentence start or as standalone
+  const okPattern = /\b(?:okay|ok)\b/gi;
+  okPattern.lastIndex = 0;
+  while ((match = okPattern.exec(lower)) !== null) {
+    if (counted.has(match.index)) continue;
+    const before = lower.substring(Math.max(0, match.index - 3), match.index).trim();
+    const atSentenceStart = match.index === 0 || /[.!?,]\s*$/.test(before) || before === '';
+    if (atSentenceStart) {
+      counted.add(match.index);
+      count++;
+    }
+  }
+
+  // 9. Non-context-dependent fillers (always count)
+  const otherFillers = [
+    /\bsort of\b/gi,
+    /\bkind of\b/gi,
+    /\bactually\b/gi,
+    /\bbasically\b/gi,
+    /\bliterally\b/gi,
+  ];
+  for (const pattern of otherFillers) {
+    pattern.lastIndex = 0;
+    while ((match = pattern.exec(lower)) !== null) {
+      if (!counted.has(match.index)) {
+        counted.add(match.index);
+        count++;
+      }
+    }
+  }
+
   return count;
 }
 
@@ -141,4 +251,66 @@ export function detectLongPausesFromTranscript(
 
 export function countWords(text: string): number {
   return text.trim().split(/\s+/).filter((word) => word.length > 0).length;
+}
+
+/**
+ * Calculate a conciseness score (0-5) based on answer length relative to question type,
+ * repetition rate, filler-to-content ratio, and whether the answer stayed on topic.
+ */
+export function calculateConcisenessScore(
+  wordCount: number,
+  fillerCount: number,
+  questionType?: string,
+  questionAnswered?: boolean,
+  hasExcessiveRepetition?: boolean
+): number {
+  // Ideal word ranges by question type
+  const idealRanges: Record<string, { min: number; max: number }> = {
+    DEFINITION: { min: 30, max: 80 },
+    BEHAVIORAL: { min: 150, max: 300 },
+    TECHNICAL: { min: 80, max: 250 },
+    SCENARIO: { min: 100, max: 250 },
+    PITCH: { min: 60, max: 150 },
+  };
+
+  const range = idealRanges[questionType || 'BEHAVIORAL'] || idealRanges.BEHAVIORAL;
+  let score = 5;
+
+  // 1. Length penalty: too short or too long
+  if (wordCount < range.min) {
+    // Too brief - scale penalty based on how far below minimum
+    const ratio = wordCount / range.min;
+    if (ratio < 0.3) score -= 3;
+    else if (ratio < 0.5) score -= 2;
+    else if (ratio < 0.75) score -= 1;
+    else score -= 0.5;
+  } else if (wordCount > range.max) {
+    // Rambling - scale penalty based on how far above maximum
+    const excessRatio = wordCount / range.max;
+    if (excessRatio > 3) score -= 3;
+    else if (excessRatio > 2) score -= 2;
+    else if (excessRatio > 1.5) score -= 1;
+    else score -= 0.5;
+  }
+
+  // 2. Filler-to-content ratio penalty
+  if (wordCount > 0) {
+    const fillerRate = (fillerCount / wordCount) * 100;
+    if (fillerRate > 8) score -= 1.5;
+    else if (fillerRate > 5) score -= 1;
+    else if (fillerRate > 3) score -= 0.5;
+  }
+
+  // 3. Excessive repetition penalty
+  if (hasExcessiveRepetition) {
+    score -= 1;
+  }
+
+  // 4. Off-topic penalty
+  if (questionAnswered === false) {
+    score -= 1;
+  }
+
+  // Round to nearest 0.5 and clamp
+  return Math.min(5, Math.max(0, Math.round(score * 2) / 2));
 }

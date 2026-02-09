@@ -40,11 +40,31 @@ const AnalysisResponseSchema = z.object({
 
 export type AnalysisResponse = z.infer<typeof AnalysisResponseSchema>;
 
+/**
+ * Extract key technical terms from text for Whisper vocabulary hints.
+ * Focuses on terms Whisper is likely to mishear.
+ */
+function extractTechnicalTerms(text: string): string[] {
+	const terms: string[] = [];
+	// Match capitalized words, acronyms, and technical patterns
+	const matches = text.match(/\b(?:[A-Z][a-z]+(?:[A-Z][a-z]+)*|[A-Z]{2,}(?:s|es)?|[a-z]+(?:SQL|API|DB|JS|TS|UI|UX|ML|AI|CI|CD)|(?:Next|React|Vue|Angular|Node|Docker|Kubernetes|PostgreSQL|MongoDB|Redis|GraphQL|TypeScript|JavaScript|Python|Terraform|AWS|Azure|GCP)\b)/g);
+	if (matches) {
+		terms.push(...matches);
+	}
+	// Match hyphenated technical terms
+	const hyphenated = text.match(/\b[a-zA-Z]+-[a-zA-Z]+(?:-[a-zA-Z]+)?\b/g);
+	if (hyphenated) {
+		terms.push(...hyphenated);
+	}
+	return [...new Set(terms)];
+}
+
 export async function transcribeAudio(
 	audioBlob: Blob,
 	context?: {
 		questionText?: string;
 		questionTags?: string[];
+		questionHint?: string | null;
 	},
 	options?: {
 		includeWordTimestamps?: boolean; // Default: false for faster transcription
@@ -70,28 +90,25 @@ export async function transcribeAudio(
 	let prompt =
 		"CRITICAL: Include ALL filler words exactly as spoken: um, uh, erm, er, like, you know, actually, basically, so, well, I mean, etc. Do NOT remove or clean them. ";
 
-	// Add technical context if available (but keep it short to stay under 200 chars)
+	// Build vocabulary from all available sources: tags, question text, and hint
+	const allTerms: string[] = [];
+
 	if (context?.questionTags && context.questionTags.length > 0) {
-		const tags = context.questionTags.slice(0, 5).join(", "); // Limit to 5 tags
-		prompt += `Technical terms: ${tags}. `;
+		allTerms.push(...context.questionTags.slice(0, 5));
 	}
 	if (context?.questionText) {
-		// Extract only the most important technical terms (limit to 3-4)
-		const words = context.questionText.split(/\s+/);
-		const technicalTerms = words
-			.filter((word) => {
-				const cleaned = word.replace(/[.,!?;:()]/g, "");
-				return (
-					cleaned.length > 3 &&
-					(/^[A-Z][a-z]+/.test(cleaned) || /^[A-Z]{2,}$/.test(cleaned))
-				);
-			})
-			.map((word) => word.replace(/[.,!?;:()]/g, ""))
-			.filter((word, index, arr) => arr.indexOf(word) === index)
-			.slice(0, 3) // Limit to top 3 terms to save space
-			.join(", ");
-		if (technicalTerms && prompt.length + technicalTerms.length < 180) {
-			prompt += `Vocab: ${technicalTerms}. `;
+		allTerms.push(...extractTechnicalTerms(context.questionText));
+	}
+	if (context?.questionHint) {
+		allTerms.push(...extractTechnicalTerms(context.questionHint));
+	}
+
+	// Deduplicate and prioritize (limit to fit in prompt)
+	const uniqueTerms = [...new Set(allTerms)].slice(0, 8);
+	if (uniqueTerms.length > 0) {
+		const termsStr = uniqueTerms.join(", ");
+		if (prompt.length + termsStr.length + 8 < 195) {
+			prompt += `Vocab: ${termsStr}. `;
 		}
 	}
 
