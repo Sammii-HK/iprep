@@ -258,7 +258,8 @@ export default function PracticeSessionPage() {
       }
 
       const formData = new FormData();
-      formData.append('audio', blob, 'recording.webm');
+      const ext = blob.type?.split('/')[1]?.split(';')[0] || 'webm';
+      formData.append('audio', blob, `recording.${ext}`);
       formData.append('sessionId', sessionId);
       formData.append('questionId', currentQuestion.id);
       if (preferences && Object.keys(preferences).length > 0) {

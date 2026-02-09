@@ -210,7 +210,7 @@ export async function POST(request: NextRequest) {
 		// Validate transcript is not empty
 		if (!transcript || transcript.trim().length === 0) {
 			throw new ValidationError(
-				"Transcript is empty. Please ensure audio contains speech."
+				`Transcript is empty. Audio size: ${audioBlob.size} bytes, type: ${audioFile.type}. Please ensure audio contains speech.`
 			);
 		}
 
