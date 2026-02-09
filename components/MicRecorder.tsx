@@ -242,10 +242,28 @@ export function MicRecorder({
 				throw new Error("No audio tracks found in stream");
 			}
 
-			// Check if track is actually enabled and not muted
+			// Ensure track is enabled
 			const audioTrack = audioTracks[0];
-			if (!audioTrack.enabled || audioTrack.muted) {
-				throw new Error("Audio track is disabled or muted");
+			if (!audioTrack.enabled) {
+				throw new Error("Audio track is disabled");
+			}
+
+			// The muted property is system-level and can be true briefly when a
+			// track is first created. Wait for it to unmute before proceeding.
+			if (audioTrack.muted) {
+				await new Promise<void>((resolve, reject) => {
+					const timeout = setTimeout(() => {
+						audioTrack.removeEventListener("unmute", onUnmute);
+						// Proceed anyway — many browsers/devices record fine
+						// even when muted flag lingers
+						resolve();
+					}, 1500);
+					const onUnmute = () => {
+						clearTimeout(timeout);
+						resolve();
+					};
+					audioTrack.addEventListener("unmute", onUnmute, { once: true });
+				});
 			}
 
 			// Audio track initialized
