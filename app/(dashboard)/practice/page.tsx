@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
+import { PRACTICE_PRESETS, type PracticePreset } from "@/lib/coaching-config";
 
 interface QuestionBank {
 	id: string;
@@ -31,6 +32,7 @@ export default function PracticePage() {
 	const [newSessionTitle, setNewSessionTitle] = useState("");
 	const [selectedBankId, setSelectedBankId] = useState<string>("");
 	const [maxQuestions, setMaxQuestions] = useState<number>(0); // 0 means "all"
+	const [selectedPreset, setSelectedPreset] = useState<PracticePreset>("interview");
 	const [deletingSessionId, setDeletingSessionId] = useState<string | null>(
 		null
 	);
@@ -167,6 +169,13 @@ export default function PracticePage() {
 					`session_${session.id}_maxQuestions`,
 					(maxQuestions || 0).toString()
 				);
+				// Store selected preset for the session
+				if (selectedPreset !== "custom") {
+					localStorage.setItem(
+						`session_${session.id}_preset`,
+						selectedPreset
+					);
+				}
 				router.push(`/practice/session/${session.id}`);
 			} else {
 				alert("Failed to create session");
@@ -374,6 +383,32 @@ export default function PracticePage() {
 								)}
 							</p>
 						</div>
+						<div>
+							<label className="block text-sm font-medium mb-2 text-slate-900 dark:text-slate-100">
+								Practice Mode
+							</label>
+							<div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+								{(Object.entries(PRACTICE_PRESETS) as [PracticePreset, typeof PRACTICE_PRESETS[PracticePreset]][]).map(([key, preset]) => (
+									<button
+										key={key}
+										type="button"
+										onClick={() => setSelectedPreset(key)}
+										className={`p-3 rounded-lg border-2 text-left transition-all ${
+											selectedPreset === key
+												? "border-purple-500 bg-purple-50 dark:bg-purple-900/20"
+												: "border-slate-200 dark:border-slate-600 hover:border-slate-300 dark:hover:border-slate-500"
+										}`}
+									>
+										<div className="text-sm font-semibold text-slate-900 dark:text-slate-100">
+											{preset.label}
+										</div>
+										<div className="text-xs text-slate-600 dark:text-slate-400 mt-1">
+											{preset.description}
+										</div>
+									</button>
+								))}
+							</div>
+						</div>
 						<div className="flex gap-2">
 							<button
 								onClick={createSession}
@@ -382,11 +417,73 @@ export default function PracticePage() {
 								Start Session
 							</button>
 							<button
+								onClick={async () => {
+									if (!newSessionTitle.trim() || !selectedBankId) {
+										alert("Please enter a title and select a bank");
+										return;
+									}
+									try {
+										const response = await fetch("/api/sessions", {
+											method: "POST",
+											headers: { "Content-Type": "application/json" },
+											body: JSON.stringify({
+												title: `Mock: ${newSessionTitle}`,
+												bankId: selectedBankId,
+												maxQuestions: maxQuestions > 0 ? maxQuestions : undefined,
+											}),
+										});
+										if (response.ok) {
+											const session = await response.json();
+											router.push(`/practice/mock/${session.id}`);
+										} else {
+											alert("Failed to create session");
+										}
+									} catch {
+										alert("Failed to create session");
+									}
+								}}
+								className="px-4 py-2 bg-amber-100 dark:bg-amber-900/30 hover:bg-amber-200 dark:hover:bg-amber-900/50 text-amber-800 dark:text-amber-200 rounded-lg transition-colors font-medium"
+							>
+								Mock Interview
+							</button>
+							<button
+								onClick={async () => {
+									if (!newSessionTitle.trim() || !selectedBankId) {
+										alert("Please enter a title and select a bank");
+										return;
+									}
+									try {
+										const response = await fetch("/api/sessions", {
+											method: "POST",
+											headers: { "Content-Type": "application/json" },
+											body: JSON.stringify({
+												title: `Pitch: ${newSessionTitle}`,
+												bankId: selectedBankId,
+												maxQuestions: maxQuestions > 0 ? maxQuestions : undefined,
+											}),
+										});
+										if (response.ok) {
+											const session = await response.json();
+											localStorage.setItem("practicePreset", "pitch");
+											router.push(`/practice/pitch/${session.id}`);
+										} else {
+											alert("Failed to create session");
+										}
+									} catch {
+										alert("Failed to create session");
+									}
+								}}
+								className="px-4 py-2 bg-emerald-100 dark:bg-emerald-900/30 hover:bg-emerald-200 dark:hover:bg-emerald-900/50 text-emerald-800 dark:text-emerald-200 rounded-lg transition-colors font-medium"
+							>
+								Pitch Practice
+							</button>
+							<button
 								onClick={() => {
 									setShowNewSession(false);
 									setNewSessionTitle("");
 									setSelectedBankId("");
 									setMaxQuestions(0);
+									setSelectedPreset("interview");
 								}}
 								className="px-4 py-2 bg-slate-200 dark:bg-slate-700 text-slate-900 dark:text-slate-100 rounded-lg hover:bg-slate-300 dark:hover:bg-slate-600 transition-colors"
 							>

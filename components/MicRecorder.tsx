@@ -7,6 +7,7 @@ interface MicRecorderProps {
 	onStart?: () => void;
 	onStop?: () => void;
 	disabled?: boolean; // Disable recording while processing
+	timeLimit?: number | null; // Optional time limit in seconds (null = no limit)
 }
 
 export function MicRecorder({
@@ -14,6 +15,7 @@ export function MicRecorder({
 	onStart,
 	onStop,
 	disabled = false,
+	timeLimit = null,
 }: MicRecorderProps) {
 	const [isRecording, setIsRecording] = useState(false);
 	const [duration, setDuration] = useState(0);
@@ -29,6 +31,14 @@ export function MicRecorder({
 	const intervalRef = useRef<NodeJS.Timeout | null>(null);
 	const levelCheckRef = useRef<number | null>(null);
 	const lowAudioStartTimeRef = useRef<number | null>(null);
+
+	// Auto-stop recording when time limit is reached
+	useEffect(() => {
+		if (timeLimit && isRecording && duration >= timeLimit) {
+			stopRecording();
+		}
+		// eslint-disable-next-line react-hooks/exhaustive-deps
+	}, [duration, timeLimit, isRecording]);
 
 	useEffect(() => {
 		return () => {
@@ -498,8 +508,33 @@ export function MicRecorder({
 			)}
 
 			{isRecording && (
-				<div className="text-lg font-mono text-slate-900 dark:text-slate-100">
-					{formatTime(duration)}
+				<div className="text-center">
+					<div className={`text-lg font-mono ${
+						timeLimit && duration >= timeLimit - 10
+							? "text-red-600 dark:text-red-400"
+							: "text-slate-900 dark:text-slate-100"
+					}`}>
+						{timeLimit
+							? `${formatTime(Math.max(0, timeLimit - duration))} remaining`
+							: formatTime(duration)
+						}
+					</div>
+					{timeLimit && (
+						<div className="w-full max-w-xs mx-auto mt-2">
+							<div className="w-full h-1.5 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden">
+								<div
+									className={`h-full transition-all ${
+										duration / timeLimit > 0.8
+											? "bg-red-500"
+											: duration / timeLimit > 0.6
+											? "bg-yellow-500"
+											: "bg-purple-500"
+									}`}
+									style={{ width: `${Math.min(100, (duration / timeLimit) * 100)}%` }}
+								/>
+							</div>
+						</div>
+					)}
 				</div>
 			)}
 			{isRecording && (

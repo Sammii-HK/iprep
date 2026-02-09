@@ -88,6 +88,54 @@ export function getFocusAreaContext(areas: FocusArea[]): string {
   return `Focus assessment on: ${contexts.join(', ')}.`;
 }
 
+export type PracticePreset = 'interview' | 'technical' | 'pitch' | 'meeting' | 'custom';
+
+export interface PracticePresetConfig {
+  label: string;
+  description: string;
+  preferences: Partial<CoachingPreferences>;
+}
+
+export const PRACTICE_PRESETS: Record<PracticePreset, PracticePresetConfig> = {
+  interview: {
+    label: 'Interview Prep',
+    description: 'STAR-focused scoring, behavioral question emphasis',
+    preferences: {
+      focusAreas: ['all'],
+      priorities: ['STAR structure', 'impact statements', 'specific examples', 'clear outcomes', 'metrics'],
+    },
+  },
+  technical: {
+    label: 'Technical Study',
+    description: 'Terminology + accuracy weighted higher, definition-style focus',
+    preferences: {
+      focusAreas: ['technical'],
+      priorities: ['technical accuracy', 'terminology usage', 'depth of knowledge', 'clear explanations', 'examples'],
+    },
+  },
+  pitch: {
+    label: 'Investor Pitch',
+    description: 'Impact + clarity + confidence weighted higher',
+    preferences: {
+      focusAreas: ['communication', 'leadership'],
+      priorities: ['confidence', 'impact statements', 'clarity', 'conciseness', 'persuasiveness'],
+    },
+  },
+  meeting: {
+    label: 'Meeting Prep',
+    description: 'Clarity + structure focus, conciseness scoring',
+    preferences: {
+      focusAreas: ['communication'],
+      priorities: ['clarity', 'structure', 'conciseness', 'actionable points', 'audience awareness'],
+    },
+  },
+  custom: {
+    label: 'Custom',
+    description: 'Default balanced settings',
+    preferences: {},
+  },
+};
+
 export function getFeedbackDepthInstructions(depth: FeedbackDepth): string {
   switch (depth) {
     case 'brief':
