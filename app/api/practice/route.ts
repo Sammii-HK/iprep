@@ -467,10 +467,11 @@ export async function POST(request: NextRequest) {
 					questionAnswered: analysis.questionAnswered,
 					answerQuality: analysis.answerQuality,
 					whatWasRight: analysis.whatWasRight,
+					whatWasWrong: [],
 					betterWording: analysis.betterWording,
 					dontForget: analysis.dontForget || [],
 					aiFeedback: analysis.tips.join(" | "),
-				} as Parameters<typeof prisma.sessionItem.create>[0]["data"],
+				},
 			});
 			sessionItemId = sessionItem.id;
 		} catch (error) {
