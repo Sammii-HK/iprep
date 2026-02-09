@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useRef } from 'react';
 import Link from 'next/link';
+import { QUESTION_BANK_TEMPLATES } from '@/lib/templates';
 
 interface QuestionBank {
   id: string;
@@ -34,6 +35,7 @@ export default function BanksPage() {
   const [editingBankId, setEditingBankId] = useState<string | null>(null);
   const [editingTitle, setEditingTitle] = useState('');
   const [deletingBankId, setDeletingBankId] = useState<string | null>(null);
+  const [importingTemplateId, setImportingTemplateId] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const dropZoneRef = useRef<HTMLDivElement>(null);
 
@@ -52,6 +54,31 @@ export default function BanksPage() {
       console.error('Error fetching banks:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleImportTemplate = async (templateId: string) => {
+    setImportingTemplateId(templateId);
+    try {
+      const response = await fetch('/api/banks/import-template', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ templateId }),
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        alert(`Imported "${data.title}" with ${data.questionCount} questions!`);
+        fetchBanks();
+      } else {
+        const error = await response.json();
+        alert(`Error: ${error.error}`);
+      }
+    } catch (error) {
+      console.error('Error importing template:', error);
+      alert('Failed to import template');
+    } finally {
+      setImportingTemplateId(null);
     }
   };
 
@@ -532,6 +559,41 @@ export default function BanksPage() {
           </form>
         </div>
       )}
+
+      {/* Starter Templates */}
+      <div className="mb-8">
+        <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100 mb-3">Starter Templates</h2>
+        <p className="text-sm text-slate-600 dark:text-slate-400 mb-4">
+          Get started quickly with pre-built question banks.
+        </p>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          {QUESTION_BANK_TEMPLATES.map((template) => (
+            <div
+              key={template.id}
+              className="bg-white dark:bg-slate-800 rounded-lg p-5 border border-slate-200 dark:border-slate-700"
+            >
+              <h3 className="font-semibold text-slate-900 dark:text-slate-100 mb-1">
+                {template.title}
+              </h3>
+              <p className="text-sm text-slate-600 dark:text-slate-400 mb-3">
+                {template.description}
+              </p>
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-slate-500 dark:text-slate-400">
+                  {template.questions.length} questions
+                </span>
+                <button
+                  onClick={() => handleImportTemplate(template.id)}
+                  disabled={importingTemplateId === template.id}
+                  className="px-3 py-1.5 bg-purple-200 dark:bg-purple-800 text-purple-800 dark:text-purple-200 rounded-lg text-sm font-medium hover:bg-purple-300 dark:hover:bg-purple-700 transition-colors disabled:opacity-50"
+                >
+                  {importingTemplateId === template.id ? 'Importing...' : 'Add to My Banks'}
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
 
       {loading ? (
         <div className="text-center py-12">Loading...</div>
