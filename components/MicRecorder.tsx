@@ -31,6 +31,7 @@ export function MicRecorder({
 	const intervalRef = useRef<NodeJS.Timeout | null>(null);
 	const levelCheckRef = useRef<number | null>(null);
 	const lowAudioStartTimeRef = useRef<number | null>(null);
+	const isRecordingRef = useRef(false);
 
 	// Auto-stop recording when time limit is reached
 	useEffect(() => {
@@ -74,7 +75,7 @@ export function MicRecorder({
 
 	// Check audio levels for visualization - use time domain data for accurate volume
 	const checkAudioLevel = () => {
-		if (!analyserRef.current || !isRecording || !streamRef.current) {
+		if (!analyserRef.current || !isRecordingRef.current || !streamRef.current) {
 			if (levelCheckRef.current) {
 				cancelAnimationFrame(levelCheckRef.current);
 				levelCheckRef.current = null;
@@ -367,6 +368,7 @@ export function MicRecorder({
 				);
 			}
 
+			isRecordingRef.current = true;
 			setIsRecording(true);
 			setDuration(0);
 			setShowLowAudioWarning(false);
@@ -412,6 +414,7 @@ export function MicRecorder({
 	const stopRecording = () => {
 		if (mediaRecorderRef.current && isRecording) {
 			mediaRecorderRef.current.stop();
+			isRecordingRef.current = false;
 			setIsRecording(false);
 			setAudioLevel(0);
 			setShowLowAudioWarning(false);
