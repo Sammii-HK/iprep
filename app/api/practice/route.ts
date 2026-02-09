@@ -13,12 +13,16 @@ import {
 	calculateFillerRate,
 	detectLongPauses,
 	detectLongPausesFromTranscript,
+	calculateConcisenessScore,
 } from "@/lib/scoring";
 import {
-	analyzeConfidenceFromTranscript,
-	analyzeIntonationFromTranscript,
 	analyzeRepeatedWords,
 } from "@/lib/audio-analysis";
+import {
+	analyzeConfidenceEnhanced,
+	analyzeIntonationEnhanced,
+	analyzeVoiceQuality,
+} from "@/lib/enhanced-audio-analysis";
 import {
 	handleApiError,
 	RateLimitError,
@@ -27,32 +31,9 @@ import {
 	ExternalServiceError,
 } from "@/lib/errors";
 import { validateAudioFile, validateId } from "@/lib/validation";
-import { getConfig } from "@/lib/config";
 import { CoachingPreferences } from "@/lib/coaching-config";
 import { requireAuth } from "@/lib/auth";
-
-// Simple in-memory rate limiting (upgrade to Redis in v2)
-const rateLimitMap = new Map<string, { count: number; resetTime: number }>();
-
-function checkRateLimit(ip: string): boolean {
-	const now = Date.now();
-	const record = rateLimitMap.get(ip);
-
-	if (!record || now > record.resetTime) {
-		rateLimitMap.set(ip, {
-			count: 1,
-			resetTime: now + getConfig().limits.rateLimitWindowMs,
-		});
-		return true;
-	}
-
-	if (record.count >= getConfig().limits.rateLimitRequests) {
-		return false;
-	}
-
-	record.count++;
-	return true;
-}
+import { checkRateLimit } from "@/lib/rate-limit";
 
 export async function POST(request: NextRequest) {
 	try {
@@ -61,7 +42,7 @@ export async function POST(request: NextRequest) {
 			request.headers.get("x-forwarded-for") ||
 			request.headers.get("x-real-ip") ||
 			"unknown";
-		if (!checkRateLimit(ip)) {
+		if (!(await checkRateLimit(ip))) {
 			throw new RateLimitError("Rate limit exceeded. Please try again later.");
 		}
 
@@ -167,17 +148,17 @@ export async function POST(request: NextRequest) {
 				});
 			}
 
-			// Optimize: Skip word timestamps for faster transcription (saves ~30-50% time)
-			// We can estimate pauses from transcript text instead
+			// Include word timestamps for accurate pause detection, WPM, and delivery metrics
 			const transcriptionResult = await Promise.race([
 				transcribeAudio(
 					audioBlob,
 					{
 						questionText: question.text,
 						questionTags: question.tags,
+						questionHint: question.hint,
 					},
 					{
-						includeWordTimestamps: false, // Skip timestamps for faster transcription
+						includeWordTimestamps: true,
 					}
 				),
 				new Promise<never>((_, reject) =>
@@ -258,78 +239,18 @@ export async function POST(request: NextRequest) {
 
 		const wpm = calculateWPM(wordCount, duration);
 
-		// Analyze confidence and intonation from transcript (also fast, synchronous)
-		const confidenceScore = analyzeConfidenceFromTranscript(
+		// Analyze confidence and intonation using enhanced versions with pause/timestamp analysis
+		const confidenceScore = analyzeConfidenceEnhanced(
 			transcript,
 			fillerCount,
 			wordCount,
-			longPauses
+			wordTimestamps
 		);
 
-		// OPTIMIZE: Check past attempts for the same question before calling AI
-		// If there are similar past attempts, reuse their suggestions to avoid repeating AI calls
+		// Always analyze each attempt fresh - users re-practice to improve
 		let analysis: EnhancedAnalysisResponse | undefined;
-		const pastAttempts = await prisma.sessionItem.findMany({
-			where: {
-				questionId: question.id,
-				sessionId: { not: sessionId }, // Exclude current session
-				session: {
-					userId: user.id, // Only user's own attempts
-				},
-				betterWording: { isEmpty: false }, // Has suggestions
-			},
-			orderBy: { createdAt: "desc" },
-			take: 3, // Get most recent 3 attempts
-		});
-
-		// If we have past attempts, check if current transcript is similar
-		// Simple similarity check: if transcript length and word count are similar (±30%)
-		const shouldReusePastAttempt =
-			pastAttempts.length > 0 &&
-			pastAttempts.some((attempt) => {
-				if (!attempt.transcript) return false;
-				const pastWordCount = countWords(attempt.transcript);
-				const similarity =
-					Math.abs(pastWordCount - wordCount) /
-					Math.max(pastWordCount, wordCount);
-				return similarity < 0.3; // Within 30% word count
-			});
-
-		if (shouldReusePastAttempt && pastAttempts[0]) {
-			// Reuse suggestions from most recent similar attempt
-			const pastAttempt = pastAttempts[0];
-			const pastDontForget = Array.isArray(
-				(pastAttempt as unknown as { dontForget?: string[] }).dontForget
-			)
-				? (pastAttempt as unknown as { dontForget: string[] }).dontForget
-				: [];
-			analysis = {
-				questionAnswered: wordCount > 20,
-				answerQuality: 3, // Default quality since we're reusing
-				whatWasRight:
-					pastAttempt.whatWasRight.length > 0
-						? pastAttempt.whatWasRight
-						: ["Your response was recorded"],
-				betterWording:
-					pastAttempt.betterWording.length > 0
-						? pastAttempt.betterWording
-						: ["Continue practicing"],
-				dontForget: pastDontForget.length > 0 ? pastDontForget : [],
-				starScore: 3,
-				impactScore: 3,
-				clarityScore: 3,
-				technicalAccuracy: 3,
-				terminologyUsage: 3,
-				tips: [
-					"Consider reviewing past attempts for this question",
-					"Focus on incorporating previous feedback",
-					"Practice speaking more clearly",
-					"Use the STAR method: Situation, Task, Action, Result",
-					"Include specific metrics and outcomes",
-				],
-			};
-		} else {
-			// OPTIMIZE: Start AI analysis immediately (this is the slowest operation)
+		{
+			// Start AI analysis (this is the slowest operation)
 			// We already have all the metrics it needs
 
 			// Validate transcript before analysis
@@ -399,7 +320,8 @@ export async function POST(request: NextRequest) {
 								fillerRate,
 								wpm,
 								longPauses,
-							}
+							},
+							(question as { type?: string }).type || undefined
 						),
 						new Promise<never>(
 							(_, reject) =>
@@ -479,14 +401,31 @@ export async function POST(request: NextRequest) {
 			throw new ValidationError("Analysis failed - no result available");
 		}
 
-		// Calculate intonation score if not already done (for when we reuse past attempts)
-		const intonationScore = analyzeIntonationFromTranscript(
+		// Calculate intonation score using enhanced version with word duration analysis
+		const intonationScore = analyzeIntonationEnhanced(
 			transcript,
+			wordCount,
+			wordTimestamps
+		);
+
+		// Analyze voice quality for pacing, emphasis, and engagement
+		const voiceQuality = analyzeVoiceQuality(
+			transcript,
+			wordTimestamps,
 			wordCount
 		);
 
 		// Analyze repeated words to identify overused vocabulary
 		const repeatedWordsAnalysis = analyzeRepeatedWords(transcript, wordCount);
+
+		// Calculate conciseness score
+		const concisenessScore = calculateConcisenessScore(
+			wordCount,
+			fillerCount,
+			(question as { type?: string }).type || undefined,
+			analysis.questionAnswered,
+			repeatedWordsAnalysis.hasExcessiveRepetition
+		);
 
 		// Save to database (await upload to complete first for audioUrl)
 		// We need the ID to return in the response
@@ -562,6 +501,10 @@ export async function POST(request: NextRequest) {
 				clarity: analysis.clarityScore,
 				technicalAccuracy: analysis.technicalAccuracy,
 				terminologyUsage: analysis.terminologyUsage,
+				conciseness: concisenessScore,
+				pacing: voiceQuality.pacingScore,
+				emphasis: voiceQuality.emphasisScore,
+				engagement: voiceQuality.engagementScore,
 			},
 			tips: analysis.tips,
 			questionAnswered: analysis.questionAnswered,

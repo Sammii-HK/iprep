@@ -1,5 +1,7 @@
 "use client";
 
+import { useState } from "react";
+
 interface ScorecardProps {
 	metrics: {
 		words: number | null;
@@ -16,6 +18,10 @@ interface ScorecardProps {
 		clarity: number | null;
 		technicalAccuracy?: number | null;
 		terminologyUsage?: number | null;
+		conciseness?: number | null;
+		pacing?: number | null;
+		emphasis?: number | null;
+		engagement?: number | null;
 	};
 	tips: string[];
 	audioUrl?: string | null;
@@ -27,13 +33,36 @@ interface ScorecardProps {
 	dontForget?: string[];
 	repeatedWords?: Array<{ word: string; count: number; percentage: number }>;
 	hasExcessiveRepetition?: boolean;
+	transcript?: string | null;
+	onReanalyze?: (correctedTranscript: string) => void; // Callback for re-analysis with corrected transcript
 	questionTags?: string[]; // To determine if question is technical
+	previousScores?: {
+		confidence: number | null;
+		intonation: number | null;
+		star: number | null;
+		impact: number | null;
+		clarity: number | null;
+		technicalAccuracy?: number | null;
+		terminologyUsage?: number | null;
+		conciseness?: number | null;
+		pacing?: number | null;
+		emphasis?: number | null;
+		engagement?: number | null;
+	} | null;
+	previousMetrics?: {
+		words: number | null;
+		wpm: number | null;
+		fillerCount: number | null;
+		fillerRate: number | null;
+		longPauses: number | null;
+	} | null;
 }
 
 // Move ScoreBar outside to avoid creating components during render
-function ScoreBar({ label, value }: { label: string; value: number | null }) {
+function ScoreBar({ label, value, previousValue }: { label: string; value: number | null; previousValue?: number | null }) {
 	const score = value ?? 0;
 	const percentage = (score / 5) * 100;
+	const delta = previousValue != null && value != null ? value - previousValue : null;
 
 	return (
 		<div className="mb-4">
@@ -42,7 +71,16 @@ function ScoreBar({ label, value }: { label: string; value: number | null }) {
 					{label}
 				</span>
 				<span className="text-sm text-slate-700 dark:text-slate-300">
-					{score}/5
+					{Number.isInteger(score) ? score : score.toFixed(1)}/5
+					{delta !== null && delta !== 0 && (
+						<span className={`ml-1.5 text-xs font-semibold ${
+							delta > 0
+								? "text-green-600 dark:text-green-400"
+								: "text-red-600 dark:text-red-400"
+						}`}>
+							{delta > 0 ? "+" : ""}{Number.isInteger(delta) ? delta : delta.toFixed(1)}
+						</span>
+					)}
 				</span>
 			</div>
 			<div className="w-full bg-slate-200 dark:bg-slate-700 rounded-full h-2">
@@ -91,16 +129,29 @@ export function Scorecard({
 	dontForget,
 	repeatedWords,
 	hasExcessiveRepetition,
+	transcript,
+	onReanalyze,
 	questionTags,
+	previousScores,
+	previousMetrics,
 }: ScorecardProps) {
 	const isTechnical = isTechnicalQuestion(questionTags);
+	const [isEditingTranscript, setIsEditingTranscript] = useState(false);
+	const [editedTranscript, setEditedTranscript] = useState(transcript || "");
+	const [reanalyzing, setReanalyzing] = useState(false);
 	// tips removed from display but kept in interface for future session recap feature
 
 	return (
 		<div className="bg-white dark:bg-slate-800 rounded-lg shadow-md p-6 border border-slate-200 dark:border-slate-700">
-			<h2 className="text-2xl font-bold mb-6 text-slate-900 dark:text-slate-100">
+			<h2 className="text-2xl font-bold mb-2 text-slate-900 dark:text-slate-100">
 				Scorecard
 			</h2>
+			{previousScores && (
+				<p className="text-xs text-slate-500 dark:text-slate-400 mb-4">
+					Compared to previous attempt. <span className="text-green-600 dark:text-green-400">+green</span> = improved, <span className="text-red-600 dark:text-red-400">-red</span> = declined.
+				</p>
+			)}
+			{!previousScores && <div className="mb-4" />}
 
 			{/* Consolidated Answer Quality */}
 			{(questionAnswered !== undefined ||
@@ -252,7 +303,7 @@ export function Scorecard({
 												: "bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-200"
 										}`}
 									>
-										<span className="font-semibold">"{item.word}"</span>
+										<span className="font-semibold">&ldquo;{item.word}&rdquo;</span>
 										<span className="ml-1 opacity-75">
 											({item.count}x, {item.percentage}%)
 										</span>
@@ -286,6 +337,15 @@ export function Scorecard({
 						<span className="text-slate-600 dark:text-slate-400">Fillers:</span>{" "}
 						<span className="font-semibold text-slate-900 dark:text-slate-100">
 							{metrics.fillerCount ?? "N/A"}
+							{previousMetrics?.fillerCount != null && metrics.fillerCount != null && metrics.fillerCount !== previousMetrics.fillerCount && (
+								<span className={`ml-1 text-xs font-semibold ${
+									metrics.fillerCount < previousMetrics.fillerCount
+										? "text-green-600 dark:text-green-400"
+										: "text-red-600 dark:text-red-400"
+								}`}>
+									{metrics.fillerCount < previousMetrics.fillerCount ? "" : "+"}{metrics.fillerCount - previousMetrics.fillerCount}
+								</span>
+							)}
 						</span>
 					</div>
 					<div>
@@ -316,11 +376,14 @@ export function Scorecard({
 				</h3>
 				{!isTechnical && (
 					<>
-						<ScoreBar label="STAR" value={scores.star} />
-						<ScoreBar label="Impact" value={scores.impact} />
+						<ScoreBar label="STAR" value={scores.star} previousValue={previousScores?.star} />
+						<ScoreBar label="Impact" value={scores.impact} previousValue={previousScores?.impact} />
 					</>
 				)}
-				<ScoreBar label="Clarity" value={scores.clarity} />
+				<ScoreBar label="Clarity" value={scores.clarity} previousValue={previousScores?.clarity} />
+				{scores.conciseness !== undefined && scores.conciseness !== null && (
+					<ScoreBar label="Conciseness" value={scores.conciseness} previousValue={previousScores?.conciseness} />
+				)}
 			</div>
 
 			{/* Technical Scores */}
@@ -333,10 +396,12 @@ export function Scorecard({
 					<ScoreBar
 						label="Technical Accuracy"
 						value={scores.technicalAccuracy ?? null}
+						previousValue={previousScores?.technicalAccuracy}
 					/>
 					<ScoreBar
 						label="Terminology Usage"
 						value={scores.terminologyUsage ?? null}
+						previousValue={previousScores?.terminologyUsage}
 					/>
 				</div>
 			)}
@@ -347,7 +412,7 @@ export function Scorecard({
 					Delivery
 				</h3>
 				<div className="mb-2">
-					<ScoreBar label="Confidence" value={scores.confidence} />
+					<ScoreBar label="Confidence" value={scores.confidence} previousValue={previousScores?.confidence} />
 					<p className="text-xs text-slate-600 dark:text-slate-400 mt-1">
 						Based on: sentence completion, filler usage (
 						{metrics.fillerRate?.toFixed(1) ?? 0}%), long pauses (
@@ -355,13 +420,82 @@ export function Scorecard({
 					</p>
 				</div>
 				<div className="mb-2">
-					<ScoreBar label="Intonation" value={scores.intonation} />
+					<ScoreBar label="Intonation" value={scores.intonation} previousValue={previousScores?.intonation} />
 					<p className="text-xs text-slate-600 dark:text-slate-400 mt-1">
 						Based on: sentence length variation, emphasis words, expressiveness
 						(exclamations/questions), and natural speech patterns
 					</p>
 				</div>
+				{scores.pacing !== undefined && scores.pacing !== null && (
+					<ScoreBar label="Pacing" value={scores.pacing} previousValue={previousScores?.pacing} />
+				)}
+				{scores.emphasis !== undefined && scores.emphasis !== null && (
+					<ScoreBar label="Emphasis" value={scores.emphasis} previousValue={previousScores?.emphasis} />
+				)}
+				{scores.engagement !== undefined && scores.engagement !== null && (
+					<ScoreBar label="Engagement" value={scores.engagement} previousValue={previousScores?.engagement} />
+				)}
 			</div>
+
+			{/* Transcript */}
+			{transcript && (
+				<div className="mb-6">
+					<div className="flex items-center justify-between mb-2">
+						<h3 className="text-lg font-semibold text-slate-900 dark:text-slate-100">
+							Transcript
+						</h3>
+						{onReanalyze && (
+							<button
+								onClick={() => {
+									if (isEditingTranscript) {
+										setIsEditingTranscript(false);
+										setEditedTranscript(transcript);
+									} else {
+										setEditedTranscript(transcript);
+										setIsEditingTranscript(true);
+									}
+								}}
+								className="text-xs px-2 py-1 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-300 rounded transition-colors"
+							>
+								{isEditingTranscript ? "Cancel" : "Edit"}
+							</button>
+						)}
+					</div>
+					{isEditingTranscript ? (
+						<div>
+							<textarea
+								value={editedTranscript}
+								onChange={(e) => setEditedTranscript(e.target.value)}
+								className="w-full p-3 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-sm text-slate-900 dark:text-slate-100 resize-y min-h-[100px]"
+								rows={4}
+							/>
+							<button
+								onClick={async () => {
+									if (editedTranscript.trim() === transcript.trim()) {
+										setIsEditingTranscript(false);
+										return;
+									}
+									setReanalyzing(true);
+									try {
+										await onReanalyze!(editedTranscript.trim());
+									} finally {
+										setReanalyzing(false);
+										setIsEditingTranscript(false);
+									}
+								}}
+								disabled={reanalyzing || editedTranscript.trim() === transcript.trim()}
+								className="mt-2 px-3 py-1.5 bg-purple-200 dark:bg-purple-800 hover:bg-purple-300 dark:hover:bg-purple-700 text-purple-800 dark:text-purple-200 rounded-lg text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+							>
+								{reanalyzing ? "Re-analyzing..." : "Re-analyze with corrections"}
+							</button>
+						</div>
+					) : (
+						<p className="text-sm text-slate-700 dark:text-slate-300 bg-slate-50 dark:bg-slate-700/50 p-3 rounded-lg leading-relaxed">
+							{transcript}
+						</p>
+					)}
+				</div>
+			)}
 
 			{/* Audio Playback */}
 			{audioUrl && (
