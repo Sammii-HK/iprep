@@ -1,0 +1,5 @@
+-- CreateEnum
+CREATE TYPE "QuestionType" AS ENUM ('BEHAVIORAL', 'TECHNICAL', 'DEFINITION', 'SCENARIO', 'PITCH');
+
+-- AlterTable
+ALTER TABLE "Question" ADD COLUMN "type" "QuestionType" NOT NULL DEFAULT 'BEHAVIORAL';
