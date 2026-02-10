@@ -446,31 +446,37 @@ export async function POST(request: NextRequest) {
 				// Continue without audioUrl - transcription and analysis are more important
 			}
 
+			// Sanitize numeric values — NaN/Infinity crashes Neon's binary protocol
+			const safeFloat = (v: unknown): number | null =>
+				typeof v === "number" && Number.isFinite(v) ? v : null;
+			const safeInt = (v: unknown): number | null =>
+				typeof v === "number" && Number.isFinite(v) ? Math.round(v) : null;
+
 			const sessionItem = await prisma.sessionItem.create({
 				data: {
 					sessionId,
 					questionId,
 					audioUrl: audioUrl || null,
 					transcript,
-					words: wordCount,
-					wpm,
-					fillerCount,
-					fillerRate,
-					longPauses,
-					confidenceScore,
-					intonationScore,
-					starScore: analysis.starScore,
-					impactScore: analysis.impactScore,
-					clarityScore: analysis.clarityScore,
-					technicalAccuracy: analysis.technicalAccuracy,
-					terminologyUsage: analysis.terminologyUsage,
-					questionAnswered: analysis.questionAnswered,
-					answerQuality: analysis.answerQuality,
-					whatWasRight: analysis.whatWasRight,
+					words: safeInt(wordCount),
+					wpm: safeInt(wpm),
+					fillerCount: safeInt(fillerCount),
+					fillerRate: safeFloat(fillerRate),
+					longPauses: safeInt(longPauses),
+					confidenceScore: safeFloat(confidenceScore),
+					intonationScore: safeFloat(intonationScore),
+					starScore: safeFloat(analysis.starScore),
+					impactScore: safeFloat(analysis.impactScore),
+					clarityScore: safeFloat(analysis.clarityScore),
+					technicalAccuracy: safeFloat(analysis.technicalAccuracy),
+					terminologyUsage: safeFloat(analysis.terminologyUsage),
+					questionAnswered: analysis.questionAnswered ?? null,
+					answerQuality: safeFloat(analysis.answerQuality),
+					whatWasRight: analysis.whatWasRight || [],
 					whatWasWrong: [],
-					betterWording: analysis.betterWording,
+					betterWording: analysis.betterWording || [],
 					dontForget: analysis.dontForget || [],
-					aiFeedback: analysis.tips.join(" | "),
+					aiFeedback: analysis.tips?.join(" | ") || "",
 				},
 			});
 			sessionItemId = sessionItem.id;
