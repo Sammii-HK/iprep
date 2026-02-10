@@ -223,7 +223,6 @@ export function MicRecorder({
 					echoCancellation: true,
 					noiseSuppression: true,
 					autoGainControl: true,
-					...(isIOS() ? {} : { sampleRate: 44100 }),
 				},
 			};
 
@@ -269,27 +268,26 @@ export function MicRecorder({
 			let analyser = analyserRef.current;
 
 			if (!audioContext || audioContext.state === "closed") {
-				// TypeScript doesn't have webkitAudioContext in types, but it exists in Safari
 				// eslint-disable-next-line @typescript-eslint/no-explicit-any
 				const webkitAudioContext = (window as any).webkitAudioContext;
 				const AudioContextClass = window.AudioContext || webkitAudioContext;
 				audioContext = new AudioContextClass();
 
-				// iOS requires AudioContext to be resumed on user interaction
-				if (audioContext.state === "suspended") {
-					try {
-						await audioContext.resume();
-					} catch {
-						// Continue anyway - some browsers handle this differently
-					}
-				}
-
 				analyser = audioContext.createAnalyser();
-				analyser.fftSize = 2048; // Increased for better accuracy
+				analyser.fftSize = 2048;
 				analyser.smoothingTimeConstant = 0.8;
 
 				audioContextRef.current = audioContext;
 				analyserRef.current = analyser;
+			}
+
+			// Always resume AudioContext if suspended (Chrome suspends until user gesture)
+			if (audioContext.state === "suspended") {
+				try {
+					await audioContext.resume();
+				} catch {
+					// Continue anyway
+				}
 			}
 
 			// Connect new source to analyser for audio level monitoring
