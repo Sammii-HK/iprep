@@ -273,13 +273,13 @@ export default function PracticeSessionPage() {
 
       if (response.ok) {
         const result = await response.json();
-        
+
         // Answer is already shown from onStop callback, but ensure it stays visible
         // The transcript confirms the recording was processed
         if (result.transcript) {
           setShowAnswer(true);
         }
-        
+
         // Capture previous attempt for comparison (latest attempt for this question before the new one)
         const previousAttempts = sessionItems
           .filter(item => item.questionId === currentQuestion.id)
@@ -287,49 +287,51 @@ export default function PracticeSessionPage() {
         setPreviousScorecard(previousAttempts.length > 0 ? previousAttempts[0] : null);
 
         // Set scorecard with full analysis - this will update dontForget and bold highlighting
-        setScorecard({
+        const newItem: SessionItem = {
           id: result.id,
           questionId: currentQuestion.id,
-          audioUrl: result.audioUrl,
-          transcript: result.transcript,
-          metrics: result.metrics,
-          scores: result.scores,
-          tips: result.tips,
-          questionAnswered: result.questionAnswered,
-          answerQuality: result.answerQuality,
-          whatWasRight: result.whatWasRight,
-          whatWasWrong: result.whatWasWrong,
-          betterWording: result.betterWording,
-          dontForget: result.dontForget,
+          audioUrl: result.audioUrl ?? null,
+          transcript: result.transcript ?? null,
+          metrics: result.metrics ?? { words: null, wpm: null, fillerCount: null, fillerRate: null, longPauses: null },
+          scores: result.scores ?? { confidence: null, intonation: null, star: null, impact: null, clarity: null },
+          tips: result.tips ?? [],
+          questionAnswered: result.questionAnswered ?? null,
+          answerQuality: result.answerQuality ?? null,
+          whatWasRight: result.whatWasRight ?? [],
+          whatWasWrong: result.whatWasWrong ?? [],
+          betterWording: result.betterWording ?? [],
+          dontForget: result.dontForget ?? [],
           repeatedWords: result.repeatedWords,
           hasExcessiveRepetition: result.hasExcessiveRepetition,
-        });
-        
+        };
+        setScorecard(newItem);
+
         // Add the new session item to the local state without re-fetching questions
         // This prevents question reordering during the session
-        setSessionItems(prev => [
-          {
-            id: result.id,
-            questionId: currentQuestion.id,
-            audioUrl: result.audioUrl,
-            transcript: result.transcript,
-            metrics: result.metrics,
-            scores: result.scores,
-            tips: result.tips,
-            questionAnswered: result.questionAnswered,
-            answerQuality: result.answerQuality,
-            whatWasRight: result.whatWasRight,
-            whatWasWrong: result.whatWasWrong,
-            betterWording: result.betterWording,
-            dontForget: result.dontForget,
-            repeatedWords: result.repeatedWords,
-            hasExcessiveRepetition: result.hasExcessiveRepetition,
-          },
-          ...prev,
-        ]);
+        setSessionItems(prev => [newItem, ...prev]);
       } else {
-        const error = await response.json();
-        alert(`Error: ${error.error}`);
+        // Safely parse error response (may be HTML from Vercel on 502)
+        let errorMessage = 'Something went wrong processing your answer. Please try again.';
+        try {
+          const errorData = await response.json();
+          if (errorData?.error) {
+            // Sanitize technical error messages for the user
+            const raw = errorData.error;
+            if (raw.includes('External service error') || raw.includes('prisma')) {
+              errorMessage = 'A temporary server error occurred. Your recording was not saved. Please try again.';
+            } else if (raw.includes('Rate limit')) {
+              errorMessage = 'Too many requests. Please wait a moment and try again.';
+            } else if (raw.includes('Transcript is empty')) {
+              errorMessage = 'No speech was detected in the recording. Please speak clearly and try again.';
+            } else {
+              errorMessage = raw;
+            }
+          }
+        } catch {
+          // Response wasn't JSON (e.g. Vercel HTML error page)
+          errorMessage = `Server error (${response.status}). Please try again.`;
+        }
+        alert(errorMessage);
       }
     } catch (error) {
       console.error('Error processing recording:', error);
@@ -354,12 +356,16 @@ export default function PracticeSessionPage() {
       if (response.ok) {
         setSessionCompleted(true);
       } else {
-        const error = await response.json();
-        alert(`Error: ${error.error}`);
+        try {
+          const errorData = await response.json();
+          alert(errorData?.error || 'Failed to complete session');
+        } catch {
+          alert(`Server error (${response.status}). Please try again.`);
+        }
       }
     } catch (error) {
       console.error('Error completing session:', error);
-      alert('Failed to complete session');
+      alert('Failed to complete session. Please check your connection.');
     } finally {
       setIsCompleting(false);
     }

@@ -481,11 +481,10 @@ export async function POST(request: NextRequest) {
 			const sessionItem = await prisma.sessionItem.create({ data: createData });
 			sessionItemId = sessionItem.id;
 		} catch (error) {
+			console.error("Database save error:", error instanceof Error ? error.message : error);
 			throw new ExternalServiceError(
 				"Database",
-				`Failed to save session item: ${
-					error instanceof Error ? error.message : "Unknown error"
-				}`
+				"Failed to save your answer. Please try again."
 			);
 		}
 
