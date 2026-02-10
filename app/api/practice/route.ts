@@ -452,33 +452,38 @@ export async function POST(request: NextRequest) {
 			const safeInt = (v: unknown): number | null =>
 				typeof v === "number" && Number.isFinite(v) ? Math.round(v) : null;
 
-			const sessionItem = await prisma.sessionItem.create({
-				data: {
-					sessionId,
-					questionId,
-					audioUrl: audioUrl || null,
-					transcript,
-					words: safeInt(wordCount),
-					wpm: safeInt(wpm),
-					fillerCount: safeInt(fillerCount),
-					fillerRate: safeFloat(fillerRate),
-					longPauses: safeInt(longPauses),
-					confidenceScore: safeFloat(confidenceScore),
-					intonationScore: safeFloat(intonationScore),
-					starScore: safeFloat(analysis.starScore),
-					impactScore: safeFloat(analysis.impactScore),
-					clarityScore: safeFloat(analysis.clarityScore),
-					technicalAccuracy: safeFloat(analysis.technicalAccuracy),
-					terminologyUsage: safeFloat(analysis.terminologyUsage),
-					questionAnswered: analysis.questionAnswered ?? null,
-					answerQuality: safeFloat(analysis.answerQuality),
-					whatWasRight: analysis.whatWasRight || [],
-					whatWasWrong: [],
-					betterWording: analysis.betterWording || [],
-					dontForget: analysis.dontForget || [],
-					aiFeedback: analysis.tips?.join(" | ") || "",
-				},
-			});
+			const createData = {
+				sessionId,
+				questionId,
+				audioUrl: audioUrl || null,
+				transcript,
+				words: safeInt(wordCount),
+				wpm: safeInt(wpm),
+				fillerCount: safeInt(fillerCount),
+				fillerRate: safeFloat(fillerRate),
+				longPauses: safeInt(longPauses),
+				confidenceScore: safeFloat(confidenceScore),
+				intonationScore: safeFloat(intonationScore),
+				starScore: safeFloat(analysis.starScore),
+				impactScore: safeFloat(analysis.impactScore),
+				clarityScore: safeFloat(analysis.clarityScore),
+				technicalAccuracy: safeFloat(analysis.technicalAccuracy),
+				terminologyUsage: safeFloat(analysis.terminologyUsage),
+				questionAnswered: analysis.questionAnswered ?? null,
+				answerQuality: safeFloat(analysis.answerQuality),
+				whatWasRight: analysis.whatWasRight || [],
+				whatWasWrong: [],
+				betterWording: analysis.betterWording || [],
+				dontForget: analysis.dontForget || [],
+				aiFeedback: analysis.tips?.join(" | ") || "",
+			};
+
+			// Debug: log all values and types to diagnose bind parameter error
+			console.log("SessionItem create data types:", Object.fromEntries(
+				Object.entries(createData).map(([k, v]) => [k, `${typeof v}${Array.isArray(v) ? `[${v.length}]` : ''}: ${JSON.stringify(v)?.substring(0, 100)}`])
+			));
+
+			const sessionItem = await prisma.sessionItem.create({ data: createData });
 			sessionItemId = sessionItem.id;
 		} catch (error) {
 			throw new ExternalServiceError(
