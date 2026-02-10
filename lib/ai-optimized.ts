@@ -65,16 +65,16 @@ const ScoreSchema = z.number().min(0).max(5).transform(roundToHalf);
 const EnhancedAnalysisResponseSchema = z.object({
 	questionAnswered: z.boolean(),
 	answerQuality: ScoreSchema,
-	whatWasRight: z.array(z.string()).min(2).max(4),
-	betterWording: z.array(z.string()).min(0).max(3), // Concise wording improvements (grammar fixes use "You said" format) - allow 0-3 items
-	dontForget: z.array(z.string()).min(0).max(4), // OPTIMIZED: If hint provided, return exact phrases from hint that were missing. Otherwise, specific missing points.
-	dontForgetIndices: z.array(z.number()).min(0).max(4).optional(), // OPTIMIZED: Indices of missing key points in hint (0-based, if hint was split by bullets/numbers)
+	whatWasRight: z.array(z.string()).min(1).max(6),
+	betterWording: z.array(z.string()).max(5), // Concise wording improvements (grammar fixes use "You said" format)
+	dontForget: z.array(z.string()).max(8), // OPTIMIZED: If hint provided, return exact phrases from hint that were missing. Otherwise, specific missing points.
+	dontForgetIndices: z.array(z.number()).max(8).optional(), // OPTIMIZED: Indices of missing key points in hint (0-based, if hint was split by bullets/numbers)
 	starScore: ScoreSchema,
 	impactScore: ScoreSchema,
 	clarityScore: ScoreSchema,
 	technicalAccuracy: ScoreSchema,
 	terminologyUsage: ScoreSchema,
-	tips: z.array(z.string()).length(5),
+	tips: z.array(z.string()).min(1).max(7),
 });
 
 export type EnhancedAnalysisResponse = z.infer<
@@ -117,11 +117,11 @@ Return JSON only:
 }
 
 Formatting:
-- betterWording (0-3): Grammar/English fixes use "You said: '[exact quote]'. Better: '[fix]'". Other improvements: brief (1 sentence). Can be empty if no improvements needed.
-- dontForget (0-4): CRITICAL - If Expected Answer/Key Points provided: Return EXACT word-for-word phrases from the Expected Answer (character-by-character copy, preserve punctuation/capitalization/spacing). Do NOT paraphrase or reword. If no exact match found, return []. If no hint: specific missing points. Empty [] if all covered.
-- dontForgetIndices (0-4, optional): If Expected Answer has numbered/bulleted points, return 0-based indices of missing points (e.g., [0, 2] means first and third points missing). Use this when hint is structured.
-- whatWasRight (2-4): Specific correct points from their answer.
-- tips (5): CRITICAL: Provide actionable, specific tips that address the weakest areas in their answer. Each tip should:
+- betterWording (0-5): Grammar/English fixes use "You said: '[exact quote]'. Better: '[fix]'". Other improvements: brief (1 sentence). Can be empty if no improvements needed.
+- dontForget (0-8): CRITICAL - If Expected Answer/Key Points provided: Return EXACT word-for-word phrases from the Expected Answer (character-by-character copy, preserve punctuation/capitalization/spacing). Do NOT paraphrase or reword. If no exact match found, return []. If no hint: specific missing points. Empty [] if all covered.
+- dontForgetIndices (0-8, optional): If Expected Answer has numbered/bulleted points, return 0-based indices of missing points (e.g., [0, 2] means first and third points missing). Use this when hint is structured.
+- whatWasRight (1-6): Specific correct points from their answer. At least 1 positive point, even for weak answers.
+- tips (3-5): CRITICAL: Provide actionable, specific tips that address the weakest areas in their answer. Each tip should:
   1. Be specific to what's missing or weak (reference scores: technicalAccuracy, clarityScore, impactScore, etc.)
   2. Include concrete examples or before/after suggestions
   3. Focus on the most critical improvements first
