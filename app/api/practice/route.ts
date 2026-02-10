@@ -478,11 +478,6 @@ export async function POST(request: NextRequest) {
 				aiFeedback: analysis.tips?.join(" | ") || "",
 			};
 
-			// Debug: log all values and types to diagnose bind parameter error
-			console.log("SessionItem create data types:", Object.fromEntries(
-				Object.entries(createData).map(([k, v]) => [k, `${typeof v}${Array.isArray(v) ? `[${v.length}]` : ''}: ${JSON.stringify(v)?.substring(0, 100)}`])
-			));
-
 			const sessionItem = await prisma.sessionItem.create({ data: createData });
 			sessionItemId = sessionItem.id;
 		} catch (error) {

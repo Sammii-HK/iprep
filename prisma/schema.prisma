@@ -33,18 +33,48 @@ model User {
   quizzes               Quiz[]
   learningSummaries     LearningSummary[]
   learningInsights      UserLearningInsight?
+  bankFolders           BankFolder[]
 }
 
 model QuestionBank {
-  id        String     @id @default(cuid())
-  userId    String?
+  id          String           @id @default(cuid())
+  userId      String?
+  title       String
+  order       Int              @default(0)
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+  user        User?            @relation(fields: [userId], references: [id])
+  questions   Question[]
+  quizzes     Quiz[]
+  sessions    Session[]
+  folderItems BankFolderItem[]
+}
+
+model BankFolder {
+  id        String           @id @default(cuid())
+  userId    String
   title     String
-  createdAt DateTime   @default(now())
-  updatedAt DateTime   @updatedAt
-  user      User?      @relation(fields: [userId], references: [id])
-  questions Question[]
-  quizzes   Quiz[]
-  sessions  Session[]
+  color     String?
+  order     Int              @default(0)
+  createdAt DateTime         @default(now())
+  updatedAt DateTime         @updatedAt
+  user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  items     BankFolderItem[]
+
+  @@index([userId, order])
+}
+
+model BankFolderItem {
+  id       String       @id @default(cuid())
+  folderId String
+  bankId   String
+  order    Int          @default(0)
+  folder   BankFolder   @relation(fields: [folderId], references: [id], onDelete: Cascade)
+  bank     QuestionBank @relation(fields: [bankId], references: [id], onDelete: Cascade)
+
+  @@unique([folderId, bankId])
+  @@index([folderId, order])
+  @@index([bankId])
 }
 
 enum QuestionType {
