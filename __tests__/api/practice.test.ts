@@ -321,7 +321,7 @@ describe('POST /api/practice', () => {
 
     expect(response.status).toBe(200);
     // Should return fallback analysis for very short response
-    expect(data.answerQuality).toBe(1);
+    expect(data.answerQuality).toBe(2);
     expect(data.tips).toBeDefined();
     // Should NOT call AI analysis for < 5 words
     expect(analyzeTranscriptOptimized).not.toHaveBeenCalled();
@@ -351,7 +351,7 @@ describe('POST /api/practice', () => {
     expect(response.status).toBe(200);
     expect(data.transcript).toBeDefined();
     expect(data.scores).toBeDefined();
-    expect(data.answerQuality).toBe(2); // fallback quality
+    expect(data.answerQuality).toBe(4); // fallback quality
   });
 
   it('saves session item to database', async () => {

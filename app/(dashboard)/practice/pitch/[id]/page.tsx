@@ -244,10 +244,10 @@ export default function PitchPracticePage() {
                       {result.transcript.length > 120 ? "..." : ""}&rdquo;
                     </p>
                     <div className="flex gap-3 text-xs text-slate-600 dark:text-slate-400">
-                      <span>Quality: {result.answerQuality}/5</span>
+                      <span>Quality: {result.answerQuality}/10</span>
                       <span>Words: {result.metrics.words}</span>
-                      <span>Confidence: {result.scores.confidence}/5</span>
-                      <span>Impact: {result.scores.impact}/5</span>
+                      <span>Confidence: {result.scores.confidence}/10</span>
+                      <span>Impact: {result.scores.impact}/10</span>
                     </div>
                     {result.tips.length > 0 && (
                       <div className="mt-2 text-sm text-slate-500 dark:text-slate-400">

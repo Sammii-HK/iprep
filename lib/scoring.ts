@@ -254,7 +254,7 @@ export function countWords(text: string): number {
 }
 
 /**
- * Calculate a conciseness score (0-5) based on answer length relative to question type,
+ * Calculate a conciseness score (0-10) based on answer length relative to question type,
  * repetition rate, filler-to-content ratio, and whether the answer stayed on topic.
  */
 export function calculateConcisenessScore(
@@ -264,53 +264,53 @@ export function calculateConcisenessScore(
   questionAnswered?: boolean,
   hasExcessiveRepetition?: boolean
 ): number {
-  // Ideal word ranges by question type
+  // Ideal word ranges by question type (more forgiving ranges)
   const idealRanges: Record<string, { min: number; max: number }> = {
-    DEFINITION: { min: 30, max: 80 },
-    BEHAVIORAL: { min: 150, max: 300 },
-    TECHNICAL: { min: 80, max: 250 },
-    SCENARIO: { min: 100, max: 250 },
-    PITCH: { min: 60, max: 150 },
+    DEFINITION: { min: 20, max: 100 },
+    BEHAVIORAL: { min: 100, max: 350 },
+    TECHNICAL: { min: 60, max: 300 },
+    SCENARIO: { min: 80, max: 300 },
+    PITCH: { min: 40, max: 180 },
   };
 
   const range = idealRanges[questionType || 'BEHAVIORAL'] || idealRanges.BEHAVIORAL;
-  let score = 5;
+  let score = 10;
 
   // 1. Length penalty: too short or too long
   if (wordCount < range.min) {
     // Too brief - scale penalty based on how far below minimum
     const ratio = wordCount / range.min;
-    if (ratio < 0.3) score -= 3;
-    else if (ratio < 0.5) score -= 2;
-    else if (ratio < 0.75) score -= 1;
-    else score -= 0.5;
+    if (ratio < 0.3) score -= 6;
+    else if (ratio < 0.5) score -= 4;
+    else if (ratio < 0.75) score -= 2;
+    else score -= 1;
   } else if (wordCount > range.max) {
     // Rambling - scale penalty based on how far above maximum
     const excessRatio = wordCount / range.max;
-    if (excessRatio > 3) score -= 3;
-    else if (excessRatio > 2) score -= 2;
-    else if (excessRatio > 1.5) score -= 1;
-    else score -= 0.5;
+    if (excessRatio > 3) score -= 6;
+    else if (excessRatio > 2) score -= 4;
+    else if (excessRatio > 1.5) score -= 2;
+    else score -= 1;
   }
 
   // 2. Filler-to-content ratio penalty
   if (wordCount > 0) {
     const fillerRate = (fillerCount / wordCount) * 100;
-    if (fillerRate > 8) score -= 1.5;
-    else if (fillerRate > 5) score -= 1;
-    else if (fillerRate > 3) score -= 0.5;
+    if (fillerRate > 8) score -= 3;
+    else if (fillerRate > 5) score -= 2;
+    else if (fillerRate > 3) score -= 1;
   }
 
   // 3. Excessive repetition penalty
   if (hasExcessiveRepetition) {
-    score -= 1;
+    score -= 2;
   }
 
   // 4. Off-topic penalty
   if (questionAnswered === false) {
-    score -= 1;
+    score -= 2;
   }
 
   // Round to nearest 0.5 and clamp
-  return Math.min(5, Math.max(0, Math.round(score * 2) / 2));
+  return Math.min(10, Math.max(0, Math.round(score * 2) / 2));
 }

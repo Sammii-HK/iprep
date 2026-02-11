@@ -14,54 +14,54 @@ export function analyzeConfidenceFromTranscript(
   wordCount: number,
   longPauses: number
 ): number {
-  // Base score starts at 3 (neutral)
-  let score = 3;
+  // Base score starts at 6 (neutral on 0-10 scale)
+  let score = 6;
 
   // Sentence completion strength (sentences ending with proper punctuation vs trailing off)
   const sentences = transcript.match(/[.!?]+/g) || [];
   const sentenceCount = sentences.length;
   const trailingOff = transcript.match(/\.\.\.|--|—|\s+$/g) || [];
-  
+
   if (sentenceCount > 0 && wordCount > 0) {
     const avgWordsPerSentence = wordCount / sentenceCount;
     // Confident speakers complete thoughts (10-25 words per sentence average)
     if (avgWordsPerSentence >= 10 && avgWordsPerSentence <= 25) {
-      score += 0.5;
+      score += 1;
     }
     // Trailing off reduces confidence
     if (trailingOff.length > sentenceCount * 0.3) {
-      score -= 0.5;
+      score -= 1;
     }
   }
 
   // Filler rate impact (lower fillers = more confident)
   const fillerRate = wordCount > 0 ? (fillerCount / wordCount) * 100 : 0;
   if (fillerRate < 2) {
-    score += 0.5;
+    score += 1;
   } else if (fillerRate > 5) {
-    score -= 0.5;
+    score -= 1;
   }
 
   // Long pauses reduce confidence (shows hesitation)
   if (longPauses === 0) {
-    score += 0.5;
+    score += 1;
   } else if (longPauses > 3) {
-    score -= 0.5;
+    score -= 1;
   }
 
   // Strong declarative statements boost confidence
   const strongStatements = transcript.match(/\b(I|We|The team)\s+(achieved|delivered|improved|reduced|increased|built|created|solved)/gi) || [];
   if (strongStatements.length > 0) {
-    score += 0.3;
+    score += 0.5;
   }
 
   // Uncertainty markers reduce confidence
   const uncertaintyMarkers = transcript.match(/\b(maybe|perhaps|I think|I guess|sort of|kind of|probably|I'm not sure)/gi) || [];
   if (uncertaintyMarkers.length > 2) {
-    score -= 0.5;
+    score -= 1;
   }
 
-  return Math.min(5, Math.max(0, Math.round(score)));
+  return Math.min(10, Math.max(0, Math.round(score)));
 }
 
 /**
@@ -73,31 +73,31 @@ export function analyzeIntonationFromTranscript(
   transcript: string,
   wordCount: number
 ): number {
-  // Start with base score of 2.5 (slightly below neutral to allow for more variation)
-  let score = 2.5;
+  // Start with base score of 5 (neutral on 0-10 scale)
+  let score = 5;
   let factors = 0; // Track how many factors we're evaluating
 
-  // 1. Exclamations and questions show expressiveness (0-1.5 points)
+  // 1. Exclamations and questions show expressiveness (0-3 points)
   const exclamations = (transcript.match(/!/g) || []).length;
   const questions = (transcript.match(/\?/g) || []).length;
   const sentences = (transcript.match(/[.!?]+/g) || []).length;
-  
+
   if (sentences > 0) {
     factors++;
     const expressivenessRatio = (exclamations + questions) / sentences;
     // More dynamic scoring: reward expressiveness more strongly
     if (expressivenessRatio >= 0.15) {
-      score += 1.5; // Very expressive
+      score += 3; // Very expressive
     } else if (expressivenessRatio >= 0.08) {
-      score += 1.0; // Good expressiveness
+      score += 2; // Good expressiveness
     } else if (expressivenessRatio >= 0.03) {
-      score += 0.5; // Some expressiveness
+      score += 1; // Some expressiveness
     } else if (expressivenessRatio === 0 && sentences >= 3) {
-      score -= 0.8; // Too monotone (only penalize if multiple sentences)
+      score -= 1.5; // Too monotone (only penalize if multiple sentences)
     }
   }
 
-  // 2. Sentence length variation (monotone = all similar length, expressive = varied) (0-1.5 points)
+  // 2. Sentence length variation (monotone = all similar length, expressive = varied) (0-3 points)
   const sentenceLengths = transcript
     .split(/[.!?]+/)
     .map((s) => s.trim().split(/\s+/).filter((w) => w.length > 0).length)
@@ -109,71 +109,71 @@ export function analyzeIntonationFromTranscript(
     const variance =
       sentenceLengths.reduce((sum, len) => sum + Math.pow(len - avgLength, 2), 0) /
       sentenceLengths.length;
-    
+
     // More dynamic variance scoring
     const normalizedVariance = variance / (avgLength * avgLength);
     if (normalizedVariance >= 0.5) {
-      score += 1.5; // Very varied (expressive)
+      score += 3; // Very varied (expressive)
     } else if (normalizedVariance >= 0.3) {
-      score += 1.0; // Good variation
+      score += 2; // Good variation
     } else if (normalizedVariance >= 0.15) {
-      score += 0.5; // Some variation
+      score += 1; // Some variation
     } else if (normalizedVariance < 0.05) {
-      score -= 1.0; // Too monotone (all sentences similar length)
+      score -= 2; // Too monotone (all sentences similar length)
     }
   }
 
-  // 3. Emphasis words and intensifiers (0-1.0 points)
+  // 3. Emphasis words and intensifiers (0-2 points)
   const emphasisWords = transcript.match(/\b(really|very|absolutely|definitely|clearly|significantly|dramatically|substantially|particularly|especially|notably|crucially|importantly|essentially|fundamentally)/gi) || [];
   if (wordCount > 0) {
     factors++;
     const emphasisRatio = emphasisWords.length / wordCount;
     // More generous scoring for emphasis
     if (emphasisRatio >= 0.03) {
-      score += 1.0; // Strong emphasis
+      score += 2; // Strong emphasis
     } else if (emphasisRatio >= 0.015) {
-      score += 0.7; // Good emphasis
+      score += 1.5; // Good emphasis
     } else if (emphasisRatio >= 0.005) {
-      score += 0.4; // Some emphasis
+      score += 0.8; // Some emphasis
     }
   }
 
-  // 4. Contractions and natural speech patterns (0-0.8 points)
+  // 4. Contractions and natural speech patterns (0-1.5 points)
   const contractions = transcript.match(/\b(I'm|I've|I'll|I'd|we're|we've|we'll|don't|can't|won't|isn't|aren't|wasn't|weren't|hasn't|haven't|doesn't|didn't|wouldn't|couldn't|shouldn't)/gi) || [];
   if (wordCount > 0) {
     factors++;
     const contractionRatio = contractions.length / wordCount;
     // More natural speech scoring
     if (contractionRatio >= 0.04) {
-      score += 0.8; // Very natural
+      score += 1.5; // Very natural
     } else if (contractionRatio >= 0.02) {
-      score += 0.5; // Natural
+      score += 1; // Natural
     } else if (contractionRatio >= 0.01) {
-      score += 0.3; // Some natural patterns
+      score += 0.5; // Some natural patterns
     }
   }
 
-  // 5. Active voice and action verbs (0-0.7 points)
+  // 5. Active voice and action verbs (0-1.5 points)
   const actionVerbs = transcript.match(/\b(achieved|delivered|improved|reduced|increased|optimized|scaled|built|created|solved|implemented|designed|developed|managed|led|executed|completed|accomplished)/gi) || [];
   if (wordCount > 0) {
     factors++;
     const actionRatio = actionVerbs.length / wordCount;
     if (actionRatio >= 0.02) {
-      score += 0.7; // Very active
+      score += 1.5; // Very active
     } else if (actionRatio >= 0.01) {
-      score += 0.4; // Active
+      score += 0.8; // Active
     }
   }
 
-  // 6. Numbers and metrics (show engagement with data) (0-0.5 points)
+  // 6. Numbers and metrics (show engagement with data) (0-1 point)
   const numbers = (transcript.match(/\b\d+(?:\.\d+)?%?\b/g) || []).length;
   if (wordCount > 0 && numbers > 0) {
     factors++;
     const numberRatio = numbers / wordCount;
     if (numberRatio >= 0.02) {
-      score += 0.5; // Lots of metrics
+      score += 1; // Lots of metrics
     } else if (numberRatio >= 0.01) {
-      score += 0.3; // Some metrics
+      score += 0.5; // Some metrics
     }
   }
 
@@ -181,11 +181,11 @@ export function analyzeIntonationFromTranscript(
   // This prevents artificially high/low scores from limited data
   if (factors < 3 && wordCount < 50) {
     // Short answers with few factors: be more conservative
-    score = Math.min(score, 3.5);
+    score = Math.min(score, 7);
   }
 
-  // Round to nearest integer (0-5 scale)
-  return Math.min(5, Math.max(0, Math.round(score)));
+  // Round to nearest integer (0-10 scale)
+  return Math.min(10, Math.max(0, Math.round(score)));
 }
 
 /**

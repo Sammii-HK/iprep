@@ -661,7 +661,7 @@ export default function PracticeSessionPage() {
                           WPM: {item.metrics.wpm}
                         </span>
                         <span className="text-xs text-slate-600 dark:text-slate-400">
-                          Confidence: {item.scores.confidence}/5
+                          Confidence: {item.scores.confidence}/10
                         </span>
                       </div>
                     </div>

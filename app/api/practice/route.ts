@@ -269,7 +269,7 @@ export async function POST(request: NextRequest) {
 				// Return a helpful message instead of default fallback
 				analysis = {
 					questionAnswered: false,
-					answerQuality: 1,
+					answerQuality: 2,
 					whatWasRight: ["Your response was recorded"],
 					betterWording: [
 						`Try speaking for at least ${
@@ -278,11 +278,11 @@ export async function POST(request: NextRequest) {
 						"Structure your answer with clear examples",
 					],
 					dontForget: [],
-					starScore: 1,
-					impactScore: 1,
-					clarityScore: 1,
-					technicalAccuracy: 1,
-					terminologyUsage: 1,
+					starScore: 2,
+					impactScore: 2,
+					clarityScore: 2,
+					technicalAccuracy: 2,
+					terminologyUsage: 2,
 					tips: [
 						"Your response was too brief. Try speaking for 10-30 seconds.",
 						`You provided ${wordCount} words - aim for 10+ words for better feedback`,
@@ -366,7 +366,7 @@ export async function POST(request: NextRequest) {
 					const wordCount = countWords(transcript);
 					analysis = {
 						questionAnswered: wordCount > 20,
-						answerQuality: 2,
+						answerQuality: 4,
 						whatWasRight: [
 							"Your response was recorded successfully",
 							"You provided some content",
@@ -377,11 +377,11 @@ export async function POST(request: NextRequest) {
 							"Include specific metrics and examples",
 						],
 						dontForget: [],
-						starScore: 2,
-						impactScore: 2,
-						clarityScore: 2,
-						technicalAccuracy: 2,
-						terminologyUsage: 2,
+						starScore: 4,
+						impactScore: 4,
+						clarityScore: 4,
+						technicalAccuracy: 4,
+						terminologyUsage: 4,
 						tips: [
 							`AI analysis error: ${
 								error instanceof Error ? error.message : "Unknown error"

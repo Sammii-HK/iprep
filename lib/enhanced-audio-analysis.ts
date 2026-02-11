@@ -10,18 +10,18 @@ import {
 } from './audio-analysis';
 
 export interface VoiceQualityMetrics {
-  articulationScore: number; // 0-5: clarity and enunciation
-  volumeConsistency: number; // 0-5: consistent volume throughout
-  pacingScore: number; // 0-5: natural rhythm and pacing
-  emphasisScore: number; // 0-5: appropriate emphasis on key points
-  engagementScore: number; // 0-5: enthusiasm and energy
+  articulationScore: number; // 0-10: clarity and enunciation
+  volumeConsistency: number; // 0-10: consistent volume throughout
+  pacingScore: number; // 0-10: natural rhythm and pacing
+  emphasisScore: number; // 0-10: appropriate emphasis on key points
+  engagementScore: number; // 0-10: enthusiasm and energy
 }
 
 export interface TechnicalKnowledgeMetrics {
-  terminologyScore: number; // 0-5: use of domain-specific terms
-  specificityScore: number; // 0-5: concrete vs vague language
-  depthScore: number; // 0-5: depth of technical understanding
-  accuracyScore: number; // 0-5: technical accuracy (requires domain knowledge)
+  terminologyScore: number; // 0-10: use of domain-specific terms
+  specificityScore: number; // 0-10: concrete vs vague language
+  depthScore: number; // 0-10: depth of technical understanding
+  accuracyScore: number; // 0-10: technical accuracy (requires domain knowledge)
 }
 
 /**
@@ -32,10 +32,10 @@ export function analyzePausePatterns(
 ): {
   naturalPauses: number; // Pauses at sentence boundaries
   awkwardPauses: number; // Pauses mid-sentence
-  pauseDistribution: number; // 0-5: how well-distributed pauses are
+  pauseDistribution: number; // 0-10: how well-distributed pauses are
 } {
   if (!wordTimestamps || wordTimestamps.length < 2) {
-    return { naturalPauses: 0, awkwardPauses: 0, pauseDistribution: 3 };
+    return { naturalPauses: 0, awkwardPauses: 0, pauseDistribution: 6 };
   }
 
   const pauses: Array<{ gap: number; isNatural: boolean }> = [];
@@ -63,8 +63,8 @@ export function analyzePausePatterns(
     ? pauseGaps.reduce((sum, gap) => sum + Math.pow(gap - avgGap, 2), 0) / pauseGaps.length
     : 0;
 
-  // Lower variance = more consistent = better
-  const distributionScore = Math.max(0, Math.min(5, 5 - (gapVariance / 100000)));
+  // Lower variance = more consistent = better (0-10 scale)
+  const distributionScore = Math.max(0, Math.min(10, 10 - (gapVariance / 50000)));
 
   return {
     naturalPauses,
@@ -81,18 +81,18 @@ export function analyzeVoiceQuality(
   wordTimestamps: Array<{ word: string; start: number; end: number }> | undefined,
   wordCount: number
 ): VoiceQualityMetrics {
-  // Articulation: Based on word length variation and pronunciation clarity indicators
+  // Articulation: Based on word length variation and pronunciation clarity indicators (0-10)
   const words = transcript.split(/\s+/).filter((w) => w.length > 0);
   const avgWordLength = words.reduce((sum, w) => sum + w.length, 0) / words.length;
   const wordLengthVariance =
     words.reduce((sum, w) => sum + Math.pow(w.length - avgWordLength, 2), 0) / words.length;
 
   // Good articulation uses varied word lengths (not all short words = mumbling)
-  const articulationScore = Math.min(5, Math.max(0, Math.round(
-    3 + (avgWordLength > 4 ? 1 : 0) + (wordLengthVariance > 2 ? 1 : 0)
+  const articulationScore = Math.min(10, Math.max(0, Math.round(
+    6 + (avgWordLength > 4 ? 2 : 0) + (wordLengthVariance > 2 ? 2 : 0)
   )));
 
-  // Volume consistency: Based on sentence length consistency (speakers trail off = volume drops)
+  // Volume consistency: Based on sentence length consistency (speakers trail off = volume drops) (0-10)
   const sentences = transcript.split(/[.!?]+/).filter((s) => s.trim().length > 0);
   const sentenceLengths = sentences.map((s) => s.trim().split(/\s+/).length);
   const lengthVariance =
@@ -104,28 +104,32 @@ export function analyzeVoiceQuality(
         ) / sentenceLengths.length
       : 0;
 
-  // Lower variance = more consistent = better
-  const volumeConsistency = Math.min(5, Math.max(0, Math.round(5 - lengthVariance / 10)));
+  // Lower variance = more consistent = better (0-10 scale)
+  const volumeConsistency = Math.min(10, Math.max(0, Math.round(10 - lengthVariance / 5)));
 
-  // Pacing: Based on WPM and pause patterns
-  let pacingScore = 3;
+  // Pacing: Based on WPM and pause patterns (0-10, base 6)
+  let pacingScore = 6;
   if (wordTimestamps && wordTimestamps.length > 0) {
     const duration = wordTimestamps[wordTimestamps.length - 1].end;
     const wpm = (wordCount / duration) * 60;
     const pausePatterns = analyzePausePatterns(wordTimestamps);
 
-    // Ideal WPM: 120-150
-    if (wpm >= 120 && wpm <= 150) {
-      pacingScore += 1;
-    } else if (wpm < 100 || wpm > 180) {
-      pacingScore -= 1;
+    // Ideal WPM: 110-160 (wider range is fairer)
+    if (wpm >= 110 && wpm <= 160) {
+      pacingScore += 2;
+    } else if (wpm >= 90 && wpm <= 180) {
+      pacingScore += 1; // Acceptable range
+    } else if (wpm < 80 || wpm > 200) {
+      pacingScore -= 2; // Far outside ideal
+    } else {
+      pacingScore -= 1; // Slightly outside ideal
     }
 
-    // Good pause distribution improves pacing
-    pacingScore = Math.min(5, Math.max(0, Math.round(pacingScore + pausePatterns.pauseDistribution / 5)));
+    // Good pause distribution improves pacing (pauseDistribution is now 0-10)
+    pacingScore = Math.min(10, Math.max(0, Math.round(pacingScore + pausePatterns.pauseDistribution / 5)));
   }
 
-  // Emphasis: Based on technical terms, numbers, and strong action verbs
+  // Emphasis: Based on technical terms, numbers, and strong action verbs (0-10, base 6)
   const emphasisMarkers = [
     /\b\d+(?:\.\d+)?%?\b/g, // Numbers
     /\b(API|SQL|HTTP|REST|GraphQL|AWS|Azure|GCP|Kubernetes|Docker|React|Vue|Angular)\b/gi, // Tech terms
@@ -138,21 +142,47 @@ export function analyzeVoiceQuality(
     if (matches) emphasisCount += matches.length;
   });
 
-  const emphasisRatio = wordCount > 0 ? emphasisCount / wordCount : 0;
-  const emphasisScore = Math.min(5, Math.max(0, Math.round(3 + emphasisRatio * 20)));
+  // More generous emphasis scoring: base 6, scale up with content richness
+  // A technical answer with some action verbs and numbers should score 7-8
+  let emphasisScore = 6;
+  if (wordCount > 0) {
+    const emphasisRatio = emphasisCount / wordCount;
+    if (emphasisRatio >= 0.06) {
+      emphasisScore = 10; // Exceptionally rich in emphasis
+    } else if (emphasisRatio >= 0.04) {
+      emphasisScore = 9;
+    } else if (emphasisRatio >= 0.025) {
+      emphasisScore = 8;
+    } else if (emphasisRatio >= 0.015) {
+      emphasisScore = 7;
+    } else if (emphasisRatio >= 0.005) {
+      emphasisScore = 6;
+    } else if (emphasisCount > 0) {
+      emphasisScore = 5; // At least some emphasis markers
+    } else {
+      emphasisScore = 4; // No emphasis markers at all
+    }
+  }
+  emphasisScore = Math.min(10, Math.max(0, emphasisScore));
 
-  // Engagement: Based on varied sentence structures, questions, and active voice
-  const questions = (transcript.match(/\?/g) || []).length;
+  // Engagement: Based on varied sentence structures, questions, active voice, and more signals (0-10, base 6)
+  const questionMarks = (transcript.match(/\?/g) || []).length;
   const activeVoice = (transcript.match(/\b(I|we|the team|our team)\s+\w+ed\b/gi) || []).length;
   const variedStructures = sentenceLengths.length > 1
     ? sentenceLengths.length / Math.max(...sentenceLengths)
     : 0;
+  // Additional engagement signals
+  const transitionWords = (transcript.match(/\b(however|therefore|furthermore|additionally|moreover|first|second|finally|in conclusion|as a result|for example|specifically)\b/gi) || []).length;
+  const personalStories = (transcript.match(/\b(I remember|in my experience|at my previous|when I was|one time)\b/gi) || []).length;
 
-  const engagementScore = Math.min(5, Math.max(0, Math.round(
-    3 +
-      (questions > 0 ? 0.5 : 0) +
+  const engagementScore = Math.min(10, Math.max(0, Math.round(
+    6 +
+      (questionMarks > 0 ? 1 : 0) +
+      (activeVoice > 0 ? 0.5 : 0) +
       (activeVoice > 2 ? 0.5 : 0) +
-      (variedStructures > 0.3 ? 0.5 : 0)
+      (variedStructures > 0.3 ? 1 : 0) +
+      (transitionWords > 2 ? 1 : 0) +
+      (personalStories > 0 ? 1 : 0)
   )));
 
   return {
@@ -205,15 +235,15 @@ export async function analyzeTechnicalKnowledge(
     new RegExp(`\\b${escapeRegex(term)}\\b`, 'gi').test(transcript)
   );
 
-  const terminologyScore = Math.min(5, Math.max(0, Math.round((termMatches.length / terms.length) * 10)));
+  const terminologyScore = Math.min(10, Math.max(0, Math.round((termMatches.length / terms.length) * 20)));
 
   // Specificity: Count concrete metrics, numbers, and specific examples
   const numbers = (transcript.match(/\b\d+(?:\.\d+)?%?\b/g) || []).length;
   const metrics = (transcript.match(/\b(seconds|milliseconds|requests|users|queries|transactions|errors|uptime|latency|throughput|RPS|QPS|TPS)\b/gi) || []).length;
   const examples = (transcript.match(/\b(for example|for instance|specifically|such as|like|including)\b/gi) || []).length;
 
-  const specificityScore = Math.min(5, Math.max(0, Math.round(
-    2 + (numbers > 0 ? 1 : 0) + (metrics > 0 ? 1 : 0) + (examples > 0 ? 1 : 0)
+  const specificityScore = Math.min(10, Math.max(0, Math.round(
+    4 + (numbers > 0 ? 2 : 0) + (metrics > 0 ? 2 : 0) + (examples > 0 ? 2 : 0)
   )));
 
   // Depth: Analyze sentence complexity and technical explanations
@@ -225,8 +255,8 @@ export async function analyzeTechnicalKnowledge(
     );
   }).length;
 
-  const depthScore = Math.min(5, Math.max(0, Math.round(
-    2 + (complexSentences > 2 ? 1 : 0) + (termMatches.length > 5 ? 1 : 0) + (specificityScore > 3 ? 1 : 0)
+  const depthScore = Math.min(10, Math.max(0, Math.round(
+    4 + (complexSentences > 2 ? 2 : 0) + (termMatches.length > 5 ? 2 : 0) + (specificityScore > 6 ? 2 : 0)
   )));
 
     // Use LLM to assess technical accuracy (requires domain knowledge)
@@ -256,10 +286,10 @@ async function assessTechnicalAccuracy(
       (response.clarityScore + response.impactScore) / 2
     );
 
-    return Math.min(5, Math.max(0, accuracyScore));
+    return Math.min(10, Math.max(0, accuracyScore));
   } catch (error) {
     console.error('Error assessing technical accuracy:', error);
-    return 3; // Default neutral score
+    return 6; // Default neutral score
   }
 }
 
@@ -279,16 +309,16 @@ export function analyzeConfidenceEnhanced(
 
     // Natural pauses boost confidence, awkward pauses reduce it
     if (pausePatterns.naturalPauses > pausePatterns.awkwardPauses) {
-      score += 0.5;
+      score += 1;
     } else if (pausePatterns.awkwardPauses > pausePatterns.naturalPauses) {
-      score -= 0.5;
+      score -= 1;
     }
 
-    // Good pause distribution indicates confident pacing
+    // Good pause distribution indicates confident pacing (pauseDistribution is now 0-10)
     score += pausePatterns.pauseDistribution / 5;
   }
 
-  return Math.min(5, Math.max(0, Math.round(score)));
+  return Math.min(10, Math.max(0, Math.round(score)));
 }
 
 /**
@@ -312,11 +342,11 @@ export function analyzeIntonationEnhanced(
     // Moderate variance indicates good emphasis variation
     const normalizedVariance = durationVariance / (avgDuration * avgDuration);
     if (normalizedVariance >= 0.1 && normalizedVariance <= 0.4) {
-      score += 0.5;
+      score += 1;
     } else if (normalizedVariance < 0.05) {
-      score -= 0.5; // Too monotone
+      score -= 1; // Too monotone
     }
   }
 
-  return Math.min(5, Math.max(0, Math.round(score)));
+  return Math.min(10, Math.max(0, Math.round(score)));
 }

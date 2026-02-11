@@ -97,7 +97,7 @@ export function LearningSummary({ sessionId }: { sessionId: string }) {
   // Calculate what needs most review
   const performanceByTag = summary.performanceByTag || {};
   const needsReview = Object.entries(performanceByTag)
-    .filter(([, data]) => data && typeof data === 'object' && 'avgScore' in data && data.avgScore < 3.5)
+    .filter(([, data]) => data && typeof data === 'object' && 'avgScore' in data && data.avgScore < 7)
     .sort(([, a], [, b]) => {
       // Sort by score (lowest first), then by count (more questions = higher priority)
       const aData = a as { avgScore: number; count: number };
@@ -179,14 +179,14 @@ export function LearningSummary({ sessionId }: { sessionId: string }) {
         <div className="bg-purple-50 dark:bg-purple-900/20 rounded-lg p-4 border border-purple-200 dark:border-purple-800">
           <div className="text-sm text-gray-600 dark:text-gray-400 mb-1">Overall Score</div>
           <div className="text-3xl font-bold text-purple-600 dark:text-purple-400 mb-2">
-            {summary.overallScore.toFixed(1)} / 5.0
+            {summary.overallScore.toFixed(1)} / 10.0
           </div>
-          {summary.overallScore < 3.5 && (needsReview.length > 0 || summary.weakTags.length > 0) && (
+          {summary.overallScore < 7 && (needsReview.length > 0 || summary.weakTags.length > 0) && (
             <p className="text-sm text-purple-700 dark:text-purple-300">
               Focus on the topics below to improve your overall performance
             </p>
           )}
-          {summary.overallScore < 3.5 && needsReview.length === 0 && summary.weakTags.length === 0 && (
+          {summary.overallScore < 7 && needsReview.length === 0 && summary.weakTags.length === 0 && (
             <p className="text-sm text-purple-700 dark:text-purple-300">
               Great job! Keep practicing to maintain your performance.
             </p>
@@ -230,20 +230,20 @@ export function LearningSummary({ sessionId }: { sessionId: string }) {
                         {idx + 1}. {tag}
                       </span>
                       <span className={`text-sm font-medium ${
-                        reviewData.avgScore < 2.5 
-                          ? 'text-red-600 dark:text-red-400' 
-                          : reviewData.avgScore < 3 
+                        reviewData.avgScore < 5
+                          ? 'text-red-600 dark:text-red-400'
+                          : reviewData.avgScore < 6
                           ? 'text-orange-600 dark:text-orange-400'
                           : 'text-amber-600 dark:text-amber-400'
                       }`}>
-                        {reviewData.avgScore.toFixed(1)} / 5.0
+                        {reviewData.avgScore.toFixed(1)} / 10.0
                       </span>
                     </div>
                     <div className="text-xs text-gray-600 dark:text-gray-400">
-                      {reviewData.count} question{reviewData.count !== 1 ? 's' : ''} • 
-                      {reviewData.avgScore < 2.5 && ' Needs significant review'}
-                      {reviewData.avgScore >= 2.5 && reviewData.avgScore < 3 && ' Needs practice'}
-                      {reviewData.avgScore >= 3 && reviewData.avgScore < 3.5 && ' Could improve'}
+                      {reviewData.count} question{reviewData.count !== 1 ? 's' : ''} •
+                      {reviewData.avgScore < 5 && ' Needs significant review'}
+                      {reviewData.avgScore >= 5 && reviewData.avgScore < 6 && ' Needs practice'}
+                      {reviewData.avgScore >= 6 && reviewData.avgScore < 7 && ' Could improve'}
                     </div>
                   </div>
                   );
@@ -465,7 +465,7 @@ export function LearningSummary({ sessionId }: { sessionId: string }) {
                               ? 'bg-green-500'
                               : 'bg-purple-500'
                           }`}
-                          style={{ width: `${(typedData.avgScore / 5) * 100}%` }}
+                          style={{ width: `${(typedData.avgScore / 10) * 100}%` }}
                         />
                       </div>
                       <span className={`font-semibold w-16 text-right ${
@@ -475,7 +475,7 @@ export function LearningSummary({ sessionId }: { sessionId: string }) {
                           ? 'text-green-600 dark:text-green-400'
                           : 'text-gray-900 dark:text-gray-100'
                       }`}>
-                        {typedData.avgScore.toFixed(1)} / 5.0
+                        {typedData.avgScore.toFixed(1)} / 10.0
                       </span>
                     </div>
                   </div>

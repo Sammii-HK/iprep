@@ -104,7 +104,7 @@ export function BankSummary({ bankId }: { bankId: string }) {
         <div className="bg-purple-50 dark:bg-purple-900/20 rounded-lg p-4">
           <div className="text-sm text-slate-600 dark:text-slate-400">Average Overall Score</div>
           <div className="text-3xl font-bold text-purple-600 dark:text-purple-400">
-            {summary.averageOverallScore.toFixed(1)} / 5.0
+            {summary.averageOverallScore.toFixed(1)} / 10.0
           </div>
         </div>
       )}
@@ -201,7 +201,7 @@ export function BankSummary({ bankId }: { bankId: string }) {
                       {data.sessionCount} session{data.sessionCount !== 1 ? 's' : ''}
                     </span>
                     <span className="font-medium text-slate-900 dark:text-slate-100">
-                      {data.avgScore.toFixed(1)} / 5.0
+                      {data.avgScore.toFixed(1)} / 10.0
                     </span>
                   </div>
                 </div>
@@ -229,7 +229,7 @@ export function BankSummary({ bankId }: { bankId: string }) {
                 </div>
                 {session.overallScore !== null && (
                   <div className="text-lg font-semibold text-slate-900 dark:text-slate-100">
-                    {session.overallScore.toFixed(1)} / 5.0
+                    {session.overallScore.toFixed(1)} / 10.0
                   </div>
                 )}
               </div>

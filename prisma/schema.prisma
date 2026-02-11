@@ -128,15 +128,15 @@ model SessionItem {
   fillerCount       Int?
   fillerRate        Float?   // per 100 words
   longPauses        Int?     // >800ms
-  confidenceScore   Float?   // 0..5 (vocal confidence, 0.5 steps)
-  intonationScore   Float?   // 0..5 (pitch variation, expressiveness, 0.5 steps)
-  starScore         Float?   // 0..5 (0.5 steps)
-  impactScore       Float?   // 0..5 (0.5 steps)
-  clarityScore      Float?   // 0..5 (0.5 steps)
-  technicalAccuracy Float?   // 0..5 (0.5 steps)
-  terminologyUsage  Float?   // 0..5 (0.5 steps)
+  confidenceScore   Float?   // 0..10 (vocal confidence, 0.5 steps)
+  intonationScore   Float?   // 0..10 (pitch variation, expressiveness, 0.5 steps)
+  starScore         Float?   // 0..10 (0.5 steps)
+  impactScore       Float?   // 0..10 (0.5 steps)
+  clarityScore      Float?   // 0..10 (0.5 steps)
+  technicalAccuracy Float?   // 0..10 (0.5 steps)
+  terminologyUsage  Float?   // 0..10 (0.5 steps)
   questionAnswered  Boolean? // Did the answer address the question?
-  answerQuality     Float?   // 0..5 overall answer quality (0.5 steps)
+  answerQuality     Float?   // 0..10 overall answer quality (0.5 steps)
   whatWasRight      String[] // Array of what was right
   whatWasWrong      String[] // Array of what needs improvement
   betterWording     String[] // Array of better wording suggestions (with definitions, examples, clarity)

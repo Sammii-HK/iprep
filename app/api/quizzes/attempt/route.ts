@@ -257,7 +257,7 @@ export async function POST(request: NextRequest) {
         answer: answerText,
         audioUrl,
         transcript,
-        score: score ? Math.round(score * 20) : null, // Convert 0-5 to 0-100
+        score: score ? Math.round(score * 10) : null, // Convert 0-10 to 0-100
         feedback,
         hintUsed,
         completedAt: new Date(),

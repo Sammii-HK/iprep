@@ -82,11 +82,11 @@ export default function AnalyticsPage() {
         </div>
         <div className="bg-white dark:bg-slate-800 rounded-lg shadow-md p-6 border border-slate-200 dark:border-slate-700">
           <div className="text-sm text-slate-600 dark:text-slate-400 mb-1">Avg Confidence</div>
-          <div className="text-2xl font-bold text-slate-900 dark:text-slate-100">{data.avgConfidence.toFixed(1)}/5</div>
+          <div className="text-2xl font-bold text-slate-900 dark:text-slate-100">{data.avgConfidence.toFixed(1)}/10</div>
         </div>
         <div className="bg-white dark:bg-slate-800 rounded-lg shadow-md p-6 border border-slate-200 dark:border-slate-700">
           <div className="text-sm text-slate-600 dark:text-slate-400 mb-1">Avg Intonation</div>
-          <div className="text-2xl font-bold text-slate-900 dark:text-slate-100">{data.avgIntonation.toFixed(1)}/5</div>
+          <div className="text-2xl font-bold text-slate-900 dark:text-slate-100">{data.avgIntonation.toFixed(1)}/10</div>
         </div>
       </div>
 
@@ -94,15 +94,15 @@ export default function AnalyticsPage() {
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
         <div className="bg-white dark:bg-slate-800 rounded-lg shadow-md p-6 border border-slate-200 dark:border-slate-700">
           <div className="text-sm text-slate-600 dark:text-slate-400 mb-1">Avg STAR</div>
-          <div className="text-2xl font-bold text-slate-900 dark:text-slate-100">{data.avgStar.toFixed(1)}/5</div>
+          <div className="text-2xl font-bold text-slate-900 dark:text-slate-100">{data.avgStar.toFixed(1)}/10</div>
         </div>
         <div className="bg-white dark:bg-slate-800 rounded-lg shadow-md p-6 border border-slate-200 dark:border-slate-700">
           <div className="text-sm text-slate-600 dark:text-slate-400 mb-1">Avg Impact</div>
-          <div className="text-2xl font-bold text-slate-900 dark:text-slate-100">{data.avgImpact.toFixed(1)}/5</div>
+          <div className="text-2xl font-bold text-slate-900 dark:text-slate-100">{data.avgImpact.toFixed(1)}/10</div>
         </div>
         <div className="bg-white dark:bg-slate-800 rounded-lg shadow-md p-6 border border-slate-200 dark:border-slate-700">
           <div className="text-sm text-slate-600 dark:text-slate-400 mb-1">Avg Clarity</div>
-          <div className="text-2xl font-bold text-slate-900 dark:text-slate-100">{data.avgClarity.toFixed(1)}/5</div>
+          <div className="text-2xl font-bold text-slate-900 dark:text-slate-100">{data.avgClarity.toFixed(1)}/10</div>
         </div>
       </div>
 

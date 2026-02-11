@@ -32,9 +32,9 @@ const openai = new Proxy({} as OpenAI, {
 });
 
 const AnalysisResponseSchema = z.object({
-	starScore: z.number().int().min(0).max(5),
-	impactScore: z.number().int().min(0).max(5),
-	clarityScore: z.number().int().min(0).max(5),
+	starScore: z.number().int().min(0).max(10),
+	impactScore: z.number().int().min(0).max(10),
+	clarityScore: z.number().int().min(0).max(10),
 	tips: z.array(z.string().max(16)).length(3),
 });
 
@@ -82,19 +82,17 @@ export async function transcribeAudio(
 	);
 	const includeTimestamps = options?.includeWordTimestamps ?? false;
 
-	// Build prompt with context to improve transcription accuracy
-	// PRIORITY: Filler words instruction must be included (Whisper tends to remove them by default)
-	// Whisper prompt max is ~200 chars, so we need to prioritize the filler word instruction
-
-	// Start with the most important instruction: include filler words
-	let prompt =
-		"CRITICAL: Include ALL filler words exactly as spoken: um, uh, erm, er, like, you know, actually, basically, so, well, I mean, etc. Do NOT remove or clean them. ";
+	// Build prompt as example text to guide Whisper's vocabulary and style.
+	// Whisper's prompt parameter works as a style/vocabulary guide via example text,
+	// NOT as instructions. Including filler words and technical terms naturally in
+	// example text teaches Whisper to recognize and preserve them.
+	// Whisper supports ~224 tokens (~800+ chars) for the prompt, not just 200.
 
 	// Build vocabulary from all available sources: tags, question text, and hint
 	const allTerms: string[] = [];
 
 	if (context?.questionTags && context.questionTags.length > 0) {
-		allTerms.push(...context.questionTags.slice(0, 5));
+		allTerms.push(...context.questionTags.slice(0, 8));
 	}
 	if (context?.questionText) {
 		allTerms.push(...extractTechnicalTerms(context.questionText));
@@ -103,29 +101,47 @@ export async function transcribeAudio(
 		allTerms.push(...extractTechnicalTerms(context.questionHint));
 	}
 
-	// Deduplicate and prioritize (limit to fit in prompt)
-	const uniqueTerms = [...new Set(allTerms)].slice(0, 8);
+	// Deduplicate terms
+	const uniqueTerms = [...new Set(allTerms)].slice(0, 20);
+
+	// Build example text that naturally includes filler words AND technical vocabulary.
+	// This teaches Whisper to: (1) keep fillers, (2) recognize domain terms correctly.
+	let prompt =
+		"Um, so basically, the way I approached this was, uh, by looking at the overall architecture. " +
+		"You know, like, I think the key thing here is, er, making sure we handle the edge cases properly. " +
+		"Well, actually, I mean, the main challenge was around scalability and performance optimization. ";
+
+	// Weave technical terms into natural-sounding example text
 	if (uniqueTerms.length > 0) {
-		const termsStr = uniqueTerms.join(", ");
-		if (prompt.length + termsStr.length + 8 < 195) {
-			prompt += `Vocab: ${termsStr}. `;
+		const termChunks: string[][] = [];
+		for (let i = 0; i < uniqueTerms.length; i += 4) {
+			termChunks.push(uniqueTerms.slice(i, i + 4));
 		}
+
+		const fillerPhrases = [
+			"So, uh, when working with",
+			"Um, basically the approach for",
+			"You know, like, regarding",
+			"Well, actually, in terms of",
+			"I mean, er, considering",
+		];
+
+		termChunks.forEach((chunk, i) => {
+			const filler = fillerPhrases[i % fillerPhrases.length];
+			prompt += `${filler} ${chunk.join(", ")}, the implementation was straightforward. `;
+		});
 	}
 
-	// Truncate to 200 chars max, but ensure filler word instruction is always included
-	const maxPromptLength = 200;
+	// Add common programming terms that Whisper often misrecognizes
+	prompt +=
+		"We used null checks and boolean flags, with async/await patterns. " +
+		"The API endpoint returns JSON with OAuth tokens. " +
+		"We configured the CI/CD pipeline, um, using Docker and Kubernetes.";
+
+	// Truncate to ~800 chars to stay within Whisper's token limit
+	const maxPromptLength = 800;
 	if (prompt.length > maxPromptLength) {
-		// Keep the first part (filler words instruction) and truncate the rest
-		const fillerInstruction =
-			"CRITICAL: Include ALL filler words exactly as spoken: um, uh, erm, er, like, you know, actually, basically, so, well, I mean, etc. Do NOT remove or clean them. ";
-		const remainingSpace = maxPromptLength - fillerInstruction.length;
-		if (remainingSpace > 0) {
-			prompt =
-				fillerInstruction +
-				prompt.substring(fillerInstruction.length, maxPromptLength);
-		} else {
-			prompt = fillerInstruction.substring(0, maxPromptLength);
-		}
+		prompt = prompt.substring(0, maxPromptLength);
 	}
 
 	// Optimize: Skip word timestamps for faster transcription (we can estimate pauses from transcript)
@@ -176,9 +192,9 @@ export async function analyzeTranscript(
 	const systemPrompt = `You are a concise iPrep.
 
 Given a transcript, return strict JSON with:
-- starScore 0..5 (Situation, Task, Action, Result present & balanced)
-- impactScore 0..5 (metrics, outcomes, 'so what')
-- clarityScore 0..5 (structure, concision)
+- starScore 0..10 (Situation, Task, Action, Result present & balanced)
+- impactScore 0..10 (metrics, outcomes, 'so what')
+- clarityScore 0..10 (structure, concision)
 - tips: array of 3 short actionable tips (<= 16 words each)
 
 If the answer is too long or off-topic, reflect that in tips.
@@ -221,9 +237,9 @@ Return JSON only.`;
 			if (attempts >= maxAttempts) {
 				// Fallback: return basic scores
 				return {
-					starScore: 2,
-					impactScore: 2,
-					clarityScore: 2,
+					starScore: 4,
+					impactScore: 4,
+					clarityScore: 4,
 					tips: [
 						"Could not analyze response",
 						"Please try again",
@@ -241,15 +257,15 @@ Return JSON only.`;
 
 const EnhancedAnalysisResponseSchema = z.object({
 	questionAnswered: z.boolean(),
-	answerQuality: z.number().int().min(0).max(5),
+	answerQuality: z.number().int().min(0).max(10),
 	whatWasRight: z.array(z.string()).min(2).max(4), // Removed max(50) to allow longer strings
 	whatWasWrong: z.array(z.string()).min(2).max(4), // Removed max(50) to allow longer strings
 	betterWording: z.array(z.string()).min(2).max(3), // Removed max(50) to allow longer strings
-	starScore: z.number().int().min(0).max(5),
-	impactScore: z.number().int().min(0).max(5),
-	clarityScore: z.number().int().min(0).max(5),
-	technicalAccuracy: z.number().int().min(0).max(5),
-	terminologyUsage: z.number().int().min(0).max(5),
+	starScore: z.number().int().min(0).max(10),
+	impactScore: z.number().int().min(0).max(10),
+	clarityScore: z.number().int().min(0).max(10),
+	technicalAccuracy: z.number().int().min(0).max(10),
+	terminologyUsage: z.number().int().min(0).max(10),
 	tips: z.array(z.string()).length(5), // Removed max(20) to allow longer tips
 });
 
@@ -331,55 +347,55 @@ IMPORTANT: When analyzing the transcript, pay special attention to:
 
 Given a transcript and question context, return strict JSON with:
 - questionAnswered: boolean - Does the answer actually address the question asked? Check if key concepts from the question are covered.
-- answerQuality: number 0..5 - Overall quality of the answer
-  * 5: Fully answers question, accurate, well-structured, comprehensive
-  * 4: Answers question well with minor gaps or inaccuracies
-  * 3: Partially answers question but missing key points
-  * 2: Tangentially related but doesn't directly answer
-  * 1: Barely addresses the question
+- answerQuality: number 0..10 - Overall quality of the answer
+  * 9-10: Fully answers question, accurate, well-structured, comprehensive
+  * 7-8: Answers question well with minor gaps or inaccuracies
+  * 5-6: Partially answers question but missing key points
+  * 3-4: Tangentially related but doesn't directly answer
+  * 1-2: Barely addresses the question
   * 0: Doesn't answer the question at all
 - whatWasRight: array of strings (2-4 items) - Specific things the candidate got right or did well
 - whatWasWrong: array of strings (2-4 items) - Specific things that were incorrect, missing, or could be improved
 - betterWording: array of strings (2-3 items) - Specific suggestions for better wording, phrasing, or structure
-- starScore 0..5 (Situation, Task, Action, Result present & balanced)
-  **IMPORTANT**: STAR method is appropriate for behavioral/experience questions (e.g., "Tell me about a time when...", "Describe a situation where...", "Give an example of..."). 
-  For factual/definition questions (e.g., "What is X?", "Explain Y", "Define Z"), flash card style questions, or technical concept questions, STAR is NOT appropriate. 
+- starScore 0..10 (Situation, Task, Action, Result present & balanced)
+  **IMPORTANT**: STAR method is appropriate for behavioral/experience questions (e.g., "Tell me about a time when...", "Describe a situation where...", "Give an example of...").
+  For factual/definition questions (e.g., "What is X?", "Explain Y", "Define Z"), flash card style questions, or technical concept questions, STAR is NOT appropriate.
   In those cases, assess structure/clarity instead:
-  * For behavioral questions: Use STAR scoring (0-5 based on Situation, Task, Action, Result)
-  * For factual/definition questions: Score based on clarity, completeness, and organization (0-5)
-    * 5: Clear, complete, well-organized answer with good structure
-    * 4: Mostly clear and complete, minor organization issues
-    * 3: Generally clear but missing some details or organization
-    * 2: Unclear or incomplete, poor organization
-    * 1: Very unclear or mostly incorrect
+  * For behavioral questions: Use STAR scoring (0-10 based on Situation, Task, Action, Result)
+  * For factual/definition questions: Score based on clarity, completeness, and organization (0-10)
+    * 9-10: Clear, complete, well-organized answer with good structure
+    * 7-8: Mostly clear and complete, minor organization issues
+    * 5-6: Generally clear but missing some details or organization
+    * 3-4: Unclear or incomplete, poor organization
+    * 1-2: Very unclear or mostly incorrect
     * 0: No coherent answer
-- impactScore 0..5 (metrics, outcomes, 'so what')
-  * 5: Multiple specific metrics, clear business outcomes, strong "so what"
-  * 4: Good metrics and outcomes, could be more specific
-  * 3: Some metrics but vague or missing business context
-  * 2: Few metrics, mostly qualitative
-  * 1: No metrics, purely qualitative
+- impactScore 0..10 (metrics, outcomes, 'so what')
+  * 9-10: Multiple specific metrics, clear business outcomes, strong "so what"
+  * 7-8: Good metrics and outcomes, could be more specific
+  * 5-6: Some metrics but vague or missing business context
+  * 3-4: Few metrics, mostly qualitative
+  * 1-2: No metrics, purely qualitative
   * 0: No impact statements
-- clarityScore 0..5 (structure, concision)
-  * 5: Concise, well-structured, easy to follow, no redundancy, appropriate length (200-300 words)
-  * 4: Clear structure, minor redundancy or slightly too long/short
-  * 3: Generally clear but some confusion, redundancy, or length issues
-  * 2: Unclear structure, hard to follow
-  * 1: Very unclear, rambling
+- clarityScore 0..10 (structure, concision)
+  * 9-10: Concise, well-structured, easy to follow, no redundancy, appropriate length (200-300 words)
+  * 7-8: Clear structure, minor redundancy or slightly too long/short
+  * 5-6: Generally clear but some confusion, redundancy, or length issues
+  * 3-4: Unclear structure, hard to follow
+  * 1-2: Very unclear, rambling
   * 0: Incoherent
-- technicalAccuracy 0..5 (technical correctness, use of appropriate concepts for the domain)
-  * 5: Deep, accurate technical knowledge, correct concepts, demonstrates real understanding
-  * 4: Good understanding with minor inaccuracies or missing details
-  * 3: Basic understanding but lacks depth or has some inaccuracies
-  * 2: Superficial or incorrect technical information
-  * 1: Significant technical errors or misunderstanding
+- technicalAccuracy 0..10 (technical correctness, use of appropriate concepts for the domain)
+  * 9-10: Deep, accurate technical knowledge, correct concepts, demonstrates real understanding
+  * 7-8: Good understanding with minor inaccuracies or missing details
+  * 5-6: Basic understanding but lacks depth or has some inaccuracies
+  * 3-4: Superficial or incorrect technical information
+  * 1-2: Significant technical errors or misunderstanding
   * 0: No technical content or completely incorrect
-- terminologyUsage 0..5 (appropriate use of domain-specific terms based on question tags)
-  * 5: Uses precise, domain-appropriate terminology throughout, demonstrates expertise
-  * 4: Good use of terminology with occasional imprecise terms
-  * 3: Mix of appropriate and generic terms
-  * 2: Mostly generic terms, lacks domain-specific language
-  * 1: Very few or incorrect technical terms
+- terminologyUsage 0..10 (appropriate use of domain-specific terms based on question tags)
+  * 9-10: Uses precise, domain-appropriate terminology throughout, demonstrates expertise
+  * 7-8: Good use of terminology with occasional imprecise terms
+  * 5-6: Mix of appropriate and generic terms
+  * 3-4: Mostly generic terms, lacks domain-specific language
+  * 1-2: Very few or incorrect technical terms
   * 0: No technical terminology used
 - tips: array of exactly 5 actionable tips (each tip can be up to 60 words, MUST include concrete examples):
   1. Question relevance tip - Did you answer the question? What's missing or off-topic? If they read the question, acknowledge that and suggest how to expand.
@@ -393,27 +409,27 @@ Given a transcript and question context, return strict JSON with:
 
 CRITICAL: You MUST return all required fields. The JSON must include:
 - questionAnswered (boolean)
-- answerQuality (number 0-5)
+- answerQuality (number 0-10)
 - whatWasRight (array of 2-4 strings)
 - whatWasWrong (array of 2-4 strings)
 - betterWording (array of 2-3 strings)
-- starScore, impactScore, clarityScore, technicalAccuracy, terminologyUsage (all numbers 0-5)
+- starScore, impactScore, clarityScore, technicalAccuracy, terminologyUsage (all numbers 0-10)
 - tips (array of exactly 5 strings)
 
 For technicalAccuracy:
-- 5: Demonstrates deep, accurate technical knowledge specific to the domain
-- 4: Shows good understanding with minor inaccuracies or missing details
-- 3: Basic understanding but lacks depth or has some inaccuracies
-- 2: Superficial or incorrect technical information
-- 1: Significant technical errors or misunderstanding
+- 9-10: Demonstrates deep, accurate technical knowledge specific to the domain
+- 7-8: Shows good understanding with minor inaccuracies or missing details
+- 5-6: Basic understanding but lacks depth or has some inaccuracies
+- 3-4: Superficial or incorrect technical information
+- 1-2: Significant technical errors or misunderstanding
 - 0: No technical content or completely incorrect
 
 For terminologyUsage:
-- 5: Uses precise, domain-appropriate terminology throughout
-- 4: Good use of terminology with occasional imprecise terms
-- 3: Mix of appropriate and generic terms
-- 2: Mostly generic terms, lacks domain-specific language
-- 1: Very few or incorrect technical terms
+- 9-10: Uses precise, domain-appropriate terminology throughout
+- 7-8: Good use of terminology with occasional imprecise terms
+- 5-6: Mix of appropriate and generic terms
+- 3-4: Mostly generic terms, lacks domain-specific language
+- 1-2: Very few or incorrect technical terms
 - 0: No technical terminology used
 
 Return JSON only, no markdown, no explanation.`;
@@ -705,7 +721,7 @@ Return JSON only.`;
 					.filter((w) => w.length > 0).length;
 				return {
 					questionAnswered: wordCount > 20, // Likely answered if substantial content
-					answerQuality: hasContent ? 2 : 1,
+					answerQuality: hasContent ? 4 : 2,
 					whatWasRight: hasContent
 						? [
 								"Your response was recorded successfully",
@@ -726,11 +742,11 @@ Return JSON only.`;
 						"Use the STAR method: Situation, Task, Action, Result",
 						"Include specific metrics and examples",
 					],
-					starScore: hasContent ? 2 : 1,
-					impactScore: hasContent ? 2 : 1,
-					clarityScore: hasContent ? 2 : 1,
-					technicalAccuracy: hasContent ? 2 : 1,
-					terminologyUsage: hasContent ? 2 : 1,
+					starScore: hasContent ? 4 : 2,
+					impactScore: hasContent ? 4 : 2,
+					clarityScore: hasContent ? 4 : 2,
+					technicalAccuracy: hasContent ? 4 : 2,
+					terminologyUsage: hasContent ? 4 : 2,
 					tips: hasContent
 						? [
 								"AI analysis temporarily unavailable",

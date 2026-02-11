@@ -101,7 +101,7 @@ export async function GET(request: NextRequest) {
 
       scores.forEach((score) => {
         if (score.value !== null) {
-          const scoreText = `${score.label}: ${score.value.toFixed(1)}/5`;
+          const scoreText = `${score.label}: ${score.value.toFixed(1)}/10`;
           // Draw a simple score bar
           doc.text(scoreText, margin, y);
           const barX = margin + 60;
@@ -109,10 +109,10 @@ export async function GET(request: NextRequest) {
           doc.setDrawColor(200, 200, 200);
           doc.setFillColor(200, 200, 200);
           doc.roundedRect(barX, y - 3, barWidth, 4, 1, 1, "F");
-          const fillWidth = (score.value / 5) * barWidth;
-          if (score.value >= 3.5) {
+          const fillWidth = (score.value / 10) * barWidth;
+          if (score.value >= 7) {
             doc.setFillColor(34, 197, 94); // green
-          } else if (score.value >= 2) {
+          } else if (score.value >= 5) {
             doc.setFillColor(234, 179, 8); // yellow
           } else {
             doc.setFillColor(239, 68, 68); // red
@@ -167,11 +167,11 @@ export async function GET(request: NextRequest) {
 
       // Scores row
       const scoreItems = [
-        item.answerQuality != null ? `Quality: ${item.answerQuality}/5` : null,
-        item.starScore != null ? `STAR: ${item.starScore}/5` : null,
-        item.impactScore != null ? `Impact: ${item.impactScore}/5` : null,
-        item.clarityScore != null ? `Clarity: ${item.clarityScore}/5` : null,
-        item.confidenceScore != null ? `Confidence: ${item.confidenceScore}/5` : null,
+        item.answerQuality != null ? `Quality: ${item.answerQuality}/10` : null,
+        item.starScore != null ? `STAR: ${item.starScore}/10` : null,
+        item.impactScore != null ? `Impact: ${item.impactScore}/10` : null,
+        item.clarityScore != null ? `Clarity: ${item.clarityScore}/10` : null,
+        item.confidenceScore != null ? `Confidence: ${item.confidenceScore}/10` : null,
       ].filter(Boolean);
 
       if (scoreItems.length > 0) {

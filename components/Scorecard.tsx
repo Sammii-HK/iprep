@@ -61,7 +61,7 @@ interface ScorecardProps {
 // Move ScoreBar outside to avoid creating components during render
 function ScoreBar({ label, value, previousValue }: { label: string; value: number | null; previousValue?: number | null }) {
 	const score = value ?? 0;
-	const percentage = (score / 5) * 100;
+	const percentage = (score / 10) * 100;
 	const delta = previousValue != null && value != null ? value - previousValue : null;
 
 	return (
@@ -71,7 +71,7 @@ function ScoreBar({ label, value, previousValue }: { label: string; value: numbe
 					{label}
 				</span>
 				<span className="text-sm text-slate-700 dark:text-slate-300">
-					{Number.isInteger(score) ? score : score.toFixed(1)}/5
+					{Number.isInteger(score) ? score : score.toFixed(1)}/10
 					{delta !== null && delta !== 0 && (
 						<span className={`ml-1.5 text-xs font-semibold ${
 							delta > 0
@@ -86,9 +86,9 @@ function ScoreBar({ label, value, previousValue }: { label: string; value: numbe
 			<div className="w-full bg-slate-200 dark:bg-slate-700 rounded-full h-2">
 				<div
 					className={`h-2 rounded-full transition-all ${
-						percentage >= 80
+						percentage >= 70
 							? "bg-green-500 dark:bg-green-400"
-							: percentage >= 60
+							: percentage >= 50
 							? "bg-yellow-500 dark:bg-yellow-400"
 							: "bg-red-500 dark:bg-red-400"
 					}`}

@@ -138,7 +138,7 @@ export async function analyzeSessionPerformance(
 				mistakeExamples.set(pattern, new Set());
 			}
 			mistakeExamples.get(pattern)?.add(
-				`Technical accuracy: ${item.technicalAccuracy}/5`
+				`Technical accuracy: ${item.technicalAccuracy}/10`
 			);
 		}
 		
@@ -150,7 +150,7 @@ export async function analyzeSessionPerformance(
 				mistakeExamples.set(pattern, new Set());
 			}
 			mistakeExamples.get(pattern)?.add(
-				`Terminology usage: ${item.terminologyUsage}/5`
+				`Terminology usage: ${item.terminologyUsage}/10`
 			);
 		}
 		
@@ -162,7 +162,7 @@ export async function analyzeSessionPerformance(
 				mistakeExamples.set(pattern, new Set());
 			}
 			mistakeExamples.get(pattern)?.add(
-				`Clarity score: ${item.clarityScore}/5`
+				`Clarity score: ${item.clarityScore}/10`
 			);
 		}
 		
@@ -174,7 +174,7 @@ export async function analyzeSessionPerformance(
 				mistakeExamples.set(pattern, new Set());
 			}
 			mistakeExamples.get(pattern)?.add(
-				`Impact score: ${item.impactScore}/5`
+				`Impact score: ${item.impactScore}/10`
 			);
 		}
 		
@@ -186,7 +186,7 @@ export async function analyzeSessionPerformance(
 				mistakeExamples.set(pattern, new Set());
 			}
 			mistakeExamples.get(pattern)?.add(
-				`STAR score: ${item.starScore}/5`
+				`STAR score: ${item.starScore}/10`
 			);
 		}
 		
@@ -414,14 +414,14 @@ export async function analyzeSessionPerformance(
 		};
 	});
 
-	// Identify weak tags (avg score < 3) and strong tags (avg score >= 4)
+	// Identify weak tags (avg score < 6) and strong tags (avg score >= 8)
 	const weakTags: string[] = [];
 	const strongTags: string[] = [];
 
 	Object.entries(performanceByTag).forEach(([tag, data]) => {
-		if (data.avgScore < 3) {
+		if (data.avgScore < 6) {
 			weakTags.push(tag);
-		} else if (data.avgScore >= 4) {
+		} else if (data.avgScore >= 8) {
 			strongTags.push(tag);
 		}
 	});
@@ -517,7 +517,7 @@ export async function analyzeQuizPerformance(
 	attempts.forEach((attempt) => {
 		const question = attempt.question;
 		const tags = question.tags || [];
-		const score = attempt.score ? attempt.score / 20 : 0; // Convert 0-100 to 0-5
+		const score = attempt.score ? attempt.score / 10 : 0; // Convert 0-100 to 0-10
 
 		tags.forEach((tag) => {
 			if (!tagScores.has(tag)) {
@@ -540,14 +540,14 @@ export async function analyzeQuizPerformance(
 		};
 	});
 
-	// Identify weak tags (avg score < 3) and strong tags (avg score >= 4)
+	// Identify weak tags (avg score < 6) and strong tags (avg score >= 8)
 	const weakTags: string[] = [];
 	const strongTags: string[] = [];
 
 	Object.entries(performanceByTag).forEach(([tag, data]) => {
-		if (data.avgScore < 3) {
+		if (data.avgScore < 6) {
 			weakTags.push(tag);
-		} else if (data.avgScore >= 4) {
+		} else if (data.avgScore >= 8) {
 			strongTags.push(tag);
 		}
 	});
@@ -566,7 +566,7 @@ export async function analyzeQuizPerformance(
 
 	// Calculate overall score
 	const allScores = attempts
-		.map((a) => (a.score ? a.score / 20 : 0))
+		.map((a) => (a.score ? a.score / 10 : 0))
 		.filter((s) => s > 0);
 	const overallScore =
 		allScores.length > 0

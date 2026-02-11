@@ -60,7 +60,7 @@ function roundToHalf(n: number): number {
 	return Math.round(n * 2) / 2;
 }
 
-const ScoreSchema = z.number().min(0).max(5).transform(roundToHalf);
+const ScoreSchema = z.number().min(0).max(10).transform(roundToHalf);
 
 const EnhancedAnalysisResponseSchema = z.object({
 	questionAnswered: z.boolean(),
@@ -103,16 +103,16 @@ function buildOptimizedSystemPrompt(
 Return JSON only:
 {
   "questionAnswered": boolean,
-  "answerQuality": 0-5 (use 0.5 steps),
+  "answerQuality": 0-10 (use 0.5 steps),
   "whatWasRight": ["item1", "item2", "item3"],
   "betterWording": ["suggestion1", "suggestion2"],
   "dontForget": ["point1"] or [],
   "dontForgetIndices": [0, 2] or [] (optional, only if hint is numbered),
-  "starScore": 0-5 (use 0.5 steps, e.g. 3.5),
-  "impactScore": 0-5 (use 0.5 steps),
-  "clarityScore": 0-5 (use 0.5 steps),
-  "technicalAccuracy": 0-5 (use 0.5 steps),
-  "terminologyUsage": 0-5 (use 0.5 steps),
+  "starScore": 0-10 (use 0.5 steps, e.g. 7.5),
+  "impactScore": 0-10 (use 0.5 steps),
+  "clarityScore": 0-10 (use 0.5 steps),
+  "technicalAccuracy": 0-10 (use 0.5 steps),
+  "terminologyUsage": 0-10 (use 0.5 steps),
   "tips": ["tip1", "tip2", "tip3", "tip4", "tip5"]
 }
 
@@ -128,17 +128,17 @@ Formatting:
   4. Reference specific parts of their answer when possible
   5. Be actionable (what to do, not just what's wrong)
 
-Scoring (0-5, use 0.5 increments like 2.5, 3.5, 4.5 for nuance):
-- answerQuality: 5=complete, 4=good, 3=partial, 2=tangential, 1=barely, 0=none
-- technicalAccuracy: 5=deep, 4=good, 3=basic, 2=superficial, 1=errors, 0=wrong
-- terminologyUsage: 5=precise, 4=good, 3=mixed, 2=generic, 1=few, 0=none
-- clarityScore: 5=excellent, 4=good, 3=adequate, 2=unclear, 1=confusing, 0=incoherent
-- starScore/impactScore: Use for behavioral/STAR questions only. Set to 3 for pure technical questions.
+Scoring (0-10, use 0.5 increments like 5.5, 7.0, 8.5 for nuance):
+- answerQuality: 10=complete+exceptional, 8-9=good+thorough, 6-7=decent+covers basics, 4-5=partial, 2-3=tangential, 0-1=none/irrelevant
+- technicalAccuracy: 10=deep+expert, 8-9=strong, 6-7=solid fundamentals, 4-5=basic, 2-3=superficial/errors, 0-1=wrong
+- terminologyUsage: 10=precise+expert, 8-9=strong, 6-7=appropriate, 4-5=mixed, 2-3=generic, 0-1=none
+- clarityScore: 10=exceptional, 8-9=clear+well-structured, 6-7=adequate+understandable, 4-5=unclear, 2-3=confusing, 0-1=incoherent
+- starScore/impactScore: Use for behavioral/STAR questions only. Set to 6 for pure technical questions.
 
 Scoring examples (calibrate your scoring to these):
-- Strong (4-5): "At my previous role, I led a team of 8 engineers to migrate our monolith to microservices. I identified the 3 highest-risk services, created a phased migration plan, and we completed it in 4 months, reducing deploy time by 70%." → answerQuality:4.5, starScore:5, impactScore:4.5, clarity:4.5
-- Mediocre (2-3): "Yeah so I worked on microservices before. We basically like broke things up into smaller pieces. It went pretty well I think, the team was happy with it." → answerQuality:2.5, starScore:2, impactScore:2, clarity:2.5
-- Weak (0-1): "Um I'm not really sure, I haven't done that exactly." → answerQuality:0.5, starScore:0.5, impactScore:0.5, clarity:1
+- Strong (8-10): "At my previous role, I led a team of 8 engineers to migrate our monolith to microservices. I identified the 3 highest-risk services, created a phased migration plan, and we completed it in 4 months, reducing deploy time by 70%." → answerQuality:9, starScore:9.5, impactScore:9, clarity:9
+- Decent (6-7): "Yeah so I worked on microservices before. We basically like broke things up into smaller pieces. It went pretty well I think, the team was happy with it." → answerQuality:5.5, starScore:4.5, impactScore:4, clarity:5.5
+- Weak (0-3): "Um I'm not really sure, I haven't done that exactly." → answerQuality:1, starScore:1, impactScore:1, clarity:2
 
 Context: ${coachingPrefs.priorities
 		.slice(0, 3)
@@ -468,7 +468,7 @@ export async function analyzeTranscriptOptimized(
 
 	// Build optimized prompts (use trimmed transcript)
 	const systemPrompt = buildOptimizedSystemPrompt(coachingPrefs);
-	const { prompt: userPrompt, hintPoints } = buildOptimizedUserPrompt(
+	const { prompt: userPrompt } = buildOptimizedUserPrompt(
 		trimmedTranscript, // Use trimmed transcript
 		questionText,
 		questionHint,
@@ -664,7 +664,7 @@ export async function analyzeTranscriptOptimized(
 
 				const fallback: EnhancedAnalysisResponse = {
 					questionAnswered: wordCount > 20,
-					answerQuality: 2,
+					answerQuality: 4,
 					whatWasRight: [
 						"Your response was recorded successfully",
 						"You provided some content",
@@ -675,11 +675,11 @@ export async function analyzeTranscriptOptimized(
 						"Include specific metrics and examples",
 					],
 					dontForget: [], // Only include if specific vital points are missing
-					starScore: 2,
-					impactScore: 2,
-					clarityScore: 2,
-					technicalAccuracy: 2,
-					terminologyUsage: 2,
+					starScore: 4,
+					impactScore: 4,
+					clarityScore: 4,
+					technicalAccuracy: 4,
+					terminologyUsage: 4,
 					tips: [
 						isTimeout
 							? "AI analysis timed out - your response was recorded, but detailed feedback is unavailable. Please try again."

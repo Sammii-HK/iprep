@@ -201,7 +201,7 @@ export default function MockInterviewPage() {
                 {result.transcript.length > 150 ? "..." : ""}&rdquo;
               </p>
               <div className="flex gap-3 text-xs text-slate-600 dark:text-slate-400">
-                <span>Quality: {result.answerQuality}/5</span>
+                <span>Quality: {result.answerQuality}/10</span>
                 <span>Words: {result.metrics.words}</span>
                 <span>Fillers: {result.metrics.fillerCount}</span>
                 <span>WPM: {result.metrics.wpm}</span>
