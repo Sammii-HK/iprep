@@ -58,6 +58,9 @@ export function QuestionCard({
     });
   };
 
+  /** Escape special regex characters in a string */
+  const escapeRegex = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
   /**
    * Highlight parts of the hint that match forgotten points
    * Uses flexible matching to find relevant phrases in the hint
@@ -82,16 +85,19 @@ export function QuestionCard({
           return cleaned.length >= 3 && !['the', 'and', 'for', 'are', 'but', 'not', 'you', 'was', 'can', 'this', 'that', 'with', 'from', 'have', 'been', 'were', 'when', 'where', 'what', 'which', 'who', 'how', 'why'].includes(cleaned);
         });
       
+      // Escape regex special chars before using in patterns
+      const escaped = words.map(escapeRegex);
+
       // Add individual important words for single-word matching
-      importantWords.push(...words);
-      
+      importantWords.push(...escaped);
+
       // Create patterns from 2-3 word phrases
-      for (let i = 0; i < words.length; i++) {
-        if (i + 1 < words.length) {
-          patterns.push(`${words[i]}\\s+${words[i + 1]}`);
+      for (let i = 0; i < escaped.length; i++) {
+        if (i + 1 < escaped.length) {
+          patterns.push(`${escaped[i]}\\s+${escaped[i + 1]}`);
         }
-        if (i + 2 < words.length) {
-          patterns.push(`${words[i]}\\s+${words[i + 1]}\\s+${words[i + 2]}`);
+        if (i + 2 < escaped.length) {
+          patterns.push(`${escaped[i]}\\s+${escaped[i + 1]}\\s+${escaped[i + 2]}`);
         }
       }
     });

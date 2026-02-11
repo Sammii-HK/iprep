@@ -200,8 +200,9 @@ export async function analyzeTechnicalKnowledge(
   };
 
   const terms = domainTerms[domain] || domainTerms['Software Engineering'];
+  const escapeRegex = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   const termMatches = terms.filter((term) =>
-    new RegExp(`\\b${term}\\b`, 'gi').test(transcript)
+    new RegExp(`\\b${escapeRegex(term)}\\b`, 'gi').test(transcript)
   );
 
   const terminologyScore = Math.min(5, Math.max(0, Math.round((termMatches.length / terms.length) * 10)));
