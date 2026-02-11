@@ -80,7 +80,7 @@ export default function PracticePage() {
 								typeof typedData === "object" &&
 								typedData !== null &&
 								typeof typedData.avgScore === "number" &&
-								typedData.avgScore < 3.5
+								typedData.avgScore < 7
 							);
 						})
 						.map(([tag]) => tag);
@@ -242,7 +242,7 @@ export default function PracticePage() {
 							typeof typedData === "object" &&
 							typedData !== null &&
 							typeof typedData.avgScore === "number" &&
-							typedData.avgScore < 3.5
+							typedData.avgScore < 7
 						);
 					})
 					.map(([tag]) => tag);

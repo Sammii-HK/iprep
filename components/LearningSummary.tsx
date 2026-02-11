@@ -428,8 +428,8 @@ export function LearningSummary({ sessionId }: { sessionId: string }) {
               })
               .map(([tag, data]) => {
                 const typedData = data as { avgScore: number; count: number };
-                const isWeak = typedData.avgScore < 3;
-                const isStrong = typedData.avgScore >= 4;
+                const isWeak = typedData.avgScore < 6;
+                const isStrong = typedData.avgScore >= 8;
                 return (
                   <div 
                     key={tag} 

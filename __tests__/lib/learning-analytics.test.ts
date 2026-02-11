@@ -76,9 +76,9 @@ describe('Learning Analytics', () => {
 
 			const result = await analyzeSessionPerformance('session-1', 'user-1');
 
-			// Should identify react as weak tag (avg score < 3)
+			// Should identify react as weak tag (avg score < 6)
 			expect(result.weakTags).toContain('react');
-			// javascript should be strong (avg score >= 4)
+			// javascript should be strong (avg score >= 8)
 			expect(result.strongTags).toContain('javascript');
 			expect(result.commonMistakes.length).toBeGreaterThan(0);
 			expect(result.frequentlyForgottenPoints.length).toBeGreaterThan(0);

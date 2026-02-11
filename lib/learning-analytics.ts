@@ -127,7 +127,7 @@ export async function analyzeSessionPerformance(
 
 	// Source 2: Derive patterns from consistently low scores
 	const scorePatterns: Map<string, number> = new Map();
-	const lowScoreThreshold = 3; // Scores below 3 indicate issues
+	const lowScoreThreshold = 6; // Scores below 6 indicate issues
 	
 	items.forEach((item) => {
 		// Technical accuracy issues
