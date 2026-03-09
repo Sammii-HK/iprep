@@ -6,7 +6,7 @@ import { handleApiError, NotFoundError, ValidationError } from '@/lib/errors';
 
 const CreateSessionSchema = z.object({
   title: z.string().min(1),
-  bankId: z.string().cuid('Question bank is required for practice sessions.'),
+  bankId: z.string().min(1, 'Question bank is required for practice sessions.'),
   maxQuestions: z.number().int().min(1).max(50).optional(),
   filterTags: z.array(z.string()).optional(), // Filter questions by tags (for weak topics practice)
 });
