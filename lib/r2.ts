@@ -51,7 +51,43 @@ export async function uploadAudio(
 }
 
 export function getAudioUrl(key: string): string {
-  // Construct public URL if needed, or use signed URL for private access
-  // For v1, assuming we'll use signed URLs or direct R2 access
+  const publicDomain = process.env.R2_PUBLIC_DOMAIN;
+  if (publicDomain) {
+    return `https://${publicDomain}/${key}`;
+  }
   return `${process.env.R2_ENDPOINT}/${process.env.R2_BUCKET_NAME}/${key}`;
+}
+
+export async function uploadStudyAudio(
+  bankId: string,
+  mp3Buffer: Buffer,
+  transcriptText?: string
+): Promise<{ audioUrl: string; transcriptUrl?: string }> {
+  const s3Client = getS3Client();
+  const audioKey = `audio/study/${bankId}.mp3`;
+
+  await s3Client.send(
+    new PutObjectCommand({
+      Bucket: process.env.R2_BUCKET_NAME!,
+      Key: audioKey,
+      Body: mp3Buffer,
+      ContentType: 'audio/mpeg',
+    })
+  );
+
+  let transcriptUrl: string | undefined;
+  if (transcriptText) {
+    const transcriptKey = `audio/study/${bankId}.txt`;
+    await s3Client.send(
+      new PutObjectCommand({
+        Bucket: process.env.R2_BUCKET_NAME!,
+        Key: transcriptKey,
+        Body: Buffer.from(transcriptText),
+        ContentType: 'text/plain',
+      })
+    );
+    transcriptUrl = getAudioUrl(transcriptKey);
+  }
+
+  return { audioUrl: getAudioUrl(audioKey), transcriptUrl };
 }

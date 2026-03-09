@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { BankSummary } from '@/components/BankSummary';
+import { AudioPlayer } from '@/components/banks/AudioPlayer';
 
 interface Question {
   id: string;
@@ -254,6 +255,8 @@ export default function BankDetailPage() {
           </div>
         </div>
       )}
+
+      <AudioPlayer bankId={bankId} bankTitle={bank.title} />
 
       {showSummary && (
         <div className="mb-6">
