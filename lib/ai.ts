@@ -14,11 +14,20 @@ let openaiClient: OpenAI | null = null;
 
 const getOpenAIClient = () => {
 	if (openaiClient) return openaiClient;
-	
+
+	const deepInfraKey = process.env.DEEPINFRA_API_KEY;
+	if (deepInfraKey) {
+		openaiClient = new OpenAI({
+			apiKey: deepInfraKey,
+			baseURL: "https://api.deepinfra.com/v1/openai",
+		});
+		return openaiClient;
+	}
+
 	const apiKey = process.env.OPENAI_API_KEY;
 	if (!apiKey) {
-		console.error("OPENAI_API_KEY is not set!");
-		throw new Error("OPENAI_API_KEY environment variable is required");
+		console.error("DEEPINFRA_API_KEY or OPENAI_API_KEY is not set!");
+		throw new Error("DEEPINFRA_API_KEY environment variable is required");
 	}
 	openaiClient = new OpenAI({ apiKey });
 	return openaiClient;
@@ -148,7 +157,7 @@ export async function transcribeAudio(
 	// Only request timestamps if explicitly needed (adds ~30-50% processing time)
 	const response = await openai.audio.transcriptions.create({
 		file: file,
-		model: "whisper-1",
+		model: process.env.DEEPINFRA_API_KEY ? "openai/whisper-large-v3-turbo" : "whisper-1",
 		language: "en", // Specify English for better accuracy
 		response_format: includeTimestamps ? "verbose_json" : "json", // Simpler format when no timestamps
 		...(includeTimestamps
@@ -216,7 +225,7 @@ Return JSON only.`;
 	while (attempts < maxAttempts) {
 		try {
 			const completion = await openai.chat.completions.create({
-				model: "gpt-4o-mini",
+				model: process.env.DEEPINFRA_API_KEY ? "meta-llama/Meta-Llama-3.3-70B-Instruct-Turbo" : "gpt-4o-mini",
 				messages: [
 					{ role: "system", content: systemPrompt },
 					{ role: "user", content: userPrompt },
@@ -615,7 +624,7 @@ Return JSON only.`;
 			);
 
 			const completion = await openai.chat.completions.create({
-				model: "gpt-4o-mini",
+				model: process.env.DEEPINFRA_API_KEY ? "meta-llama/Meta-Llama-3.3-70B-Instruct-Turbo" : "gpt-4o-mini",
 				messages: [
 					{ role: "system", content: systemPrompt },
 					{ role: "user", content: userPrompt },

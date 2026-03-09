@@ -39,10 +39,19 @@ let openaiClient: OpenAI | null = null;
 
 const getOpenAIClient = () => {
 	if (openaiClient) return openaiClient;
-	
+
+	const deepInfraKey = process.env.DEEPINFRA_API_KEY;
+	if (deepInfraKey) {
+		openaiClient = new OpenAI({
+			apiKey: deepInfraKey,
+			baseURL: "https://api.deepinfra.com/v1/openai",
+		});
+		return openaiClient;
+	}
+
 	const apiKey = process.env.OPENAI_API_KEY;
 	if (!apiKey) {
-		throw new Error("OPENAI_API_KEY environment variable is required");
+		throw new Error("DEEPINFRA_API_KEY environment variable is required");
 	}
 	openaiClient = new OpenAI({ apiKey });
 	return openaiClient;
@@ -497,7 +506,7 @@ export async function analyzeTranscriptOptimized(
 	while (attempts < maxAttempts) {
 		try {
 			const completion = await openai.chat.completions.create({
-				model: "gpt-4o-mini",
+				model: process.env.DEEPINFRA_API_KEY ? "meta-llama/Meta-Llama-3.3-70B-Instruct-Turbo" : "gpt-4o-mini",
 				messages: [
 					{ role: "system", content: systemPrompt },
 					{ role: "user", content: userPrompt },

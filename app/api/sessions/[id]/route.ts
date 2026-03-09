@@ -30,6 +30,7 @@ export async function GET(
 								hint: true,
 								tags: true,
 								difficulty: true,
+							type: true,
 							},
 							orderBy: {
 								id: "asc",

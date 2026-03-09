@@ -15,6 +15,7 @@ interface Question {
   hint?: string | null;
   tags: string[];
   difficulty: number;
+  type?: string;
 }
 
 interface SessionItem {
@@ -625,6 +626,7 @@ export default function PracticeSessionPage() {
               }
             }}
             questionTags={questions[currentQuestionIndex]?.tags}
+            questionType={questions[currentQuestionIndex]?.type}
             previousScores={previousScorecard?.scores}
             previousMetrics={previousScorecard?.metrics}
           />

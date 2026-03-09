@@ -42,8 +42,19 @@ export async function getCurrentUser(request: NextRequest): Promise<{
   createdAt: Date;
 } | null> {
   try {
+    // Internal MCP key bypass — for local MCP server use only
+    const internalKey = process.env.IPREP_INTERNAL_KEY;
+    if (internalKey && request.headers.get('x-internal-key') === internalKey) {
+      const adminEmail = process.env.ADMIN_EMAIL;
+      const admin = await prisma.user.findFirst({
+        where: adminEmail ? { email: adminEmail } : {},
+        select: { id: true, email: true, name: true, role: true, isPremium: true, emailVerified: true, createdAt: true },
+      });
+      return admin;
+    }
+
     // Try to get token from cookie first
-    const token = request.cookies.get('auth-token')?.value || 
+    const token = request.cookies.get('auth-token')?.value ||
                  request.headers.get('authorization')?.replace('Bearer ', '');
     
     if (!token) {

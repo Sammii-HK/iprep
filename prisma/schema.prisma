@@ -26,6 +26,12 @@ model User {
   emailVerificationToken String?
   passwordResetToken    String?
   passwordResetExpires  DateTime?
+  // Study tracking
+  currentStreak         Int           @default(0)
+  longestStreak         Int           @default(0)
+  lastStudiedDate       DateTime?     // Date (not datetime) of last study activity
+  dailyGoal             Int           @default(5)  // Questions per day target
+  interviewDate         DateTime?     // Target interview date for countdown
   createdAt             DateTime      @default(now())
   updatedAt             DateTime      @updatedAt
   banks                 QuestionBank[]
@@ -34,6 +40,25 @@ model User {
   learningSummaries     LearningSummary[]
   learningInsights      UserLearningInsight?
   bankFolders           BankFolder[]
+  questionProgress      UserQuestionProgress[]
+}
+
+model UserQuestionProgress {
+  id           String   @id @default(cuid())
+  userId       String
+  questionId   String
+  // SM-2 spaced repetition fields
+  nextReviewAt DateTime @default(now())
+  interval     Int      @default(1)     // Days until next review
+  easeFactor   Float    @default(2.5)   // SM-2 ease factor
+  repetitions  Int      @default(0)     // Successful review streak
+  lastScore    Float?                   // Last answerQuality score (0-10)
+  lastPracticed DateTime @default(now())
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  question     Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, questionId])
+  @@index([userId, nextReviewAt])
 }
 
 model QuestionBank {
@@ -96,6 +121,7 @@ model Question {
   bank       QuestionBank @relation(fields: [bankId], references: [id])
   items      SessionItem[]
   quizAttempts QuizAttempt[]
+  userProgress UserQuestionProgress[]
 
   @@index([bankId])
 }

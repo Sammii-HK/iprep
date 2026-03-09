@@ -34,8 +34,9 @@ interface ScorecardProps {
 	repeatedWords?: Array<{ word: string; count: number; percentage: number }>;
 	hasExcessiveRepetition?: boolean;
 	transcript?: string | null;
-	onReanalyze?: (correctedTranscript: string) => void; // Callback for re-analysis with corrected transcript
-	questionTags?: string[]; // To determine if question is technical
+	onReanalyze?: (correctedTranscript: string) => void;
+	questionTags?: string[];
+	questionType?: string; // QuestionType enum: BEHAVIORAL | TECHNICAL | DEFINITION | SCENARIO | PITCH
 	previousScores?: {
 		confidence: number | null;
 		intonation: number | null;
@@ -58,62 +59,76 @@ interface ScorecardProps {
 	} | null;
 }
 
-// Move ScoreBar outside to avoid creating components during render
+// STAR is only shown for behavioral/scenario questions
+function showStarScoring(questionType?: string, tags?: string[]): boolean {
+	if (questionType) {
+		return questionType === "BEHAVIORAL" || questionType === "SCENARIO";
+	}
+	// Fallback to tag detection if type not provided
+	if (!tags || tags.length === 0) return false;
+	const behavioralTags = ["behavioral", "star", "situation", "leadership", "teamwork", "conflict", "challenge"];
+	return tags.some((tag) => behavioralTags.some((bt) => tag.toLowerCase().includes(bt.toLowerCase())));
+}
+
+function scoreColor(pct: number) {
+	if (pct >= 70) return "text-green-600 dark:text-green-400";
+	if (pct >= 50) return "text-amber-600 dark:text-amber-400";
+	return "text-red-500 dark:text-red-400";
+}
+
+function barColor(pct: number) {
+	if (pct >= 70) return "bg-green-500 dark:bg-green-400";
+	if (pct >= 50) return "bg-amber-500 dark:bg-amber-400";
+	return "bg-red-500 dark:bg-red-400";
+}
+
 function ScoreBar({ label, value, previousValue }: { label: string; value: number | null; previousValue?: number | null }) {
 	const score = value ?? 0;
-	const percentage = (score / 10) * 100;
+	const pct = (score / 10) * 100;
 	const delta = previousValue != null && value != null ? value - previousValue : null;
 
 	return (
-		<div className="mb-4">
-			<div className="flex justify-between mb-1">
-				<span className="text-sm font-medium text-slate-900 dark:text-slate-100">
-					{label}
-				</span>
-				<span className="text-sm text-slate-700 dark:text-slate-300">
-					{Number.isInteger(score) ? score : score.toFixed(1)}/10
+		<div className="mb-3">
+			<div className="flex justify-between items-baseline mb-1">
+				<span className="text-xs font-medium text-slate-600 dark:text-slate-400 truncate pr-2">{label}</span>
+				<span className={`text-sm font-bold shrink-0 ${scoreColor(pct)}`}>
+					{Number.isInteger(score) ? score : score.toFixed(1)}
+					<span className="text-xs font-normal text-slate-400">/10</span>
 					{delta !== null && delta !== 0 && (
-						<span className={`ml-1.5 text-xs font-semibold ${
-							delta > 0
-								? "text-green-600 dark:text-green-400"
-								: "text-red-600 dark:text-red-400"
-						}`}>
+						<span className={`ml-1 text-xs font-semibold ${delta > 0 ? "text-green-500" : "text-red-500"}`}>
 							{delta > 0 ? "+" : ""}{Number.isInteger(delta) ? delta : delta.toFixed(1)}
 						</span>
 					)}
 				</span>
 			</div>
-			<div className="w-full bg-slate-200 dark:bg-slate-700 rounded-full h-2">
-				<div
-					className={`h-2 rounded-full transition-all ${
-						percentage >= 70
-							? "bg-green-500 dark:bg-green-400"
-							: percentage >= 50
-							? "bg-yellow-500 dark:bg-yellow-400"
-							: "bg-red-500 dark:bg-red-400"
-					}`}
-					style={{ width: `${percentage}%` }}
-				/>
+			<div className="w-full bg-slate-100 dark:bg-slate-700 rounded-full h-1.5">
+				<div className={`h-1.5 rounded-full transition-all ${barColor(pct)}`} style={{ width: `${pct}%` }} />
 			</div>
 		</div>
 	);
 }
 
-// Helper to determine if question is technical (not behavioral/STAR)
-function isTechnicalQuestion(tags?: string[]): boolean {
-	if (!tags || tags.length === 0) return true; // Default to technical if no tags
-	// Behavioral tags that indicate STAR format needed
-	const behavioralTags = [
-		"behavioral",
-		"star",
-		"situation",
-		"leadership",
-		"teamwork",
-		"conflict",
-		"challenge",
-	];
-	return !tags.some((tag) =>
-		behavioralTags.some((bt) => tag.toLowerCase().includes(bt.toLowerCase()))
+function ScoreTile({ label, value, previousValue }: { label: string; value: number | null; previousValue?: number | null }) {
+	const score = value ?? 0;
+	const pct = (score / 10) * 100;
+	const delta = previousValue != null && value != null ? value - previousValue : null;
+
+	return (
+		<div className="bg-slate-50 dark:bg-slate-700/50 rounded-lg p-3">
+			<div className={`text-xl font-bold ${scoreColor(pct)}`}>
+				{Number.isInteger(score) ? score : score.toFixed(1)}
+				<span className="text-xs font-normal text-slate-400">/10</span>
+			</div>
+			<div className="text-xs text-slate-500 dark:text-slate-400 mt-0.5 leading-tight">{label}</div>
+			{delta !== null && delta !== 0 && (
+				<div className={`text-xs font-semibold mt-1 ${delta > 0 ? "text-green-500" : "text-red-500"}`}>
+					{delta > 0 ? "+" : ""}{Number.isInteger(delta) ? delta : delta.toFixed(1)}
+				</div>
+			)}
+			<div className="mt-2 h-1 bg-slate-200 dark:bg-slate-600 rounded-full overflow-hidden">
+				<div className={`h-full rounded-full ${barColor(pct)}`} style={{ width: `${pct}%` }} />
+			</div>
+		</div>
 	);
 }
 
@@ -132,384 +147,290 @@ export function Scorecard({
 	transcript,
 	onReanalyze,
 	questionTags,
+	questionType,
 	previousScores,
 	previousMetrics,
 }: ScorecardProps) {
-	const isTechnical = isTechnicalQuestion(questionTags);
+	const isBehavioral = showStarScoring(questionType, questionTags);
+	const [showDelivery, setShowDelivery] = useState(false);
 	const [isEditingTranscript, setIsEditingTranscript] = useState(false);
 	const [editedTranscript, setEditedTranscript] = useState(transcript || "");
 	const [reanalyzing, setReanalyzing] = useState(false);
-	// tips removed from display but kept in interface for future session recap feature
+	const [showTranscript, setShowTranscript] = useState(false);
+
+	const quality = answerQuality ?? 0;
+	const qualityPct = (quality / 10) * 100;
 
 	return (
-		<div className="bg-white dark:bg-slate-800 rounded-lg shadow-md p-6 border border-slate-200 dark:border-slate-700">
-			<h2 className="text-2xl font-bold mb-2 text-slate-900 dark:text-slate-100">
-				Scorecard
-			</h2>
-			{previousScores && (
-				<p className="text-xs text-slate-500 dark:text-slate-400 mb-4">
-					Compared to previous attempt. <span className="text-green-600 dark:text-green-400">+green</span> = improved, <span className="text-red-600 dark:text-red-400">-red</span> = declined.
-				</p>
-			)}
-			{!previousScores && <div className="mb-4" />}
+		<div className="bg-white dark:bg-slate-800 rounded-lg shadow-md border border-slate-200 dark:border-slate-700 overflow-hidden">
 
-			{/* Consolidated Answer Quality */}
-			{(questionAnswered !== undefined ||
-				answerQuality !== undefined ||
-				whatWasRight ||
-				whatWasWrong ||
-				betterWording ||
-				dontForget ||
-				repeatedWords) && (
-				<div className="mb-6 p-4 rounded-lg border-2 border-slate-200 dark:border-slate-700">
-					<h3 className="text-lg font-semibold mb-3 text-slate-900 dark:text-slate-100">
-						Answer Feedback
-					</h3>
-
+			{/* ── Overall score header ─────────────────────────── */}
+			<div className={`px-5 py-4 border-b border-slate-200 dark:border-slate-700 ${
+				qualityPct >= 70 ? "bg-green-50 dark:bg-green-900/10" :
+				qualityPct >= 50 ? "bg-amber-50 dark:bg-amber-900/10" :
+				"bg-red-50 dark:bg-red-900/10"
+			}`}>
+				<div className="flex items-center justify-between">
+					<div>
+						<div className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400 mb-1">
+							Answer Quality
+						</div>
+						<div className={`text-4xl font-bold ${scoreColor(qualityPct)}`}>
+							{Number.isInteger(quality) ? quality : quality.toFixed(1)}
+							<span className="text-lg font-normal text-slate-400">/10</span>
+						</div>
+					</div>
 					{questionAnswered !== undefined && (
-						<div className="mb-3">
-							<span
-								className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-semibold ${
-									questionAnswered
-										? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200"
-										: "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200"
-								}`}
-							>
-								{questionAnswered
-									? "✓ Question Answered"
-									: "✗ Question Not Fully Answered"}
-							</span>
-						</div>
+						<span className={`inline-flex items-center px-3 py-1.5 rounded-full text-sm font-semibold ${
+							questionAnswered
+								? "bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-300"
+								: "bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-300"
+						}`}>
+							{questionAnswered ? "✓ Answered" : "✗ Not fully answered"}
+						</span>
 					)}
+				</div>
+				{previousScores && (
+					<p className="text-xs text-slate-400 dark:text-slate-500 mt-2">
+						<span className="text-green-600 dark:text-green-400 font-medium">+green</span> improved · <span className="text-red-500 font-medium">-red</span> declined vs last attempt
+					</p>
+				)}
+			</div>
 
-					{/* Key Points to Include - First */}
-					{dontForget && dontForget.length > 0 && (
-						<div className="mb-3 p-3 bg-slate-50 dark:bg-slate-700 rounded-lg">
-							<h4 className="text-sm font-semibold text-slate-900 dark:text-slate-100 mb-2">
-								Key Points to Include:
-							</h4>
-							<ul className="list-disc list-inside space-y-1 text-sm text-slate-700 dark:text-slate-200">
-								{dontForget.map((item, index) => (
-									<li key={index}>{item}</li>
-								))}
-							</ul>
-						</div>
-					)}
+			<div className="p-5 space-y-5">
 
-					{/* Better Wording Suggestions - Second */}
-					{betterWording && betterWording.length > 0 && (
-						<div className="mb-3">
-							<h4 className="text-sm font-semibold text-purple-700 dark:text-purple-300 mb-2">
-								💡 Better Wording Suggestions:
-							</h4>
-							<div className="space-y-3 text-sm text-slate-700 dark:text-slate-300">
-								{betterWording.map((item, index) => {
-									// Check if it's in "You said: '...'. Better: '...'" format
-									const youSaidMatch = item.match(
-										/You said:\s*['"]([^'"]+)['"]/i
-									);
-									const betterMatch = item.match(/Better:\s*['"]([^'"]+)['"]/i);
+				{/* ── Key Points to Include ────────────────────── */}
+				{dontForget && dontForget.length > 0 && (
+					<div className="p-3 bg-amber-50 dark:bg-amber-900/10 border border-amber-200 dark:border-amber-800 rounded-lg">
+						<h4 className="text-xs font-semibold uppercase tracking-wide text-amber-700 dark:text-amber-400 mb-2">
+							Key Points to Include
+						</h4>
+						<ul className="space-y-1">
+							{dontForget.map((item, i) => (
+								<li key={i} className="flex gap-2 text-sm text-slate-700 dark:text-slate-300">
+									<span className="text-amber-500 shrink-0">→</span>
+									<span>{item}</span>
+								</li>
+							))}
+						</ul>
+					</div>
+				)}
 
-									if (youSaidMatch && betterMatch) {
-										// Format: "You said" in italics, "Better" suggestion in bold
-										return (
-											<div key={index} className="leading-relaxed">
-												<p className="italic text-slate-600 dark:text-slate-400 mb-1">
-													You said: &ldquo;{youSaidMatch[1]}&rdquo;
-												</p>
-												<p className="font-semibold">
-													Suggestion: &ldquo;{betterMatch[1]}&rdquo;
-												</p>
-											</div>
-										);
-									}
+				{/* ── Better Wording ───────────────────────────── */}
+				{betterWording && betterWording.length > 0 && (
+					<div>
+						<h4 className="text-xs font-semibold uppercase tracking-wide text-purple-600 dark:text-purple-400 mb-2">
+							Better Wording
+						</h4>
+						<div className="space-y-2">
+							{betterWording.map((item, i) => {
+								const youSaidMatch = item.match(/You said:\s*['"]([^'"]+)['"]/i);
+								const betterMatch = item.match(/Better:\s*['"]([^'"]+)['"]/i);
+								const betterOnlyMatch = item.match(/Better:\s*(.+)/i);
 
-									// Check if it starts with "Better:" (without "You said")
-									const betterOnlyMatch = item.match(/Better:\s*(.+)/i);
-									if (betterOnlyMatch) {
-										return (
-											<div key={index} className="leading-relaxed">
-												<p className="font-semibold">
-													Better: {betterOnlyMatch[1]}
-												</p>
-											</div>
-										);
-									}
-
-									// Regular suggestion - make it bold
+								if (youSaidMatch && betterMatch) {
 									return (
-										<div key={index} className="leading-relaxed">
-											<p className="font-semibold">{item}</p>
+										<div key={i} className="text-sm bg-slate-50 dark:bg-slate-700/50 rounded-lg p-3">
+											<p className="italic text-slate-500 dark:text-slate-400 text-xs mb-1">You said: &ldquo;{youSaidMatch[1]}&rdquo;</p>
+											<p className="font-medium text-slate-800 dark:text-slate-200">&ldquo;{betterMatch[1]}&rdquo;</p>
 										</div>
 									);
-								})}
-							</div>
-						</div>
-					)}
-
-					{/* What You Got Right - Third */}
-					{whatWasRight && whatWasRight.length > 0 && (
-						<div className="mb-3">
-							<h4 className="text-sm font-semibold text-green-700 dark:text-green-300 mb-2">
-								✓ What You Got Right:
-							</h4>
-							<ul className="list-disc list-inside space-y-1 text-sm text-slate-700 dark:text-slate-300">
-								{whatWasRight.map((item, index) => (
-									<li key={index}>{item}</li>
-								))}
-							</ul>
-						</div>
-					)}
-
-					{whatWasWrong && whatWasWrong.length > 0 && (
-						<div className="mb-3 p-3 bg-purple-50 dark:bg-purple-900/20 rounded-lg border border-purple-200 dark:border-purple-800">
-							<h4 className="text-sm font-semibold text-purple-700 dark:text-purple-300 mb-2">
-								📝 Points to Remember:
-							</h4>
-							<ul className="list-disc list-inside space-y-1 text-sm text-slate-700 dark:text-slate-300">
-								{whatWasWrong.map((item, index) => (
-									<li key={index}>{item}</li>
-								))}
-							</ul>
-						</div>
-					)}
-
-					{/* Repeated Words Analysis */}
-					{repeatedWords && repeatedWords.length > 0 && (
-						<div className={`mb-3 p-3 rounded-lg border ${
-							hasExcessiveRepetition
-								? "bg-orange-50 dark:bg-orange-900/20 border-orange-200 dark:border-orange-800"
-								: "bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800"
-						}`}>
-							<h4 className={`text-sm font-semibold mb-2 ${
-								hasExcessiveRepetition
-									? "text-orange-700 dark:text-orange-300"
-									: "text-blue-700 dark:text-blue-300"
-							}`}>
-								{hasExcessiveRepetition ? "⚠️" : "📊"} Repeated Words:
-							</h4>
-							<p className="text-xs text-slate-600 dark:text-slate-400 mb-2">
-								{hasExcessiveRepetition
-									? "You're overusing these words. Try using synonyms or varying your vocabulary."
-									: "These words appear frequently in your answer. Consider using synonyms for variety."}
-							</p>
-							<div className="flex flex-wrap gap-2">
-								{repeatedWords.map((item, index) => (
-									<div
-										key={index}
-										className={`px-2 py-1 rounded text-xs font-medium ${
-											hasExcessiveRepetition
-												? "bg-orange-100 dark:bg-orange-900/30 text-orange-800 dark:text-orange-200"
-												: "bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-200"
-										}`}
-									>
-										<span className="font-semibold">&ldquo;{item.word}&rdquo;</span>
-										<span className="ml-1 opacity-75">
-											({item.count}x, {item.percentage}%)
-										</span>
+								}
+								return (
+									<div key={i} className="text-sm font-medium text-slate-700 dark:text-slate-300">
+										{betterOnlyMatch ? betterOnlyMatch[1] : item}
 									</div>
-								))}
-							</div>
+								);
+							})}
+						</div>
+					</div>
+				)}
+
+				{/* ── What You Got Right ───────────────────────── */}
+				{whatWasRight && whatWasRight.length > 0 && (
+					<div>
+						<h4 className="text-xs font-semibold uppercase tracking-wide text-green-600 dark:text-green-400 mb-2">
+							What You Got Right
+						</h4>
+						<ul className="space-y-1">
+							{whatWasRight.map((item, i) => (
+								<li key={i} className="flex gap-2 text-sm text-slate-700 dark:text-slate-300">
+									<span className="text-green-500 shrink-0">✓</span>
+									<span>{item}</span>
+								</li>
+							))}
+						</ul>
+					</div>
+				)}
+
+				{whatWasWrong && whatWasWrong.length > 0 && (
+					<div>
+						<h4 className="text-xs font-semibold uppercase tracking-wide text-slate-500 mb-2">Points to Remember</h4>
+						<ul className="space-y-1">
+							{whatWasWrong.map((item, i) => (
+								<li key={i} className="text-sm text-slate-600 dark:text-slate-400">· {item}</li>
+							))}
+						</ul>
+					</div>
+				)}
+
+				{/* ── Repeated Words ───────────────────────────── */}
+				{repeatedWords && repeatedWords.length > 0 && (
+					<div className={`p-3 rounded-lg border text-sm ${
+						hasExcessiveRepetition
+							? "bg-orange-50 dark:bg-orange-900/10 border-orange-200 dark:border-orange-800"
+							: "bg-slate-50 dark:bg-slate-700/50 border-slate-200 dark:border-slate-700"
+					}`}>
+						<h4 className={`text-xs font-semibold uppercase tracking-wide mb-2 ${
+							hasExcessiveRepetition ? "text-orange-600 dark:text-orange-400" : "text-slate-500"
+						}`}>
+							{hasExcessiveRepetition ? "⚠ Overused Words" : "Repeated Words"}
+						</h4>
+						<div className="flex flex-wrap gap-1.5">
+							{repeatedWords.map((item, i) => (
+								<span key={i} className={`px-2 py-0.5 rounded text-xs font-medium ${
+									hasExcessiveRepetition
+										? "bg-orange-100 dark:bg-orange-900/30 text-orange-800 dark:text-orange-200"
+										: "bg-slate-200 dark:bg-slate-600 text-slate-700 dark:text-slate-300"
+								}`}>
+									&ldquo;{item.word}&rdquo; {item.count}x
+								</span>
+							))}
+						</div>
+					</div>
+				)}
+
+				{/* ── Score grid ───────────────────────────────── */}
+				<div>
+					<h3 className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400 mb-3">Scores</h3>
+					<div className="grid grid-cols-2 gap-2">
+						{isBehavioral && scores.star != null && (
+							<ScoreTile label="STAR Structure" value={scores.star} previousValue={previousScores?.star} />
+						)}
+						{isBehavioral && scores.impact != null && (
+							<ScoreTile label="Impact" value={scores.impact} previousValue={previousScores?.impact} />
+						)}
+						<ScoreTile label="Clarity" value={scores.clarity} previousValue={previousScores?.clarity} />
+						{scores.conciseness != null && (
+							<ScoreTile label="Conciseness" value={scores.conciseness} previousValue={previousScores?.conciseness} />
+						)}
+						{scores.technicalAccuracy != null && (
+							<ScoreTile label="Technical Accuracy" value={scores.technicalAccuracy} previousValue={previousScores?.technicalAccuracy} />
+						)}
+						{scores.terminologyUsage != null && (
+							<ScoreTile label="Terminology" value={scores.terminologyUsage} previousValue={previousScores?.terminologyUsage} />
+						)}
+						<ScoreTile label="Confidence" value={scores.confidence} previousValue={previousScores?.confidence} />
+						<ScoreTile label="Intonation" value={scores.intonation} previousValue={previousScores?.intonation} />
+					</div>
+				</div>
+
+				{/* ── Delivery details (collapsed) ─────────────── */}
+				<div>
+					<button
+						onClick={() => setShowDelivery((v) => !v)}
+						className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors"
+					>
+						<span>{showDelivery ? "▾" : "▸"}</span>
+						Delivery Details
+					</button>
+					{showDelivery && (
+						<div className="mt-3 grid grid-cols-2 gap-x-6 gap-y-2 text-sm">
+							{[
+								{ label: "Words", value: metrics.words, prev: previousMetrics?.words, lowerBetter: false },
+								{ label: "WPM", value: metrics.wpm, prev: null, lowerBetter: false },
+								{ label: "Fillers", value: metrics.fillerCount, prev: previousMetrics?.fillerCount, lowerBetter: true },
+								{ label: "Filler rate", value: metrics.fillerRate != null ? `${metrics.fillerRate.toFixed(1)}%` : null, prev: null, lowerBetter: true },
+								{ label: "Long pauses", value: metrics.longPauses, prev: previousMetrics?.longPauses, lowerBetter: true },
+							].map(({ label, value, prev, lowerBetter }) => (
+								<div key={label} className="flex justify-between items-baseline border-b border-slate-100 dark:border-slate-700 pb-1">
+									<span className="text-slate-500 dark:text-slate-400">{label}</span>
+									<span className="font-semibold text-slate-900 dark:text-slate-100">
+										{value ?? "—"}
+										{typeof value === "number" && prev != null && value !== prev && (
+											<span className={`ml-1 text-xs ${
+												lowerBetter
+													? value < prev ? "text-green-500" : "text-red-500"
+													: value > prev ? "text-green-500" : "text-red-500"
+											}`}>
+												{value < prev ? "" : "+"}{value - prev}
+											</span>
+										)}
+									</span>
+								</div>
+							))}
+							{scores.pacing != null && <div className="col-span-2"><ScoreBar label="Pacing" value={scores.pacing} previousValue={previousScores?.pacing} /></div>}
+							{scores.emphasis != null && <div className="col-span-2"><ScoreBar label="Emphasis" value={scores.emphasis} previousValue={previousScores?.emphasis} /></div>}
+							{scores.engagement != null && <div className="col-span-2"><ScoreBar label="Engagement" value={scores.engagement} previousValue={previousScores?.engagement} /></div>}
 						</div>
 					)}
 				</div>
-			)}
 
-			{/* Delivery Metrics */}
-			<div className="mb-6">
-				<h3 className="text-lg font-semibold mb-3 text-slate-900 dark:text-slate-100">
-					Delivery Metrics
-				</h3>
-				<div className="grid grid-cols-2 gap-4 text-sm">
+				{/* ── Audio ────────────────────────────────────── */}
+				{audioUrl && (
 					<div>
-						<span className="text-slate-600 dark:text-slate-400">Words:</span>{" "}
-						<span className="font-semibold text-slate-900 dark:text-slate-100">
-							{metrics.words ?? "N/A"}
-						</span>
+						<h3 className="text-xs font-semibold uppercase tracking-wide text-slate-400 mb-2">Your Recording</h3>
+						<audio controls className="w-full h-8">
+							<source src={audioUrl} type="audio/webm" />
+							<source src={audioUrl} type="audio/mp4" />
+							<source src={audioUrl} type="audio/m4a" />
+							<source src={audioUrl} type="audio/aac" />
+						</audio>
 					</div>
+				)}
+
+				{/* ── Transcript (collapsed) ───────────────────── */}
+				{transcript && (
 					<div>
-						<span className="text-slate-600 dark:text-slate-400">WPM:</span>{" "}
-						<span className="font-semibold text-slate-900 dark:text-slate-100">
-							{metrics.wpm ?? "N/A"}
-						</span>
-					</div>
-					<div>
-						<span className="text-slate-600 dark:text-slate-400">Fillers:</span>{" "}
-						<span className="font-semibold text-slate-900 dark:text-slate-100">
-							{metrics.fillerCount ?? "N/A"}
-							{previousMetrics?.fillerCount != null && metrics.fillerCount != null && metrics.fillerCount !== previousMetrics.fillerCount && (
-								<span className={`ml-1 text-xs font-semibold ${
-									metrics.fillerCount < previousMetrics.fillerCount
-										? "text-green-600 dark:text-green-400"
-										: "text-red-600 dark:text-red-400"
-								}`}>
-									{metrics.fillerCount < previousMetrics.fillerCount ? "" : "+"}{metrics.fillerCount - previousMetrics.fillerCount}
+						<button
+							onClick={() => setShowTranscript((v) => !v)}
+							className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors"
+						>
+							<span>{showTranscript ? "▾" : "▸"}</span>
+							Transcript
+							{onReanalyze && showTranscript && (
+								<span
+									role="button"
+									onClick={(e) => { e.stopPropagation(); setIsEditingTranscript((v) => !v); setEditedTranscript(transcript); }}
+									className="ml-2 px-1.5 py-0.5 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 rounded text-slate-600 dark:text-slate-300 normal-case font-normal"
+								>
+									{isEditingTranscript ? "cancel" : "edit"}
 								</span>
 							)}
-						</span>
-					</div>
-					<div>
-						<span className="text-slate-600 dark:text-slate-400">
-							Filler Rate:
-						</span>{" "}
-						<span className="font-semibold text-slate-900 dark:text-slate-100">
-							{metrics.fillerRate !== null
-								? `${metrics.fillerRate.toFixed(1)}%`
-								: "N/A"}
-						</span>
-					</div>
-					<div>
-						<span className="text-slate-600 dark:text-slate-400">
-							Long Pauses:
-						</span>{" "}
-						<span className="font-semibold text-slate-900 dark:text-slate-100">
-							{metrics.longPauses ?? "N/A"}
-						</span>
-					</div>
-				</div>
-			</div>
-
-			{/* Scores */}
-			<div className="mb-6">
-				<h3 className="text-lg font-semibold mb-3 text-slate-900 dark:text-slate-100">
-					Content Scores
-				</h3>
-				{!isTechnical && (
-					<>
-						<ScoreBar label="STAR" value={scores.star} previousValue={previousScores?.star} />
-						<ScoreBar label="Impact" value={scores.impact} previousValue={previousScores?.impact} />
-					</>
-				)}
-				<ScoreBar label="Clarity" value={scores.clarity} previousValue={previousScores?.clarity} />
-				{scores.conciseness !== undefined && scores.conciseness !== null && (
-					<ScoreBar label="Conciseness" value={scores.conciseness} previousValue={previousScores?.conciseness} />
-				)}
-			</div>
-
-			{/* Technical Scores */}
-			{(scores.technicalAccuracy !== undefined ||
-				scores.terminologyUsage !== undefined) && (
-				<div className="mb-6">
-					<h3 className="text-lg font-semibold mb-3 text-slate-900 dark:text-slate-100">
-						Technical Knowledge
-					</h3>
-					<ScoreBar
-						label="Technical Accuracy"
-						value={scores.technicalAccuracy ?? null}
-						previousValue={previousScores?.technicalAccuracy}
-					/>
-					<ScoreBar
-						label="Terminology Usage"
-						value={scores.terminologyUsage ?? null}
-						previousValue={previousScores?.terminologyUsage}
-					/>
-				</div>
-			)}
-
-			{/* Delivery Scores */}
-			<div className="mb-6">
-				<h3 className="text-lg font-semibold mb-3 text-slate-900 dark:text-slate-100">
-					Delivery
-				</h3>
-				<div className="mb-2">
-					<ScoreBar label="Confidence" value={scores.confidence} previousValue={previousScores?.confidence} />
-					<p className="text-xs text-slate-600 dark:text-slate-400 mt-1">
-						Based on: sentence completion, filler usage (
-						{metrics.fillerRate?.toFixed(1) ?? 0}%), long pauses (
-						{metrics.longPauses ?? 0}), and strong declarative statements
-					</p>
-				</div>
-				<div className="mb-2">
-					<ScoreBar label="Intonation" value={scores.intonation} previousValue={previousScores?.intonation} />
-					<p className="text-xs text-slate-600 dark:text-slate-400 mt-1">
-						Based on: sentence length variation, emphasis words, expressiveness
-						(exclamations/questions), and natural speech patterns
-					</p>
-				</div>
-				{scores.pacing !== undefined && scores.pacing !== null && (
-					<ScoreBar label="Pacing" value={scores.pacing} previousValue={previousScores?.pacing} />
-				)}
-				{scores.emphasis !== undefined && scores.emphasis !== null && (
-					<ScoreBar label="Emphasis" value={scores.emphasis} previousValue={previousScores?.emphasis} />
-				)}
-				{scores.engagement !== undefined && scores.engagement !== null && (
-					<ScoreBar label="Engagement" value={scores.engagement} previousValue={previousScores?.engagement} />
-				)}
-			</div>
-
-			{/* Transcript */}
-			{transcript && (
-				<div className="mb-6">
-					<div className="flex items-center justify-between mb-2">
-						<h3 className="text-lg font-semibold text-slate-900 dark:text-slate-100">
-							Transcript
-						</h3>
-						{onReanalyze && (
-							<button
-								onClick={() => {
-									if (isEditingTranscript) {
-										setIsEditingTranscript(false);
-										setEditedTranscript(transcript);
-									} else {
-										setEditedTranscript(transcript);
-										setIsEditingTranscript(true);
-									}
-								}}
-								className="text-xs px-2 py-1 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-300 rounded transition-colors"
-							>
-								{isEditingTranscript ? "Cancel" : "Edit"}
-							</button>
+						</button>
+						{showTranscript && (
+							<div className="mt-2">
+								{isEditingTranscript ? (
+									<div>
+										<textarea
+											value={editedTranscript}
+											onChange={(e) => setEditedTranscript(e.target.value)}
+											className="w-full p-3 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-sm text-slate-900 dark:text-slate-100 resize-y min-h-[100px]"
+											rows={4}
+										/>
+										<button
+											onClick={async () => {
+												if (editedTranscript.trim() === transcript.trim()) { setIsEditingTranscript(false); return; }
+												setReanalyzing(true);
+												try { await onReanalyze!(editedTranscript.trim()); }
+												finally { setReanalyzing(false); setIsEditingTranscript(false); }
+											}}
+											disabled={reanalyzing || editedTranscript.trim() === transcript.trim()}
+											className="mt-2 px-3 py-1.5 bg-purple-200 dark:bg-purple-800 hover:bg-purple-300 dark:hover:bg-purple-700 text-purple-800 dark:text-purple-200 rounded-lg text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+										>
+											{reanalyzing ? "Re-analysing…" : "Re-analyse with corrections"}
+										</button>
+									</div>
+								) : (
+									<p className="text-sm text-slate-700 dark:text-slate-300 bg-slate-50 dark:bg-slate-700/50 p-3 rounded-lg leading-relaxed">
+										{transcript}
+									</p>
+								)}
+							</div>
 						)}
 					</div>
-					{isEditingTranscript ? (
-						<div>
-							<textarea
-								value={editedTranscript}
-								onChange={(e) => setEditedTranscript(e.target.value)}
-								className="w-full p-3 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-sm text-slate-900 dark:text-slate-100 resize-y min-h-[100px]"
-								rows={4}
-							/>
-							<button
-								onClick={async () => {
-									if (editedTranscript.trim() === transcript.trim()) {
-										setIsEditingTranscript(false);
-										return;
-									}
-									setReanalyzing(true);
-									try {
-										await onReanalyze!(editedTranscript.trim());
-									} finally {
-										setReanalyzing(false);
-										setIsEditingTranscript(false);
-									}
-								}}
-								disabled={reanalyzing || editedTranscript.trim() === transcript.trim()}
-								className="mt-2 px-3 py-1.5 bg-purple-200 dark:bg-purple-800 hover:bg-purple-300 dark:hover:bg-purple-700 text-purple-800 dark:text-purple-200 rounded-lg text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-							>
-								{reanalyzing ? "Re-analyzing..." : "Re-analyze with corrections"}
-							</button>
-						</div>
-					) : (
-						<p className="text-sm text-slate-700 dark:text-slate-300 bg-slate-50 dark:bg-slate-700/50 p-3 rounded-lg leading-relaxed">
-							{transcript}
-						</p>
-					)}
-				</div>
-			)}
-
-			{/* Audio Playback */}
-			{audioUrl && (
-				<div className="mt-4">
-					<audio controls className="w-full">
-						{/* Support multiple formats for iOS compatibility */}
-						<source src={audioUrl} type="audio/webm" />
-						<source src={audioUrl} type="audio/mp4" />
-						<source src={audioUrl} type="audio/m4a" />
-						<source src={audioUrl} type="audio/aac" />
-						Your browser does not support the audio element.
-					</audio>
-				</div>
-			)}
+				)}
+			</div>
 		</div>
 	);
 }

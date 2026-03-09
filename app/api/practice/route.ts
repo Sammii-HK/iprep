@@ -30,6 +30,7 @@ import {
 	NotFoundError,
 	ExternalServiceError,
 } from "@/lib/errors";
+import { updateSRSProgress, updateStudyStreak } from "@/lib/study-tracker";
 import { validateAudioFile, validateId } from "@/lib/validation";
 import { CoachingPreferences } from "@/lib/coaching-config";
 import { requireAuth } from "@/lib/auth";
@@ -480,6 +481,14 @@ export async function POST(request: NextRequest) {
 
 			const sessionItem = await prisma.sessionItem.create({ data: createData });
 			sessionItemId = sessionItem.id;
+
+			// Update SRS + streak in background (non-blocking)
+			if (analysis?.answerQuality != null) {
+				Promise.all([
+					updateSRSProgress(user.id, questionId, analysis.answerQuality),
+					updateStudyStreak(user.id),
+				]).catch((err) => console.error("Study tracker update failed:", err));
+			}
 		} catch (error) {
 			console.error("Database save error:", error instanceof Error ? error.message : error);
 			throw new ExternalServiceError(
