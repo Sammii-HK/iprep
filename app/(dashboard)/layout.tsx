@@ -33,6 +33,7 @@ export default function DashboardLayout({
 		{ href: "/banks", label: "Banks" },
 		{ href: "/practice", label: "Practice" },
 		{ href: "/study", label: "Study" },
+		{ href: "/audio", label: "Audio" },
 		{ href: "/analytics", label: "Analytics" },
 		...(user?.isPremium ? [{ href: "/learning", label: "Learning" }] : []),
 		{ href: "/quizzes", label: "Quizzes" },
