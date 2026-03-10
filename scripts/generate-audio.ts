@@ -126,13 +126,12 @@ async function generateForBank(bankId: string, title: string, content: string, d
     await rm(tmpFile, { force: true });
   }
 
-  // Find latest output
+  // Find latest output (by modification time, not name)
   const { readdirSync, statSync } = await import('fs');
   const outputDir = join(PODIFY_DIR, '.podify-output');
   const dirs = readdirSync(outputDir)
     .filter((d) => statSync(join(outputDir, d)).isDirectory())
-    .sort()
-    .reverse();
+    .sort((a, b) => statSync(join(outputDir, b)).mtimeMs - statSync(join(outputDir, a)).mtimeMs);
 
   const latestDir = dirs[0];
   if (!latestDir) throw new Error('No output found');
