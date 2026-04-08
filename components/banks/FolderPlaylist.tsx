@@ -1,7 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
-import { AudioPlayer } from './AudioPlayer';
+import { useState, useEffect, useCallback, useRef } from 'react';
 
 interface PlaylistBank {
   id: string;
@@ -28,7 +27,10 @@ export function FolderPlaylist({ banks, folderTitle, onClose }: FolderPlaylistPr
   const [loading, setLoading] = useState(true);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
-  const [autoPlayNonce, setAutoPlayNonce] = useState(0);
+  const [currentTime, setCurrentTime] = useState(0);
+  const [duration, setDuration] = useState(0);
+  const [playbackRate, setPlaybackRate] = useState(1);
+  const audioRef = useRef<HTMLAudioElement>(null);
 
   // Fetch audio availability for all banks
   useEffect(() => {
@@ -76,7 +78,6 @@ export function FolderPlaylist({ banks, folderTitle, onClose }: FolderPlaylistPr
   const handleTrackEnded = useCallback(() => {
     if (currentIndex < audioTracks.length - 1) {
       setCurrentIndex((i) => i + 1);
-      setAutoPlayNonce((n) => n + 1);
     } else {
       // Playlist finished
       setIsPlaying(false);
@@ -86,21 +87,102 @@ export function FolderPlaylist({ banks, folderTitle, onClose }: FolderPlaylistPr
   const handleNext = useCallback(() => {
     if (currentIndex < audioTracks.length - 1) {
       setCurrentIndex((i) => i + 1);
-      setAutoPlayNonce((n) => n + 1);
     }
   }, [currentIndex, audioTracks.length]);
 
   const handlePrev = useCallback(() => {
     if (currentIndex > 0) {
       setCurrentIndex((i) => i - 1);
-      setAutoPlayNonce((n) => n + 1);
     }
   }, [currentIndex]);
 
   const handleStart = () => {
     setIsPlaying(true);
     setCurrentIndex(0);
-    setAutoPlayNonce((n) => n + 1);
+  };
+
+  const togglePlay = useCallback(() => {
+    const audio = audioRef.current;
+    if (!audio) return;
+    if (isPlaying) {
+      audio.pause();
+      setIsPlaying(false);
+    } else {
+      audio.play().then(() => setIsPlaying(true)).catch(() => {});
+    }
+  }, [isPlaying]);
+
+  const seek = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const audio = audioRef.current;
+    if (!audio) return;
+    audio.currentTime = Number(e.target.value);
+  }, []);
+
+  const skip = useCallback((seconds: number) => {
+    const audio = audioRef.current;
+    if (!audio) return;
+    audio.currentTime = Math.max(0, Math.min(audio.currentTime + seconds, duration || 0));
+  }, [duration]);
+
+  const cycleRate = useCallback(() => {
+    const rates = [1, 1.25, 1.5, 1.75, 2];
+    const next = rates[(rates.indexOf(playbackRate) + 1) % rates.length];
+    setPlaybackRate(next);
+    if (audioRef.current) {
+      audioRef.current.playbackRate = next;
+    }
+  }, [playbackRate]);
+
+  useEffect(() => {
+    const audio = audioRef.current;
+    if (!audio) return;
+
+    const onTimeUpdate = () => setCurrentTime(audio.currentTime);
+    const onDurationChange = () => setDuration(audio.duration || 0);
+    const onPlay = () => setIsPlaying(true);
+    const onPause = () => setIsPlaying(false);
+    const onEnded = () => handleTrackEnded();
+
+    audio.addEventListener('timeupdate', onTimeUpdate);
+    audio.addEventListener('durationchange', onDurationChange);
+    audio.addEventListener('play', onPlay);
+    audio.addEventListener('pause', onPause);
+    audio.addEventListener('ended', onEnded);
+
+    return () => {
+      audio.removeEventListener('timeupdate', onTimeUpdate);
+      audio.removeEventListener('durationchange', onDurationChange);
+      audio.removeEventListener('play', onPlay);
+      audio.removeEventListener('pause', onPause);
+      audio.removeEventListener('ended', onEnded);
+    };
+  }, [handleTrackEnded]);
+
+  useEffect(() => {
+    const audio = audioRef.current;
+    if (!audio || !currentTrack?.url) return;
+
+    audio.src = currentTrack.url;
+    audio.load();
+    audio.playbackRate = playbackRate;
+
+    if (isPlaying) {
+      const playWhenReady = () => {
+        audio.play().catch(() => {});
+      };
+      if (audio.readyState >= 2) {
+        playWhenReady();
+      } else {
+        audio.addEventListener('canplay', playWhenReady, { once: true });
+      }
+    }
+  }, [currentTrack?.bankId, currentTrack?.url, isPlaying, playbackRate]);
+
+  const formatTime = (s: number) => {
+    if (!isFinite(s)) return '0:00';
+    const m = Math.floor(s / 60);
+    const sec = Math.floor(s % 60);
+    return `${m}:${sec.toString().padStart(2, '0')}`;
   };
 
   if (loading) {
@@ -125,6 +207,8 @@ export function FolderPlaylist({ banks, folderTitle, onClose }: FolderPlaylistPr
       {/* Player section */}
       {isPlaying && currentTrack ? (
         <div className="bg-gradient-to-r from-purple-50 to-indigo-50 dark:from-purple-900/20 dark:to-indigo-900/20 rounded-xl border border-purple-200 dark:border-purple-800 p-4 mb-3">
+          <audio ref={audioRef} preload="metadata" />
+
           {/* Playlist header */}
           <div className="flex items-center justify-between mb-3">
             <div className="flex items-center gap-2">
@@ -153,21 +237,91 @@ export function FolderPlaylist({ banks, folderTitle, onClose }: FolderPlaylistPr
             {currentTrack.title}
           </div>
 
-          {/* Reuse AudioPlayer for current track */}
-          <AudioPlayer
-            key={currentTrack.bankId}
-            bankId={currentTrack.bankId}
-            bankTitle={currentTrack.title}
-            audioUrl={currentTrack.url}
-            transcriptUrl={currentTrack.transcriptUrl}
-            generatedAt={currentTrack.generatedAt}
-            autoPlay
-            autoPlayNonce={autoPlayNonce}
-            onEnded={handleTrackEnded}
-            onNextTrack={currentIndex < audioTracks.length - 1 ? handleNext : undefined}
-            onPrevTrack={currentIndex > 0 ? handlePrev : undefined}
-            showTrackControls
-          />
+          <div className="flex items-center gap-3">
+            <button
+              onClick={handlePrev}
+              className="text-slate-600 dark:text-slate-400 hover:text-purple-600 dark:hover:text-purple-400 transition-colors disabled:opacity-30"
+              title="Previous track"
+              disabled={currentIndex === 0}
+            >
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+                <rect x="3" y="5" width="3" height="14" />
+                <polygon points="21,5 9,12 21,19" />
+              </svg>
+            </button>
+
+            <button
+              onClick={() => skip(-15)}
+              className="text-slate-600 dark:text-slate-400 hover:text-purple-600 dark:hover:text-purple-400 transition-colors"
+              title="Back 15s"
+            >
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M11 17l-5-5 5-5M18 17l-5-5 5-5" />
+              </svg>
+            </button>
+
+            <button
+              onClick={togglePlay}
+              className="w-10 h-10 flex items-center justify-center rounded-full bg-purple-600 hover:bg-purple-700 text-white transition-colors"
+            >
+              {isPlaying ? (
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+                  <rect x="6" y="4" width="4" height="16" />
+                  <rect x="14" y="4" width="4" height="16" />
+                </svg>
+              ) : (
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+                  <polygon points="5,3 19,12 5,21" />
+                </svg>
+              )}
+            </button>
+
+            <button
+              onClick={() => skip(30)}
+              className="text-slate-600 dark:text-slate-400 hover:text-purple-600 dark:hover:text-purple-400 transition-colors"
+              title="Forward 30s"
+            >
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M13 17l5-5-5-5M6 17l5-5-5-5" />
+              </svg>
+            </button>
+
+            <button
+              onClick={handleNext}
+              className="text-slate-600 dark:text-slate-400 hover:text-purple-600 dark:hover:text-purple-400 transition-colors disabled:opacity-30"
+              title="Next track"
+              disabled={currentIndex >= audioTracks.length - 1}
+            >
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+                <polygon points="3,5 15,12 3,19" />
+                <rect x="18" y="5" width="3" height="14" />
+              </svg>
+            </button>
+
+            <div className="flex-1 flex items-center gap-2">
+              <span className="text-xs text-slate-600 dark:text-slate-400 w-10 text-right tabular-nums">
+                {formatTime(currentTime)}
+              </span>
+              <input
+                type="range"
+                min={0}
+                max={duration || 0}
+                value={currentTime}
+                onChange={seek}
+                className="flex-1 h-1.5 accent-purple-600 cursor-pointer"
+              />
+              <span className="text-xs text-slate-600 dark:text-slate-400 w-10 tabular-nums">
+                {formatTime(duration)}
+              </span>
+            </div>
+
+            <button
+              onClick={cycleRate}
+              className="text-xs font-medium px-2 py-1 rounded bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-300 dark:hover:bg-slate-600 transition-colors min-w-[3rem]"
+            >
+              {playbackRate}x
+            </button>
+          </div>
         </div>
       ) : null}
 
@@ -185,7 +339,6 @@ export function FolderPlaylist({ banks, folderTitle, onClose }: FolderPlaylistPr
                 key={track.bankId}
                 onClick={() => {
                   setCurrentIndex(idx);
-                  if (isPlaying) setAutoPlayNonce((n) => n + 1);
                 }}
                 className={`w-full text-left px-4 py-2.5 flex items-center gap-3 transition-colors ${
                   idx === currentIndex
