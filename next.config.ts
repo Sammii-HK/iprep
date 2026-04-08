@@ -3,10 +3,15 @@ import type { NextConfig } from 'next';
 const nextConfig: NextConfig = {
   /* config options here */
   reactStrictMode: true,
-  
+
   // Production optimizations
   compress: true,
-  
+
+  // Exclude large audio files from serverless function bundles (464MB of MP3s)
+  outputFileTracingExcludes: {
+    '/api/*': ['./public/audio/**'],
+  },
+
   // Security headers
   async headers() {
     return [
