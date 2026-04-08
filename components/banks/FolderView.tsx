@@ -2,6 +2,7 @@
 
 import { useState, useCallback, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { FolderPlaylist } from './FolderPlaylist';
 
 interface FolderBank {
   id: string;
@@ -33,6 +34,7 @@ export default function FolderView({
   const [isRenaming, setIsRenaming] = useState(false);
   const [renameTitle, setRenameTitle] = useState(folder.title);
   const [removingId, setRemovingId] = useState<string | null>(null);
+  const [showPlaylist, setShowPlaylist] = useState(false);
 
   // Close on Escape
   useEffect(() => {
@@ -186,6 +188,17 @@ export default function FolderView({
         <div className="px-5 py-2 text-sm text-slate-500 dark:text-slate-400">
           {folder.banks.length} bank{folder.banks.length !== 1 ? 's' : ''}
         </div>
+
+        {/* Folder playlist */}
+        {folder.banks.length > 0 && (
+          <div className="px-5">
+            <FolderPlaylist
+              banks={folder.banks.map((b) => ({ id: b.id, title: b.title }))}
+              folderTitle={folder.title}
+              onClose={() => setShowPlaylist(false)}
+            />
+          </div>
+        )}
 
         {/* Bank list */}
         <div className="flex-1 overflow-y-auto px-5 pb-6">

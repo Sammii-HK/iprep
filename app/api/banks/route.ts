@@ -1,7 +1,80 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { requireAuth } from '@/lib/auth';
-import { handleApiError } from '@/lib/errors';
+import { handleApiError, ValidationError } from '@/lib/errors';
+import { z } from 'zod';
+import { QuestionType } from '@prisma/client';
+
+const CreateBankSchema = z.object({
+  title: z.string().min(1).max(200),
+  folderId: z.string().optional(),
+  questions: z.array(z.object({
+    text: z.string().min(1),
+    hint: z.string().optional(),
+    type: z.enum(['BEHAVIORAL', 'TECHNICAL', 'DEFINITION', 'SCENARIO', 'PITCH']).default('TECHNICAL'),
+    tags: z.array(z.string()).default([]),
+    difficulty: z.number().int().min(1).max(5).default(3),
+  })).min(1),
+});
+
+export async function POST(request: NextRequest) {
+  try {
+    const user = await requireAuth(request);
+    const body = await request.json();
+    const validated = CreateBankSchema.parse(body);
+
+    const bank = await prisma.questionBank.create({
+      data: {
+        title: validated.title,
+        userId: user.id,
+        questions: {
+          create: validated.questions.map((q, i) => ({
+            text: q.text,
+            hint: q.hint,
+            type: q.type as QuestionType,
+            tags: q.tags,
+            difficulty: q.difficulty,
+          })),
+        },
+      },
+      include: {
+        _count: { select: { questions: true } },
+      },
+    });
+
+    // If folderId provided, add bank to folder
+    if (validated.folderId) {
+      const folder = await prisma.bankFolder.findUnique({
+        where: { id: validated.folderId },
+      });
+      if (folder && folder.userId === user.id) {
+        const maxOrder = await prisma.bankFolderItem.aggregate({
+          where: { folderId: validated.folderId },
+          _max: { order: true },
+        });
+        await prisma.bankFolderItem.create({
+          data: {
+            folderId: validated.folderId,
+            bankId: bank.id,
+            order: (maxOrder._max.order ?? -1) + 1,
+          },
+        });
+      }
+    }
+
+    return NextResponse.json({
+      id: bank.id,
+      title: bank.title,
+      questionCount: bank._count.questions,
+    }, { status: 201 });
+  } catch (error) {
+    const errorData = handleApiError(error);
+    return NextResponse.json(
+      { error: errorData.message, code: errorData.code, details: errorData.details },
+      { status: errorData.statusCode }
+    );
+  }
+}
 
 export async function GET(request: NextRequest) {
   try {

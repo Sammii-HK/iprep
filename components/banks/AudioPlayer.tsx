@@ -5,6 +5,11 @@ import { useEffect, useRef, useState, useCallback } from 'react';
 interface AudioPlayerProps {
   bankId: string;
   bankTitle?: string;
+  autoPlay?: boolean;
+  onEnded?: () => void;
+  onNextTrack?: () => void;
+  onPrevTrack?: () => void;
+  showTrackControls?: boolean;
 }
 
 interface AudioInfo {
@@ -14,7 +19,7 @@ interface AudioInfo {
   generatedAt?: string;
 }
 
-export function AudioPlayer({ bankId, bankTitle }: AudioPlayerProps) {
+export function AudioPlayer({ bankId, bankTitle, autoPlay, onEnded, onNextTrack, onPrevTrack, showTrackControls }: AudioPlayerProps) {
   const [info, setInfo] = useState<AudioInfo | null>(null);
   const [loading, setLoading] = useState(true);
   const [playing, setPlaying] = useState(false);
@@ -67,7 +72,11 @@ export function AudioPlayer({ bankId, bankTitle }: AudioPlayerProps) {
         audioRef.current.currentTime = details.seekTime;
       }
     });
-  }, [info, bankTitle]);
+
+    // Wire lock screen prev/next to playlist controls
+    navigator.mediaSession.setActionHandler('previoustrack', onPrevTrack || null);
+    navigator.mediaSession.setActionHandler('nexttrack', onNextTrack || null);
+  }, [info, bankTitle, onPrevTrack, onNextTrack]);
 
   useEffect(() => {
     const audio = audioRef.current;
@@ -87,13 +96,16 @@ export function AudioPlayer({ bankId, bankTitle }: AudioPlayerProps) {
     const onDurationChange = () => setDuration(audio.duration);
     const onPlay = () => setPlaying(true);
     const onPause = () => setPlaying(false);
-    const onEnded = () => setPlaying(false);
+    const onEndedHandler = () => {
+      setPlaying(false);
+      onEnded?.();
+    };
 
     audio.addEventListener('timeupdate', onTimeUpdate);
     audio.addEventListener('durationchange', onDurationChange);
     audio.addEventListener('play', onPlay);
     audio.addEventListener('pause', onPause);
-    audio.addEventListener('ended', onEnded);
+    audio.addEventListener('ended', onEndedHandler);
 
     updateMediaSession();
 
@@ -102,9 +114,16 @@ export function AudioPlayer({ bankId, bankTitle }: AudioPlayerProps) {
       audio.removeEventListener('durationchange', onDurationChange);
       audio.removeEventListener('play', onPlay);
       audio.removeEventListener('pause', onPause);
-      audio.removeEventListener('ended', onEnded);
+      audio.removeEventListener('ended', onEndedHandler);
     };
-  }, [info, updateMediaSession]);
+  }, [info, updateMediaSession, onEnded]);
+
+  // Auto-play when audio is ready and autoPlay is set
+  useEffect(() => {
+    if (autoPlay && info?.hasAudio && audioRef.current) {
+      audioRef.current.play().catch(() => {/* browser may block autoplay */});
+    }
+  }, [autoPlay, info?.hasAudio, bankId]);
 
   if (loading || !info?.hasAudio) return null;
 
@@ -160,6 +179,21 @@ export function AudioPlayer({ bankId, bankTitle }: AudioPlayerProps) {
       </div>
 
       <div className="flex items-center gap-3">
+        {/* Previous track */}
+        {showTrackControls && (
+          <button
+            onClick={onPrevTrack}
+            className="text-slate-600 dark:text-slate-400 hover:text-purple-600 dark:hover:text-purple-400 transition-colors disabled:opacity-30"
+            title="Previous track"
+            disabled={!onPrevTrack}
+          >
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+              <rect x="3" y="5" width="3" height="14" />
+              <polygon points="21,5 9,12 21,19" />
+            </svg>
+          </button>
+        )}
+
         {/* Skip back */}
         <button
           onClick={() => skip(-15)}
@@ -198,6 +232,21 @@ export function AudioPlayer({ bankId, bankTitle }: AudioPlayerProps) {
             <path d="M13 17l5-5-5-5M6 17l5-5-5-5" />
           </svg>
         </button>
+
+        {/* Next track */}
+        {showTrackControls && (
+          <button
+            onClick={onNextTrack}
+            className="text-slate-600 dark:text-slate-400 hover:text-purple-600 dark:hover:text-purple-400 transition-colors disabled:opacity-30"
+            title="Next track"
+            disabled={!onNextTrack}
+          >
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+              <polygon points="3,5 15,12 3,19" />
+              <rect x="18" y="5" width="3" height="14" />
+            </svg>
+          </button>
+        )}
 
         {/* Progress bar */}
         <div className="flex-1 flex items-center gap-2">
