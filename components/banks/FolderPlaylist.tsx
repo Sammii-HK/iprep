@@ -12,6 +12,9 @@ interface AudioAvailability {
   bankId: string;
   title: string;
   hasAudio: boolean;
+  url?: string;
+  transcriptUrl?: string;
+  generatedAt?: string;
 }
 
 interface FolderPlaylistProps {
@@ -42,7 +45,14 @@ export function FolderPlaylist({ banks, folderTitle, onClose }: FolderPlaylistPr
             try {
               const res = await fetch(`/api/banks/${bank.id}/audio`);
               const data = await res.json();
-              return { bankId: bank.id, title: bank.title, hasAudio: data.hasAudio };
+              return {
+                bankId: bank.id,
+                title: bank.title,
+                hasAudio: data.hasAudio,
+                url: data.url,
+                transcriptUrl: data.transcriptUrl,
+                generatedAt: data.generatedAt,
+              };
             } catch {
               return { bankId: bank.id, title: bank.title, hasAudio: false };
             }
@@ -52,7 +62,7 @@ export function FolderPlaylist({ banks, folderTitle, onClose }: FolderPlaylistPr
       }
 
       if (!cancelled) {
-        setAudioTracks(results.filter((t) => t.hasAudio));
+        setAudioTracks(results.filter((t) => t.hasAudio && t.url));
         setLoading(false);
       }
     }
@@ -148,6 +158,9 @@ export function FolderPlaylist({ banks, folderTitle, onClose }: FolderPlaylistPr
             key={currentTrack.bankId}
             bankId={currentTrack.bankId}
             bankTitle={currentTrack.title}
+            audioUrl={currentTrack.url}
+            transcriptUrl={currentTrack.transcriptUrl}
+            generatedAt={currentTrack.generatedAt}
             autoPlay
             autoPlayNonce={autoPlayNonce}
             onEnded={handleTrackEnded}

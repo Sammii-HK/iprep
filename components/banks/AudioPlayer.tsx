@@ -5,6 +5,9 @@ import { useEffect, useRef, useState, useCallback } from 'react';
 interface AudioPlayerProps {
   bankId: string;
   bankTitle?: string;
+  audioUrl?: string;
+  transcriptUrl?: string;
+  generatedAt?: string;
   autoPlay?: boolean;
   autoPlayNonce?: number;
   onEnded?: () => void;
@@ -20,22 +23,28 @@ interface AudioInfo {
   generatedAt?: string;
 }
 
-export function AudioPlayer({ bankId, bankTitle, autoPlay, autoPlayNonce, onEnded, onNextTrack, onPrevTrack, showTrackControls }: AudioPlayerProps) {
-  const [info, setInfo] = useState<AudioInfo | null>(null);
-  const [loading, setLoading] = useState(true);
+export function AudioPlayer({ bankId, bankTitle, audioUrl, transcriptUrl, generatedAt, autoPlay, autoPlayNonce, onEnded, onNextTrack, onPrevTrack, showTrackControls }: AudioPlayerProps) {
+  const [fetchedInfo, setFetchedInfo] = useState<AudioInfo | null>(null);
+  const [loadingState, setLoadingState] = useState(!audioUrl);
   const [playing, setPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
   const [playbackRate, setPlaybackRate] = useState(1);
   const audioRef = useRef<HTMLAudioElement>(null);
+  const info = audioUrl
+    ? { hasAudio: true, url: audioUrl, transcriptUrl, generatedAt }
+    : fetchedInfo;
+  const loading = audioUrl ? false : loadingState;
 
   useEffect(() => {
+    if (audioUrl) return;
+
     fetch(`/api/banks/${bankId}/audio`)
       .then((r) => r.json())
-      .then(setInfo)
-      .catch(() => setInfo({ hasAudio: false }))
-      .finally(() => setLoading(false));
-  }, [bankId]);
+      .then(setFetchedInfo)
+      .catch(() => setFetchedInfo({ hasAudio: false }))
+      .finally(() => setLoadingState(false));
+  }, [bankId, audioUrl, transcriptUrl, generatedAt]);
 
   // Set up Media Session API for lock screen controls
   const updateMediaSession = useCallback(() => {
