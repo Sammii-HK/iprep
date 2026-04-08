@@ -25,6 +25,7 @@ export function FolderPlaylist({ banks, folderTitle, onClose }: FolderPlaylistPr
   const [loading, setLoading] = useState(true);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
+  const [autoPlayNonce, setAutoPlayNonce] = useState(0);
 
   // Fetch audio availability for all banks
   useEffect(() => {
@@ -65,6 +66,7 @@ export function FolderPlaylist({ banks, folderTitle, onClose }: FolderPlaylistPr
   const handleTrackEnded = useCallback(() => {
     if (currentIndex < audioTracks.length - 1) {
       setCurrentIndex((i) => i + 1);
+      setAutoPlayNonce((n) => n + 1);
     } else {
       // Playlist finished
       setIsPlaying(false);
@@ -74,18 +76,21 @@ export function FolderPlaylist({ banks, folderTitle, onClose }: FolderPlaylistPr
   const handleNext = useCallback(() => {
     if (currentIndex < audioTracks.length - 1) {
       setCurrentIndex((i) => i + 1);
+      setAutoPlayNonce((n) => n + 1);
     }
   }, [currentIndex, audioTracks.length]);
 
   const handlePrev = useCallback(() => {
     if (currentIndex > 0) {
       setCurrentIndex((i) => i - 1);
+      setAutoPlayNonce((n) => n + 1);
     }
   }, [currentIndex]);
 
   const handleStart = () => {
     setIsPlaying(true);
     setCurrentIndex(0);
+    setAutoPlayNonce((n) => n + 1);
   };
 
   if (loading) {
@@ -144,6 +149,7 @@ export function FolderPlaylist({ banks, folderTitle, onClose }: FolderPlaylistPr
             bankId={currentTrack.bankId}
             bankTitle={currentTrack.title}
             autoPlay
+            autoPlayNonce={autoPlayNonce}
             onEnded={handleTrackEnded}
             onNextTrack={currentIndex < audioTracks.length - 1 ? handleNext : undefined}
             onPrevTrack={currentIndex > 0 ? handlePrev : undefined}
@@ -164,7 +170,10 @@ export function FolderPlaylist({ banks, folderTitle, onClose }: FolderPlaylistPr
             {audioTracks.map((track, idx) => (
               <button
                 key={track.bankId}
-                onClick={() => setCurrentIndex(idx)}
+                onClick={() => {
+                  setCurrentIndex(idx);
+                  if (isPlaying) setAutoPlayNonce((n) => n + 1);
+                }}
                 className={`w-full text-left px-4 py-2.5 flex items-center gap-3 transition-colors ${
                   idx === currentIndex
                     ? 'bg-purple-50 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300'

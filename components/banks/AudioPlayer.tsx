@@ -6,6 +6,7 @@ interface AudioPlayerProps {
   bankId: string;
   bankTitle?: string;
   autoPlay?: boolean;
+  autoPlayNonce?: number;
   onEnded?: () => void;
   onNextTrack?: () => void;
   onPrevTrack?: () => void;
@@ -19,7 +20,7 @@ interface AudioInfo {
   generatedAt?: string;
 }
 
-export function AudioPlayer({ bankId, bankTitle, autoPlay, onEnded, onNextTrack, onPrevTrack, showTrackControls }: AudioPlayerProps) {
+export function AudioPlayer({ bankId, bankTitle, autoPlay, autoPlayNonce, onEnded, onNextTrack, onPrevTrack, showTrackControls }: AudioPlayerProps) {
   const [info, setInfo] = useState<AudioInfo | null>(null);
   const [loading, setLoading] = useState(true);
   const [playing, setPlaying] = useState(false);
@@ -124,12 +125,18 @@ export function AudioPlayer({ bankId, bankTitle, autoPlay, onEnded, onNextTrack,
 
     const audio = audioRef.current;
     let cancelled = false;
+    let retryTimer: ReturnType<typeof setTimeout> | null = null;
+    let attempts = 0;
 
     const attemptPlay = () => {
       if (cancelled) return;
+      attempts += 1;
       audio.play().catch(() => {
-        // Some browsers fail if play is attempted before media is ready.
-        // We'll retry via readiness events below.
+        // Some browsers fail transiently between source swap and readiness.
+        // Retry a few times to keep playlist transitions continuous.
+        if (attempts < 12 && !cancelled) {
+          retryTimer = setTimeout(attemptPlay, 200);
+        }
       });
     };
 
@@ -150,10 +157,11 @@ export function AudioPlayer({ bankId, bankTitle, autoPlay, onEnded, onNextTrack,
 
     return () => {
       cancelled = true;
+      if (retryTimer) clearTimeout(retryTimer);
       audio.removeEventListener('canplay', onReady);
       audio.removeEventListener('loadedmetadata', onReady);
     };
-  }, [autoPlay, info?.hasAudio, bankId]);
+  }, [autoPlay, autoPlayNonce, info?.hasAudio, info?.url, bankId]);
 
   if (loading || !info?.hasAudio) return null;
 
