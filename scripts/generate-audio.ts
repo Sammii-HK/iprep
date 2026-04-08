@@ -119,7 +119,7 @@ async function generateForBank(bankId: string, title: string, content: string, d
   const { execSync } = await import('child_process');
   try {
     execSync(
-      `pnpm generate --file "${tmpFile}" --format deep_review --duration ${duration} --tone casual --title "${title}" --voices orpheus_jess_zac --tts orpheus`,
+      `pnpm generate --file "${tmpFile}" --format deep_review --duration ${duration} --tone casual --title "${title}" --voices orpheus_jess_zac --tts orpheus --llm deepinfra`,
       { cwd: PODIFY_DIR, stdio: 'inherit', timeout: 600_000 }
     );
   } finally {

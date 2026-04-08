@@ -60,8 +60,11 @@ export function useBankDragDrop({ onDrop }: UseBankDragDropOptions): UseBankDrag
   // Map of id -> { type, element }
   const targetsRef = useRef<Map<string, { type: 'bank' | 'folder'; el: HTMLElement }>>(new Map());
   const dragItemRef = useRef<DragItem | null>(null);
+  const dropTargetRef = useRef<DropTarget | null>(null);
   const hasMoved = useRef(false);
   const startPosRef = useRef<{ x: number; y: number } | null>(null);
+  const moveListenerRef = useRef<((e: PointerEvent) => void) | null>(null);
+  const upListenerRef = useRef<((e: PointerEvent) => void) | null>(null);
 
   const registerTarget = useCallback(
     (id: string, type: 'bank' | 'folder', el: HTMLElement | null) => {
@@ -94,6 +97,80 @@ export function useBankDragDrop({ onDrop }: UseBankDragDropOptions): UseBankDrag
     [],
   );
 
+  const cleanupGlobalListeners = useCallback(() => {
+    if (moveListenerRef.current) {
+      window.removeEventListener('pointermove', moveListenerRef.current);
+      moveListenerRef.current = null;
+    }
+    if (upListenerRef.current) {
+      window.removeEventListener('pointerup', upListenerRef.current);
+      upListenerRef.current = null;
+    }
+  }, []);
+
+  const applyPointerMove = useCallback(
+    (clientX: number, clientY: number) => {
+      if (!dragItemRef.current || !startPosRef.current) return;
+
+      const dx = clientX - startPosRef.current.x;
+      const dy = clientY - startPosRef.current.y;
+
+      // Only start showing drag after 5px movement
+      if (!hasMoved.current && Math.sqrt(dx * dx + dy * dy) < 5) return;
+
+      if (!hasMoved.current) {
+        hasMoved.current = true;
+        setDragItem(dragItemRef.current);
+      }
+
+      setOverlay({
+        x: clientX,
+        y: clientY,
+        offsetX: dx,
+        offsetY: dy,
+      });
+
+      const target = findDropTarget(clientX, clientY);
+      dropTargetRef.current = target;
+      setDropTarget(target);
+    },
+    [findDropTarget],
+  );
+
+  const finishDrag = useCallback((clientX?: number, clientY?: number) => {
+    const currentTarget =
+      clientX !== undefined && clientY !== undefined
+        ? findDropTarget(clientX, clientY)
+        : dropTargetRef.current;
+    dropTargetRef.current = currentTarget;
+    if (dragItemRef.current && hasMoved.current && currentTarget) {
+      const drag = dragItemRef.current;
+      let result: DropResult = null;
+
+      if (drag.type === 'bank' && currentTarget.type === 'bank') {
+        result = { kind: 'bank-on-bank', dragId: drag.id, targetId: currentTarget.id };
+      } else if (drag.type === 'bank' && currentTarget.type === 'folder') {
+        result = { kind: 'bank-on-folder', bankId: drag.id, folderId: currentTarget.id };
+      } else {
+        // folder-on-folder, folder-on-bank, or any other reorder scenario
+        result = { kind: 'reorder', dragItem: drag, targetItem: currentTarget };
+      }
+
+      if (result) {
+        onDrop(result);
+      }
+    }
+
+    dragItemRef.current = null;
+    dropTargetRef.current = null;
+    hasMoved.current = false;
+    startPosRef.current = null;
+    setDragItem(null);
+    setOverlay(null);
+    setDropTarget(null);
+    cleanupGlobalListeners();
+  }, [onDrop, cleanupGlobalListeners, findDropTarget]);
+
   const startDrag = useCallback((item: DragItem, e: React.PointerEvent) => {
     dragItemRef.current = item;
     hasMoved.current = false;
@@ -106,75 +183,36 @@ export function useBankDragDrop({ onDrop }: UseBankDragDropOptions): UseBankDrag
       offsetX: 0,
       offsetY: 0,
     });
-  }, []);
+
+    // Track the pointer globally so drags don't cancel when leaving grid bounds.
+    cleanupGlobalListeners();
+    moveListenerRef.current = (event: PointerEvent) => {
+      applyPointerMove(event.clientX, event.clientY);
+    };
+    upListenerRef.current = (event: PointerEvent) => {
+      finishDrag(event.clientX, event.clientY);
+    };
+    window.addEventListener('pointermove', moveListenerRef.current);
+    window.addEventListener('pointerup', upListenerRef.current, { once: true });
+  }, [applyPointerMove, cleanupGlobalListeners, finishDrag]);
 
   const onPointerMove = useCallback(
     (e: React.PointerEvent) => {
-      if (!dragItemRef.current || !startPosRef.current) return;
-
-      const dx = e.clientX - startPosRef.current.x;
-      const dy = e.clientY - startPosRef.current.y;
-
-      // Only start showing drag after 5px movement
-      if (!hasMoved.current && Math.sqrt(dx * dx + dy * dy) < 5) return;
-
-      if (!hasMoved.current) {
-        hasMoved.current = true;
-        setDragItem(dragItemRef.current);
-      }
-
-      setOverlay({
-        x: e.clientX,
-        y: e.clientY,
-        offsetX: dx,
-        offsetY: dy,
-      });
-
-      const target = findDropTarget(e.clientX, e.clientY);
-      setDropTarget(target);
+      applyPointerMove(e.clientX, e.clientY);
     },
-    [findDropTarget],
+    [applyPointerMove],
   );
 
-  const finishDrag = useCallback(() => {
-    if (dragItemRef.current && hasMoved.current && dropTarget) {
-      const drag = dragItemRef.current;
-      let result: DropResult = null;
-
-      if (drag.type === 'bank' && dropTarget.type === 'bank') {
-        result = { kind: 'bank-on-bank', dragId: drag.id, targetId: dropTarget.id };
-      } else if (drag.type === 'bank' && dropTarget.type === 'folder') {
-        result = { kind: 'bank-on-folder', bankId: drag.id, folderId: dropTarget.id };
-      } else {
-        // folder-on-folder, folder-on-bank, or any other reorder scenario
-        result = { kind: 'reorder', dragItem: drag, targetItem: dropTarget };
-      }
-
-      if (result) {
-        onDrop(result);
-      }
-    }
-
-    dragItemRef.current = null;
-    hasMoved.current = false;
-    startPosRef.current = null;
-    setDragItem(null);
-    setOverlay(null);
-    setDropTarget(null);
-  }, [dropTarget, onDrop]);
-
   const onPointerUp = useCallback(
-    () => {
-      finishDrag();
+    (e: React.PointerEvent) => {
+      finishDrag(e.clientX, e.clientY);
     },
     [finishDrag],
   );
 
   const onPointerLeave = useCallback(
-    () => {
-      finishDrag();
-    },
-    [finishDrag],
+    () => {},
+    [],
   );
 
   return {

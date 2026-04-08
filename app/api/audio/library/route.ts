@@ -2,6 +2,13 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { requireAuth } from '@/lib/auth';
 import { getAudioUrl } from '@/lib/r2';
+import { existsSync, statSync } from 'fs';
+import { join } from 'path';
+
+/** Slugify a bank title to match local audio filenames */
+function slugify(title: string): string {
+  return title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+}
 
 export async function GET(request: NextRequest) {
   try {
@@ -40,8 +47,39 @@ export async function GET(request: NextRequest) {
       folders.flatMap((f) => f.items.map((item) => item.bankId))
     );
 
-    // Helper to check if audio exists
-    const checkAudio = async (bankId: string) => {
+    const localDir = join(process.cwd(), 'public', 'audio', 'study');
+
+    // Helper to check if audio exists (local first, then R2)
+    const checkAudio = async (bankId: string, bankTitle: string) => {
+      // 1. Check local files by title slug
+      const slug = slugify(bankTitle);
+      const localPath = join(localDir, `${slug}.mp3`);
+
+      if (existsSync(localPath)) {
+        const stats = statSync(localPath);
+        return {
+          hasAudio: true,
+          url: `/audio/study/${slug}.mp3`,
+          transcriptUrl: null,
+          fileSizeBytes: stats.size,
+          generatedAt: stats.mtime.toISOString(),
+        };
+      }
+
+      // 2. Check local files by bank ID
+      const localPathById = join(localDir, `${bankId}.mp3`);
+      if (existsSync(localPathById)) {
+        const stats = statSync(localPathById);
+        return {
+          hasAudio: true,
+          url: `/audio/study/${bankId}.mp3`,
+          transcriptUrl: null,
+          fileSizeBytes: stats.size,
+          generatedAt: stats.mtime.toISOString(),
+        };
+      }
+
+      // 3. Fall back to R2
       const audioUrl = getAudioUrl(`audio/study/${bankId}.mp3`);
       try {
         const head = await fetch(audioUrl, { method: 'HEAD' });
@@ -64,7 +102,7 @@ export async function GET(request: NextRequest) {
 
     // Check audio for all banks in parallel
     const audioMetadata = await Promise.all(
-      banks.map((bank) => checkAudio(bank.id))
+      banks.map((bank) => checkAudio(bank.id, bank.title))
     );
 
     const audioMap = new Map(

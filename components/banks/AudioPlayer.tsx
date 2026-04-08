@@ -120,9 +120,39 @@ export function AudioPlayer({ bankId, bankTitle, autoPlay, onEnded, onNextTrack,
 
   // Auto-play when audio is ready and autoPlay is set
   useEffect(() => {
-    if (autoPlay && info?.hasAudio && audioRef.current) {
-      audioRef.current.play().catch(() => {/* browser may block autoplay */});
+    if (!autoPlay || !info?.hasAudio || !audioRef.current) return;
+
+    const audio = audioRef.current;
+    let cancelled = false;
+
+    const attemptPlay = () => {
+      if (cancelled) return;
+      audio.play().catch(() => {
+        // Some browsers fail if play is attempted before media is ready.
+        // We'll retry via readiness events below.
+      });
+    };
+
+    const onReady = () => {
+      attemptPlay();
+      audio.removeEventListener('canplay', onReady);
+      audio.removeEventListener('loadedmetadata', onReady);
+    };
+
+    if (audio.readyState >= 2) {
+      attemptPlay();
+    } else {
+      audio.addEventListener('canplay', onReady);
+      audio.addEventListener('loadedmetadata', onReady);
+      // Best-effort kick in case readiness events were missed.
+      setTimeout(attemptPlay, 100);
     }
+
+    return () => {
+      cancelled = true;
+      audio.removeEventListener('canplay', onReady);
+      audio.removeEventListener('loadedmetadata', onReady);
+    };
   }, [autoPlay, info?.hasAudio, bankId]);
 
   if (loading || !info?.hasAudio) return null;
@@ -165,7 +195,7 @@ export function AudioPlayer({ bankId, bankTitle, autoPlay, onEnded, onNextTrack,
 
   return (
     <div className="bg-gradient-to-r from-purple-50 to-indigo-50 dark:from-purple-900/20 dark:to-indigo-900/20 rounded-xl border border-purple-200 dark:border-purple-800 p-4 mb-6">
-      <audio ref={audioRef} src={info.url} preload="metadata" />
+      <audio ref={audioRef} src={info.url} preload="metadata" autoPlay={!!autoPlay} />
 
       <div className="flex items-center gap-2 mb-2">
         <span className="text-sm font-medium text-purple-700 dark:text-purple-300">
