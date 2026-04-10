@@ -1,7 +1,60 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { QuestionType } from '@prisma/client';
 import { prisma } from '@/lib/db';
 import { requireAuth } from '@/lib/auth';
 import { handleApiError } from '@/lib/errors';
+
+export async function POST(request: NextRequest) {
+  try {
+    const user = await requireAuth(request);
+    const body = await request.json() as { title: string; folderId?: string; questions: Array<{ text: string; hint: string; type?: string; difficulty?: number; tags?: string[] }> };
+
+    if (!body.title || !body.questions?.length) {
+      return NextResponse.json(
+        { error: 'title and questions are required', code: 'VALIDATION_ERROR' },
+        { status: 400 }
+      );
+    }
+
+    const bank = await prisma.questionBank.create({
+      data: {
+        title: body.title,
+        userId: user.id,
+        questions: {
+          create: body.questions.map((q) => ({
+            text: q.text,
+            hint: q.hint,
+            type: (q.type as QuestionType) || QuestionType.TECHNICAL,
+            difficulty: q.difficulty || 3,
+            tags: q.tags || [],
+          })),
+        },
+        ...(body.folderId && {
+          folderItems: {
+            create: {
+              folderId: body.folderId,
+            },
+          },
+        }),
+      },
+      include: {
+        _count: { select: { questions: true } },
+      },
+    });
+
+    return NextResponse.json({
+      id: bank.id,
+      title: bank.title,
+      questionCount: bank._count.questions,
+    });
+  } catch (error) {
+    const errorData = handleApiError(error);
+    return NextResponse.json(
+      { error: errorData.message, code: errorData.code, details: errorData.details },
+      { status: errorData.statusCode }
+    );
+  }
+}
 
 export async function GET(request: NextRequest) {
   try {
