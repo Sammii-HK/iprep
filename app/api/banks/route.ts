@@ -48,10 +48,9 @@ export async function POST(request: NextRequest) {
       questionCount: bank._count.questions,
     });
   } catch (error) {
-    console.error('POST /api/banks error:', error instanceof Error ? error.message : String(error));
     const errorData = handleApiError(error);
     return NextResponse.json(
-      { error: errorData.message, code: errorData.code, details: errorData.details, debug: error instanceof Error ? error.message : String(error) },
+      { error: errorData.message, code: errorData.code, details: errorData.details },
       { status: errorData.statusCode }
     );
   }
