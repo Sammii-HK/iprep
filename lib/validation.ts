@@ -18,7 +18,7 @@ export const AudioFileSchema = z.object({
 
 export const SessionIdSchema = z.string().cuid('Invalid session ID format');
 export const QuestionIdSchema = z.string().cuid('Invalid question ID format');
-export const BankIdSchema = z.string().cuid('Invalid bank ID format');
+export const BankIdSchema = z.string().min(1, 'Invalid bank ID format').max(64, 'Invalid bank ID format');
 
 export const CreateSessionSchema = z.object({
   title: z.string().min(1, 'Title is required').max(200, 'Title too long'),
@@ -101,8 +101,11 @@ export function validateAudioFile(file: File): { valid: boolean; error?: string 
 }
 
 /**
- * Validate ID format (CUID)
+ * Validate ID format (CUID/CUID2 — Prisma's default generates the classic
+ * 'c'-prefixed cuid, but some bulk-import scripts wrote rows with cuid2-style
+ * ids that start with any lowercase letter). Requires a leading letter (never
+ * a digit) followed by 23-24 more lowercase alphanumeric characters.
  */
 export function validateId(id: string): boolean {
-  return /^c[a-z0-9]{24}$/.test(id);
+  return /^[a-z][a-z0-9]{23,24}$/.test(id);
 }
