@@ -38,7 +38,7 @@ function sanitizeForPrompt(text: string): string {
 // Initialize OpenAI client lazily to avoid build-time errors
 let openaiClient: OpenAI | null = null;
 
-const getOpenAIClient = () => {
+export const getOpenAIClient = () => {
 	if (openaiClient) return openaiClient;
 
 	const deepInfraKey = process.env.DEEPINFRA_API_KEY;
@@ -57,6 +57,12 @@ const getOpenAIClient = () => {
 	openaiClient = new OpenAI({ apiKey });
 	return openaiClient;
 };
+
+/** Chat model for the configured provider (Deep Infra when its key is set, else OpenAI). */
+export const getChatModel = () =>
+	process.env.DEEPINFRA_API_KEY
+		? "meta-llama/Meta-Llama-3.3-70B-Instruct-Turbo"
+		: "gpt-4o-mini";
 
 // Lazy getter - only initializes when actually used
 const openai = new Proxy({} as OpenAI, {
@@ -539,7 +545,7 @@ export async function analyzeTranscriptOptimized(
 	while (attempts < maxAttempts) {
 		try {
 			const completion = await openai.chat.completions.create({
-				model: process.env.DEEPINFRA_API_KEY ? "meta-llama/Meta-Llama-3.3-70B-Instruct-Turbo" : "gpt-4o-mini",
+				model: getChatModel(),
 				messages: [
 					{ role: "system", content: systemPrompt },
 					{ role: "user", content: userPrompt },
