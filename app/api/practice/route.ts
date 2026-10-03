@@ -35,6 +35,8 @@ import { validateAudioFile, validateId } from "@/lib/validation";
 import { CoachingPreferences } from "@/lib/coaching-config";
 import { requireAuth } from "@/lib/auth";
 import { checkRateLimit } from "@/lib/rate-limit";
+import { getFactSheet } from "@/lib/fact-sheet";
+import { checkClaims } from "@/lib/claims-check";
 
 export async function POST(request: NextRequest) {
 	try {
@@ -91,6 +93,10 @@ export async function POST(request: NextRequest) {
 
 		// Require authentication
 		const user = await requireAuth(request);
+
+		// Optional fact sheet. Non-critical: any failure just means no grounding
+		// and no claims check, exactly as for users without a sheet.
+		const factSheetPromise = getFactSheet(user.id).catch(() => null);
 
 		// Check if session and question exist (with question text for context)
 		const [session, question] = await Promise.all([
@@ -248,6 +254,8 @@ export async function POST(request: NextRequest) {
 			wordTimestamps
 		);
 
+		const factSheet = await factSheetPromise;
+
 		// Always analyze each attempt fresh - users re-practice to improve
 		let analysis: EnhancedAnalysisResponse | undefined;
 		{
@@ -322,7 +330,8 @@ export async function POST(request: NextRequest) {
 								wpm,
 								longPauses,
 							},
-							(question as { type?: string }).type || undefined
+							(question as { type?: string }).type || undefined,
+							factSheet
 						),
 						new Promise<never>(
 							(_, reject) =>
@@ -497,6 +506,9 @@ export async function POST(request: NextRequest) {
 			);
 		}
 
+		// Only present when the user has a fact sheet; otherwise the response is unchanged.
+		const claimsCheck = checkClaims(transcript, factSheet);
+
 		// Return response with all data including ID
 		return NextResponse.json({
 			id: sessionItemId,
@@ -531,6 +543,7 @@ export async function POST(request: NextRequest) {
 			repeatedWords: repeatedWordsAnalysis.repeatedWords,
 			hasExcessiveRepetition: repeatedWordsAnalysis.hasExcessiveRepetition,
 			audioUrl: audioUrl, // May be null if upload still in progress
+			...(claimsCheck ? { claimsCheck } : {}),
 		});
 	} catch (error) {
 		const errorResponse = handleApiError(error);

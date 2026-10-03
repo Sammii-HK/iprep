@@ -24,6 +24,8 @@ import {
 	NotFoundError,
 } from "@/lib/errors";
 import { requireAuth } from "@/lib/auth";
+import { getFactSheet } from "@/lib/fact-sheet";
+import { checkClaims } from "@/lib/claims-check";
 
 export async function POST(request: NextRequest) {
 	try {
@@ -58,6 +60,7 @@ export async function POST(request: NextRequest) {
 
 		const question = sessionItem.question;
 		const trimmedTranscript = transcript.trim();
+		const factSheet = await getFactSheet(user.id).catch(() => null);
 
 		// Calculate metrics from corrected transcript
 		const wordCount = countWords(trimmedTranscript);
@@ -83,8 +86,11 @@ export async function POST(request: NextRequest) {
 			question.hint,
 			undefined,
 			{ wordCount, fillerCount, fillerRate, wpm, longPauses: 0 },
-			(question as { type?: string }).type || undefined
+			(question as { type?: string }).type || undefined,
+			factSheet
 		);
+
+		const claimsCheck = checkClaims(trimmedTranscript, factSheet);
 
 		const concisenessScore = calculateConcisenessScore(
 			wordCount,
@@ -151,6 +157,7 @@ export async function POST(request: NextRequest) {
 			dontForget: analysis.dontForget || [],
 			repeatedWords: repeatedWordsAnalysis.repeatedWords,
 			hasExcessiveRepetition: repeatedWordsAnalysis.hasExcessiveRepetition,
+			...(claimsCheck ? { claimsCheck } : {}),
 		});
 	} catch (error) {
 		const errorResponse = handleApiError(error);

@@ -22,6 +22,10 @@ vi.mock('@/lib/ai', () => ({
   transcribeAudio: vi.fn(),
 }));
 
+vi.mock('@/lib/fact-sheet', () => ({
+  getFactSheet: vi.fn(),
+}));
+
 vi.mock('@/lib/ai-optimized', () => ({
   analyzeTranscriptOptimized: vi.fn(),
 }));
@@ -54,6 +58,7 @@ import { prisma } from '@/lib/db';
 import { requireAuth } from '@/lib/auth';
 import { transcribeAudio } from '@/lib/ai';
 import { analyzeTranscriptOptimized } from '@/lib/ai-optimized';
+import { getFactSheet } from '@/lib/fact-sheet';
 import { validateId } from '@/lib/validation';
 import { POST } from '@/app/api/practice/route';
 
@@ -138,6 +143,7 @@ describe('POST /api/practice', () => {
       ],
     });
     vi.mocked(analyzeTranscriptOptimized).mockResolvedValue(mockAnalysis);
+    vi.mocked(getFactSheet).mockResolvedValue(null);
   });
 
   it('processes a valid practice submission', async () => {
@@ -161,6 +167,49 @@ describe('POST /api/practice', () => {
     expect(data.tips).toEqual(mockAnalysis.tips);
     expect(data.answerQuality).toBe(4);
     expect(data.whatWasRight).toEqual(mockAnalysis.whatWasRight);
+  });
+
+  describe('fact sheet and claims check', () => {
+    it('adds nothing extra to the response when the user has no fact sheet', async () => {
+      const response = await POST(createFormDataRequest(createPracticeFormData()) as never);
+      const data = await response.json();
+
+      expect(response.status).toBe(200);
+      expect(data).not.toHaveProperty('claimsCheck');
+      // The analyser is called with no fact sheet.
+      expect(vi.mocked(analyzeTranscriptOptimized).mock.calls[0][10]).toBeNull();
+    });
+
+    it('does not fail the request if the fact sheet cannot be loaded', async () => {
+      vi.mocked(getFactSheet).mockRejectedValue(new Error('db down'));
+      const response = await POST(createFormDataRequest(createPracticeFormData()) as never);
+      const data = await response.json();
+
+      expect(response.status).toBe(200);
+      expect(data).not.toHaveProperty('claimsCheck');
+    });
+
+    it('passes the sheet to the analyser and returns unsupported claims', async () => {
+      vi.mocked(getFactSheet).mockResolvedValue(
+        'Led a migration of the monolith. Worked with a small team.'
+      );
+      const response = await POST(createFormDataRequest(createPracticeFormData()) as never);
+      const data = await response.json();
+
+      expect(response.status).toBe(200);
+      expect(vi.mocked(analyzeTranscriptOptimized).mock.calls[0][10]).toContain('monolith');
+      expect(data.claimsCheck.label).toBe('not in your record');
+      expect(data.claimsCheck.items).toHaveLength(1);
+      expect(data.claimsCheck.items[0].flagged).toContain('eight');
+    });
+
+    it('returns an empty claims list when everything is in the record', async () => {
+      vi.mocked(getFactSheet).mockResolvedValue('I led a team of eight engineers.');
+      const response = await POST(createFormDataRequest(createPracticeFormData()) as never);
+      const data = await response.json();
+
+      expect(data.claimsCheck.items).toEqual([]);
+    });
   });
 
   it('returns 400 when audio is missing', async () => {
@@ -410,6 +459,7 @@ describe('POST /api/practice', () => {
       preferences,
       expect.any(Object),
       expect.any(String),
+      null, // no fact sheet
     );
   });
 });

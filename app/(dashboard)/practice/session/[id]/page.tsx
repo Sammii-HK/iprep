@@ -6,6 +6,7 @@ import { MicRecorder } from '@/components/MicRecorder';
 import { LiveCaption } from '@/components/LiveCaption';
 import { QuestionCard } from '@/components/QuestionCard';
 import { Scorecard } from '@/components/Scorecard';
+import type { ClaimsCheck } from '@/lib/claims-check';
 import { LearningSummary } from '@/components/LearningSummary';
 import { useRouter } from 'next/navigation';
 
@@ -50,6 +51,7 @@ interface SessionItem {
   whatWasWrong?: string[];
   betterWording?: string[];
   dontForget?: string[];
+  claimsCheck?: ClaimsCheck;
   repeatedWords?: Array<{ word: string; count: number; percentage: number }>;
   hasExcessiveRepetition?: boolean;
 }
@@ -302,6 +304,7 @@ export default function PracticeSessionPage() {
           whatWasWrong: result.whatWasWrong ?? [],
           betterWording: result.betterWording ?? [],
           dontForget: result.dontForget ?? [],
+          claimsCheck: result.claimsCheck,
           repeatedWords: result.repeatedWords,
           hasExcessiveRepetition: result.hasExcessiveRepetition,
         };
@@ -580,6 +583,7 @@ export default function PracticeSessionPage() {
             whatWasWrong={scorecard.whatWasWrong}
             betterWording={scorecard.betterWording}
             dontForget={scorecard.dontForget}
+            claimsCheck={scorecard.claimsCheck}
             repeatedWords={scorecard.repeatedWords}
             hasExcessiveRepetition={scorecard.hasExcessiveRepetition}
             transcript={scorecard.transcript}
@@ -613,6 +617,7 @@ export default function PracticeSessionPage() {
                     whatWasWrong: result.whatWasWrong || [],
                     betterWording: result.betterWording,
                     dontForget: result.dontForget,
+                    claimsCheck: result.claimsCheck,
                     repeatedWords: result.repeatedWords,
                     hasExcessiveRepetition: result.hasExcessiveRepetition,
                   });
