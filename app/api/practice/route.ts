@@ -375,7 +375,7 @@ export async function POST(request: NextRequest) {
 						betterWording: [
 							"Try speaking for 2-3 minutes with clear structure",
 							"Use the STAR method: Situation, Task, Action, Result",
-							"Include specific metrics and examples",
+							"Give a specific example and say what came of it",
 						],
 						dontForget: [],
 						starScore: 4,
@@ -390,7 +390,7 @@ export async function POST(request: NextRequest) {
 							"Your response was recorded successfully",
 							"Review your transcript and practice speaking more clearly",
 							"Use the STAR method: Situation, Task, Action, Result",
-							"Include specific metrics and outcomes when possible",
+							"Include a specific example and what came of it, using only things that are true",
 						],
 					};
 				}

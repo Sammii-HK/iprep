@@ -14,7 +14,7 @@
 ## STAR Structure Feedback
 
 ### Missing Situation
-"Your answer jumps into the action without context. Start with: 'In my previous role at [Company], we faced [specific problem] that was impacting [business metric].' This sets the stage for your story."
+"Your answer jumps into the action without context. Start with: 'In my previous role at [Company], we faced [specific problem] that was affecting [what was at stake].' This sets the stage for your story."
 
 ### Missing Task
 "Clarify what needed to be accomplished. State: 'I was tasked with [specific objective] within [constraints like timeline, budget, team size].' This shows your responsibility and scope."
@@ -23,21 +23,23 @@
 "Your answer doesn't detail what YOU specifically did. Use 'I' statements: 'I implemented [solution] by [specific method], I analyzed [data], I collaborated with [team] to [action].' Avoid 'we' - focus on your contributions."
 
 ### Missing Result
-"End with measurable outcomes: 'This resulted in [specific metric], which [business impact]. For example: reduced latency by 60%, increased conversion by 15%, saved $50K annually, improved team velocity by 30%.'"
+"End with what actually happened: 'This resulted in [what changed], which meant [why it mattered].' Only state outcomes that are true; a number is optional."
 
 ### Weak Transitions
 "Your STAR components are present but transitions are unclear. Use phrases like: 'The situation was...', 'My task was to...', 'To accomplish this, I...', 'The results were...'"
 
-## Metrics & Impact Feedback
+## Specificity Feedback
 
-### No Metrics
-"Your answer lacks quantifiable impact. Include specific numbers: percentages (60% improvement), time (reduced from 2s to 0.5s), money (saved $50K), scale (handled 1M requests/day), or user impact (improved NPS from 40 to 65)."
+Never supply sample numbers. Use placeholders such as [what changed] and tell the candidate to add detail only if it is true.
 
-### Vague Metrics
-"Be more specific. Instead of 'improved performance', say 'reduced page load time from 3.5s to 0.8s' or 'increased API throughput from 1K to 5K requests/second'."
+### Generic Answer
+"Your answer stays general. Anchor it in one real example: what the situation was, what you did, and what changed afterwards."
 
-### Missing Business Impact
-"You have technical metrics but not business impact. Connect to business outcomes: 'This reduced server costs by 30%' or 'increased user conversion by 22%' or 'improved customer satisfaction scores by 15 points'."
+### Thin Outcome
+"Say what actually happened as a result, in plain words. A number is welcome only if it is true; a clear outcome is enough."
+
+### Missing "So What"
+"Connect the outcome to why it mattered: who benefited, what got easier, or what risk went away."
 
 ## Technical Accuracy Feedback
 
@@ -48,12 +50,12 @@
 "Your answer demonstrates basic understanding but lacks depth. Dive deeper: explain why you chose [technology], what trade-offs you considered, alternative approaches you evaluated, and how you validated the solution."
 
 ### Missing Technical Details
-"Add more technical specifics. Instead of 'I optimized the database', say 'I optimized database queries by adding composite indexes on [columns], which reduced query time from 500ms to 50ms for [specific use case]'."
+"Add more technical specifics. Instead of 'I optimized the database', say what you changed and why, for example the index you added and the query it helped, using only details that are true."
 
 ## Terminology Feedback
 
 ### Generic Terms
-"Use domain-specific language. Instead of 'made it faster', say 'reduced latency by implementing Redis caching with a TTL of 5 minutes' or 'optimized database queries using composite indexes on user_id and created_at'."
+"Use domain-specific language. Instead of 'made it faster', name the technique you actually used, such as the cache or the index you added."
 
 ### Incorrect Terminology
 "You used '[term]' incorrectly. The correct term is '[correct term]', which means [definition]. Using precise terminology shows expertise."
@@ -64,7 +66,7 @@
 ## Pacing & Delivery Feedback
 
 ### Too Fast
-"You're speaking too quickly ([X] WPM). Slow down and pause between key points. Aim for 120-150 WPM. Practice: (1) Take a breath between sentences, (2) Pause after stating metrics, (3) Let important points sink in."
+"You're speaking too quickly ([X] WPM). Slow down and pause between key points. Aim for 120-150 WPM. Practice: (1) Take a breath between sentences, (2) Pause after stating your outcome, (3) Let important points sink in."
 
 ### Too Slow
 "Your pacing is slow with many pauses ([X] WPM, [Y] long pauses). Practice speaking more fluidly while maintaining clarity. Aim for 120-150 WPM."
@@ -89,7 +91,7 @@
 "Your answer is too long ([X] words, [Y] minutes). Aim for 2-3 minutes (200-300 words). Practice being concise: focus on key points, cut unnecessary details, use the STAR method."
 
 ### Too Short
-"Your answer is too brief ([X] words). Expand with: (1) More context in Situation, (2) Specific steps in Action, (3) Detailed metrics in Result. Aim for 200-300 words."
+"Your answer is too brief ([X] words). Expand with: (1) More context in Situation, (2) Specific steps in Action, (3) A clear, true outcome in Result. Aim for 200-300 words."
 
 ### Redundancy
 "You repeated the same points multiple times. Be concise: state each point once with supporting details, then move on."

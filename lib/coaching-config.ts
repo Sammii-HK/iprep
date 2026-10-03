@@ -58,7 +58,7 @@ export function getExperienceLevelContext(level: ExperienceLevel): string {
 - Strong leadership and influence
 - Strategic impact and business outcomes
 - Mentoring and team development
-- Excellent STAR method with metrics`;
+- Excellent STAR method with a clear, honest outcome`;
     case 'executive':
       return `This candidate is at an executive level. Expect:
 - Strategic vision and business acumen
@@ -102,7 +102,7 @@ export const PRACTICE_PRESETS: Record<PracticePreset, PracticePresetConfig> = {
     description: 'STAR-focused scoring, behavioral question emphasis',
     preferences: {
       focusAreas: ['all'],
-      priorities: ['STAR structure', 'impact statements', 'specific examples', 'clear outcomes', 'metrics'],
+      priorities: ['STAR structure', 'specific examples', 'clear outcomes', 'honest outcomes'],
     },
   },
   technical: {

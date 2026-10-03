@@ -308,7 +308,7 @@ export function Scorecard({
 							<ScoreTile label="STAR Structure" value={scores.star} previousValue={previousScores?.star} />
 						)}
 						{isBehavioral && scores.impact != null && (
-							<ScoreTile label="Impact" value={scores.impact} previousValue={previousScores?.impact} />
+							<ScoreTile label="Specificity" value={scores.impact} previousValue={previousScores?.impact} />
 						)}
 						<ScoreTile label="Clarity" value={scores.clarity} previousValue={previousScores?.clarity} />
 						{scores.conciseness != null && (

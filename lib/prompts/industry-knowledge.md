@@ -28,7 +28,7 @@
 - **Common Mistakes**:
   - Focusing only on technical achievements
   - Not showing impact on people
-  - Vague examples without metrics
+  - Vague examples with no clear outcome
   - Not demonstrating growth mindset
 - **Good Answer Structure**: Context → Challenge → Leadership approach → Team impact → Business results → Lessons learned
 
@@ -37,7 +37,7 @@
 - **Situation**: Set context (company, team size, timeframe, constraints)
 - **Task**: What needed to be accomplished (your responsibility)
 - **Action**: Specific steps YOU took (not "we", use "I")
-- **Result**: Measurable outcomes (metrics, business impact, learnings)
+- **Result**: What actually happened, why it mattered, and what you learned (numbers only if true)
 
 ## Domain-Specific Terminology
 
@@ -67,9 +67,9 @@
 
    - Fix: Use STAR method, practice concise answers (2-3 minutes)
 
-2. **No Metrics**: Vague statements like "improved performance"
+2. **Vague Outcomes**: Generic statements like "improved performance"
 
-   - Fix: Always include numbers: "reduced latency by 60%", "increased throughput by 3x"
+   - Fix: Say what actually changed and why it mattered, in plain words. Include a number only if it is true.
 
 3. **Technical Inaccuracies**: Using wrong terminology or concepts
 
@@ -95,27 +95,27 @@
 ### Junior Level (0-2 years)
 
 - STAR Score: 2-3/5 (basic structure)
-- Impact: 1-2/5 (few metrics)
+- Impact: 1-2/5 (generic examples)
 - Technical: 2-3/5 (fundamentals)
 - Expected: Learning mindset, basic technical knowledge
 
 ### Mid Level (2-5 years)
 
 - STAR Score: 3-4/5 (good structure)
-- Impact: 3-4/5 (some metrics)
+- Impact: 3-4/5 (real examples, thin outcome)
 - Technical: 3-4/5 (solid knowledge)
 - Expected: Independent work, some leadership examples
 
 ### Senior Level (5-10 years)
 
 - STAR Score: 4-5/5 (excellent structure)
-- Impact: 4-5/5 (strong metrics)
+- Impact: 4-5/5 (concrete example, real outcome, clear so-what)
 - Technical: 4-5/5 (deep expertise)
 - Expected: Technical leadership, architectural decisions, mentoring
 
 ### Executive Level (10+ years)
 
 - STAR Score: 5/5 (perfect structure)
-- Impact: 5/5 (strategic metrics)
+- Impact: 5/5 (concrete example, real outcome, strategic so-what)
 - Technical: 4-5/5 (strategic technical vision)
 - Expected: Organizational impact, strategic thinking, cross-functional leadership

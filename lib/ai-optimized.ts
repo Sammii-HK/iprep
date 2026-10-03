@@ -93,7 +93,7 @@ export type EnhancedAnalysisResponse = z.infer<
 /**
  * Build optimized system prompt (condensed from ~2000 to ~600 tokens)
  */
-function buildOptimizedSystemPrompt(
+export function buildOptimizedSystemPrompt(
 	coachingPrefs: CoachingPreferences
 ): string {
 	const style = getCoachingStylePrompt(coachingPrefs.style);
@@ -102,9 +102,9 @@ function buildOptimizedSystemPrompt(
 		level === "junior"
 			? "basics, fundamentals, learning"
 			: level === "mid"
-			? "solid knowledge, some metrics"
+			? "solid knowledge, concrete examples"
 			: level === "senior"
-			? "deep expertise, strong metrics"
+			? "deep expertise, clear outcomes"
 			: "strategic vision, executive presence";
 
 	return `Expert ${level} iPrep. ${style}
@@ -118,7 +118,7 @@ Return JSON only:
   "dontForget": ["point1"] or [],
   "dontForgetIndices": [0, 2] or [] (optional, only if hint is numbered),
   "starScore": 0-10 (use 0.5 steps, e.g. 7.5),
-  "impactScore": 0-10 (use 0.5 steps),
+  "impactScore": 0-10 (use 0.5 steps; this is the specificity score),
   "clarityScore": 0-10 (use 0.5 steps),
   "technicalAccuracy": 0-10 (use 0.5 steps),
   "terminologyUsage": 0-10 (use 0.5 steps),
@@ -143,9 +143,15 @@ Scoring (0-10, use 0.5 increments like 5.5, 7.0, 8.5 for nuance):
 - terminologyUsage: 10=precise+expert, 8-9=strong, 6-7=appropriate, 4-5=mixed, 2-3=generic, 0-1=none
 - clarityScore: 10=exceptional, 8-9=clear+well-structured, 6-7=adequate+understandable, 4-5=unclear, 2-3=confusing, 0-1=incoherent
 - starScore/impactScore: Use for behavioral/STAR questions only. Set to 6 for pure technical questions.
+- impactScore is SPECIFICITY: a concrete example, a real outcome, and a clear "so what". 9-10=all three, told plainly; 7-8=concrete example and real outcome, "so what" could be sharper; 5-6=real example but outcome or "so what" thin; 3-4=generic or hypothetical; 1-2=vague claims only; 0=none. Numbers are welcome only if true, and are never required: a true outcome in plain words scores as high as one with a figure. Never mark an answer down for lacking figures.
+
+Honesty rules (strict):
+- betterWording and tips must NEVER add figures, percentages, currency amounts, counts, names, employers, tools or claims that are not already in the candidate's answer or in their fact sheet (if one is given). Improve structure and phrasing using only what they said.
+- If an example needs a missing detail, use a placeholder such as "[what changed as a result]" or tell them to add it only if it is true. Never supply a sample number.
+- Do not praise or build on a figure or claim in the answer that is absent from the fact sheet.
 
 Scoring examples (calibrate your scoring to these):
-- Strong (8-10): "At my previous role, I led a team of 8 engineers to migrate our monolith to microservices. I identified the 3 highest-risk services, created a phased migration plan, and we completed it in 4 months, reducing deploy time by 70%." → answerQuality:9, starScore:9.5, impactScore:9, clarity:9
+- Strong (8-10): "At my previous role we had to move a monolith onto separate services. I picked the riskiest service first, wrote a phased plan with the team, and we cut over without downtime. Deploys stopped being an event people dreaded, which freed us to ship smaller changes more often." → answerQuality:9, starScore:9.5, impactScore:9, clarity:9 (concrete example, real outcome, clear so-what; no figures needed)
 - Decent (6-7): "Yeah so I worked on microservices before. We basically like broke things up into smaller pieces. It went pretty well I think, the team was happy with it." → answerQuality:5.5, starScore:4.5, impactScore:4, clarity:5.5
 - Weak (0-3): "Um I'm not really sure, I haven't done that exactly." → answerQuality:1, starScore:1, impactScore:1, clarity:2
 
@@ -302,7 +308,7 @@ function extractDontForgetFromHint(
 /**
  * Build optimized user prompt (condensed from ~1000 to ~300 tokens)
  */
-function buildOptimizedUserPrompt(
+export function buildOptimizedUserPrompt(
 	transcript: string,
 	questionText?: string,
 	questionHint?: string | null,
@@ -386,11 +392,11 @@ function buildOptimizedUserPrompt(
 	}
 	if (questionType) {
 		const typeGuidance: Record<string, string> = {
-			BEHAVIORAL: 'Type: Behavioral. Score using full STAR (Situation, Task, Action, Result). Weight impact highly.',
+			BEHAVIORAL: 'Type: Behavioral. Score using full STAR (Situation, Task, Action, Result). Weight specificity highly.',
 			DEFINITION: 'Type: Definition. STAR becomes structure/completeness score. Weight terminology highly.',
 			TECHNICAL: 'Type: Technical. Weight technical accuracy + terminology highest. STAR becomes approach structure.',
-			SCENARIO: 'Type: Scenario. Weight clarity + impact. Assess decision-making framework.',
-			PITCH: 'Type: Pitch. Weight confidence + impact + conciseness highest. Assess time-awareness.',
+			SCENARIO: 'Type: Scenario. Weight clarity + specificity. Assess decision-making framework.',
+			PITCH: 'Type: Pitch. Weight confidence + specificity + conciseness highest. Assess time-awareness.',
 		};
 		prompt += `${typeGuidance[questionType] || ''}\n`;
 	}
@@ -681,7 +687,7 @@ export async function analyzeTranscriptOptimized(
 					betterWording: [
 						"Try speaking for 2-3 minutes with clear structure",
 						"Use the STAR method: Situation, Task, Action, Result",
-						"Include specific metrics and examples",
+						"Give a specific example and say what came of it",
 					],
 					dontForget: [], // Only include if specific vital points are missing
 					starScore: 4,
@@ -698,7 +704,7 @@ export async function analyzeTranscriptOptimized(
 						"Your response was recorded successfully",
 						"Review your transcript and practice speaking more clearly",
 						"Use the STAR method: Situation, Task, Action, Result",
-						"Include specific metrics and outcomes when possible",
+						"Include a specific example and what came of it, using only things that are true",
 					],
 				};
 

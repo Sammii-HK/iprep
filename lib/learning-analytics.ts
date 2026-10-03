@@ -166,9 +166,9 @@ export async function analyzeSessionPerformance(
 			);
 		}
 		
-		// Impact/metrics issues (for behavioral questions)
+		// Specificity issues (for behavioral questions)
 		if (item.impactScore !== null && item.impactScore < lowScoreThreshold) {
-			const pattern = "Missing specific metrics or impact statements";
+			const pattern = "Answer stays general (no concrete example, real outcome or so-what)";
 			scorePatterns.set(pattern, (scorePatterns.get(pattern) || 0) + 1);
 			if (!mistakeExamples.has(pattern)) {
 				mistakeExamples.set(pattern, new Set());
