@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
+import { isFactsBankTitle } from '@/lib/fact-sheet';
 import { parseCSV, parseJSON } from '@/lib/csv';
 import { requireAuth } from '@/lib/auth';
 import { z } from 'zod';
@@ -23,6 +24,9 @@ export async function POST(request: NextRequest) {
 
     // Validate title
     const validated = ImportSchema.parse({ title });
+    if (isFactsBankTitle(validated.title)) {
+      throw new ValidationError('That title is reserved');
+    }
 
     // Read file content
     const content = await file.text();

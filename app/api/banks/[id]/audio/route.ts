@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
+import { isFactsBankTitle } from '@/lib/fact-sheet';
 import { handleApiError, NotFoundError } from '@/lib/errors';
 import { getAudioUrl } from '@/lib/r2';
 import { existsSync, statSync } from 'fs';
@@ -26,7 +27,7 @@ export async function GET(
       select: { id: true, title: true },
     });
 
-    if (!bank) {
+    if (!bank || isFactsBankTitle(bank.title)) {
       throw new NotFoundError('QuestionBank', id);
     }
 

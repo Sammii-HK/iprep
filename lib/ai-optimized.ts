@@ -14,6 +14,7 @@ import {
 	getFocusAreaContext,
 } from "./coaching-config";
 import { analysisCache } from "./ai-cache";
+import { FACT_SHEET_MAX_CHARS } from "./fact-sheet-limits";
 
 /**
  * Sanitize user-provided text before including in AI prompts.
@@ -63,6 +64,15 @@ const openai = new Proxy({} as OpenAI, {
 		return getOpenAIClient()[prop as keyof OpenAI];
 	},
 });
+
+function hashText(str: string): string {
+	let hash = 0;
+	for (let i = 0; i < str.length; i++) {
+		hash = (hash << 5) - hash + str.charCodeAt(i);
+		hash |= 0;
+	}
+	return Math.abs(hash).toString(36);
+}
 
 // Helper to round to nearest 0.5
 function roundToHalf(n: number): number {
@@ -320,7 +330,8 @@ export function buildOptimizedUserPrompt(
 		fillerRate: number;
 		wpm: number;
 		longPauses: number;
-	}
+	},
+	factSheet?: string | null
 ): { prompt: string; hintPoints?: string[] } {
 	const wordCount =
 		metrics?.wordCount ||
@@ -401,6 +412,12 @@ export function buildOptimizedUserPrompt(
 		prompt += `${typeGuidance[questionType] || ''}\n`;
 	}
 
+	const sheet = factSheet ? sanitizeForPrompt(factSheet).slice(0, FACT_SHEET_MAX_CHARS) : "";
+	if (sheet) {
+		prompt += `\nCandidate fact sheet (their verified record, the only source of facts besides their answer):\n<<<\n${sheet}\n>>>\n`;
+		prompt += `Use it to ground feedback. Any figure, name or claim you suggest must come from the answer or this sheet. If the answer states something that is not in the sheet, do not repeat or build on it.\n`;
+	}
+
 	prompt += `\nAnswer: ${processedTranscript}\n`;
 	prompt += `Metrics: ${wordCount}w, ${fillerRate.toFixed(
 		1
@@ -431,7 +448,8 @@ export async function analyzeTranscriptOptimized(
 		wpm: number;
 		longPauses: number;
 	},
-	questionType?: string
+	questionType?: string,
+	factSheet?: string | null
 ): Promise<EnhancedAnalysisResponse> {
 	// Validate transcript
 	const trimmedTranscript = transcript.trim();
@@ -466,12 +484,20 @@ export async function analyzeTranscriptOptimized(
 			priorities || preferences?.priorities || DEFAULT_PREFERENCES.priorities,
 	};
 
+	// The fact sheet changes the feedback, so it must change the cache key.
+	// Without a sheet the key is exactly what it was before.
+	const cacheContext = (
+		factSheet
+			? { ...coachingPrefs, factSheetKey: `${factSheet.length}:${hashText(factSheet)}` }
+			: coachingPrefs
+	) as unknown as Record<string, unknown>;
+
 	// Check cache first (use trimmed transcript for cache key)
 	const cached = analysisCache.get<EnhancedAnalysisResponse>(
 		trimmedTranscript, // Use trimmed transcript for cache
 		questionId,
 		questionTags,
-		coachingPrefs as unknown as Record<string, unknown>
+		cacheContext
 	);
 
 	if (cached) {
@@ -489,7 +515,8 @@ export async function analyzeTranscriptOptimized(
 		questionHint,
 		questionTags,
 		questionType,
-		metrics
+		metrics,
+		factSheet
 	);
 
 	if (process.env.NODE_ENV === "development") {
@@ -634,7 +661,7 @@ export async function analyzeTranscriptOptimized(
 				questionTags,
 				optimizedResponse,
 				24 * 60 * 60 * 1000, // 24 hours TTL
-				coachingPrefs as unknown as Record<string, unknown>
+				cacheContext
 			);
 
 			if (process.env.NODE_ENV === "development") {

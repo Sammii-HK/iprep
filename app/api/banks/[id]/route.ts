@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
+import { isFactsBankTitle } from '@/lib/fact-sheet';
 import { z } from 'zod';
 import { handleApiError, NotFoundError, ValidationError } from '@/lib/errors';
 import { requireAuth } from '@/lib/auth';
@@ -27,7 +28,7 @@ export async function GET(
       },
     });
 
-    if (!bank) {
+    if (!bank || isFactsBankTitle(bank.title)) {
       throw new NotFoundError('QuestionBank', id);
     }
 
@@ -55,13 +56,17 @@ export async function PATCH(
       where: { id },
     });
 
-    if (!bank) {
+    if (!bank || isFactsBankTitle(bank.title)) {
       throw new NotFoundError('QuestionBank', id);
     }
 
     // Verify user owns the bank (unless admin)
     if (bank.userId && bank.userId !== user.id && user.role !== 'ADMIN') {
       throw new ValidationError('You do not have access to this question bank');
+    }
+
+    if (isFactsBankTitle(validated.title)) {
+      throw new ValidationError('That title is reserved');
     }
 
     const updatedBank = await prisma.questionBank.update({
@@ -109,7 +114,7 @@ export async function DELETE(
       },
     });
 
-    if (!bank) {
+    if (!bank || isFactsBankTitle(bank.title)) {
       throw new NotFoundError('QuestionBank', id);
     }
 

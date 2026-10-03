@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
+import { isFactsBankTitle } from '@/lib/fact-sheet';
 import { z } from 'zod';
 import { handleApiError, NotFoundError, ValidationError } from '@/lib/errors';
 import { requireAuth } from '@/lib/auth';
@@ -36,7 +37,7 @@ export async function POST(
       where: { id: validated.bankId },
     });
 
-    if (!bank) {
+    if (!bank || isFactsBankTitle(bank.title)) {
       throw new NotFoundError('QuestionBank', validated.bankId);
     }
 

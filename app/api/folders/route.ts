@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
+import { notFactsBank } from '@/lib/fact-sheet';
 import { z } from 'zod';
 import { handleApiError, ValidationError } from '@/lib/errors';
 import { requireAuth } from '@/lib/auth';
@@ -18,6 +19,7 @@ export async function GET(request: NextRequest) {
       where: { userId: user.id },
       include: {
         items: {
+          where: { bank: notFactsBank },
           include: {
             bank: {
               include: {
@@ -77,6 +79,7 @@ export async function POST(request: NextRequest) {
         where: {
           id: { in: validated.bankIds },
           userId: user.id,
+          ...notFactsBank,
         },
         select: { id: true },
       });
@@ -103,6 +106,7 @@ export async function POST(request: NextRequest) {
       },
       include: {
         items: {
+          where: { bank: notFactsBank },
           include: {
             bank: {
               include: {
