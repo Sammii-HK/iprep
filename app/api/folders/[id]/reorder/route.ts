@@ -7,7 +7,7 @@ import { requireAuth } from '@/lib/auth';
 const ReorderBanksSchema = z.object({
   bankIds: z.array(
     z.object({
-      bankId: z.string().cuid('Invalid bank ID format'),
+      bankId: z.string().min(1).max(64).regex(/^[A-Za-z0-9_-]+$/, 'Invalid bank ID format'),
       order: z.number().int().min(0),
     })
   ),

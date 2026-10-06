@@ -8,7 +8,7 @@ import { requireAuth } from '@/lib/auth';
 const CreateFolderSchema = z.object({
   title: z.string().min(1, 'Title is required').max(200, 'Title too long'),
   color: z.string().max(50).optional(),
-  bankIds: z.array(z.string().cuid('Invalid bank ID format')).optional(),
+  bankIds: z.array(z.string().min(1).max(64).regex(/^[A-Za-z0-9_-]+$/, 'Invalid bank ID format')).optional(),
 });
 
 export async function GET(request: NextRequest) {
