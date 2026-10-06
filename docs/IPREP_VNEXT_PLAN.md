@@ -111,7 +111,7 @@ Evaluation of the stage-1 `LearningKey` (normalised bank title plus FNV-1a hash 
 - **Collapses:** two identical questions in one bank get one key (fine for scheduling, wrong for counting).
 - **Not shared:** it is native-only, and web bank titles and native bank names are not guaranteed identical, so it does not join the platforms.
 
-Decision: `ContentId` is a random UUID assigned once to each question and stored with it on both platforms. `LearningKey` is demoted to a **one-time matching key** used to backfill ids and then stored in an `QuestionAlias(contentId, aliasKind, aliasValue)` table so old data keeps resolving after renames. Web question cuids and native `BankQuestion` ids become aliases. Native stage-1 state is re-keyed by replaying its review log through the alias table (section N).
+Decision: `ContentId` is a random UUID assigned once to each question and stored with it on both platforms. `LearningKey` is demoted to a **one-time matching key** used to backfill ids and then stored in a `QuestionAlias(contentId, aliasKind, aliasValue)` table so old data keeps resolving after renames. Web question cuids and native `BankQuestion` ids become aliases. Native stage-1 state is re-keyed by replaying its review log through the alias table (section N).
 
 Bank identity follows the same rule: `bankUid` assigned once, title is a label. Episode R2 keys stay `audio/study/<bankId>` (additive sidecar for segments), so nothing already published moves.
 
