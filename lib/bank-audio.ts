@@ -155,6 +155,7 @@ export function episodeSourceHash(
 
 export interface EpisodeMeta {
   sourceHash: string;
+  style?: 'dialogue' | 'narrator';
   voice: string;
   model: string;
   characters: number;
@@ -180,4 +181,156 @@ export function decideEpisodeAction(
   if (force) return 'regenerate';
   if (!existing.meta) return 'skip-unmanaged';
   return existing.meta.sourceHash === sourceHash ? 'skip-up-to-date' : 'regenerate';
+}
+
+// ============================================================
+// Dialogue style (default): two hosts, Jess and Zac, scripted by Podify and voiced by Orpheus.
+// ============================================================
+
+export type EpisodeStyle = 'dialogue' | 'narrator';
+export const DEFAULT_STYLE: EpisodeStyle = 'dialogue';
+
+export const DIALOGUE_VOICES = 'orpheus_jess_zac';
+export const DIALOGUE_TTS_MODEL = 'canopylabs/orpheus-3b-0.1-ft';
+export const DEFAULT_DIALOGUE_MINUTES = 10;
+/** DeepInfra list price for Orpheus, USD per 1M input characters. */
+export const ORPHEUS_USD_PER_MILLION_CHARS = 7.0;
+export const WORDS_PER_MINUTE = 150;
+export const CHARS_PER_WORD = 6;
+/** Small allowance for the Podify script LLM (DeepInfra), per episode. */
+export const SCRIPT_LLM_ALLOWANCE_USD = 0.01;
+
+/** Host names that must never appear: they belong to another show. */
+export const BANNED_HOST_NAMES = ['Luna', 'Sol'] as const;
+/** Brand terms that must not appear unless the source notes themselves use them. */
+export const BANNED_BRAND_TERMS = ['The Grimoire', 'Lunary'] as const;
+
+export const SOURCE_RULES =
+  'SOURCE RULES FOR THE HOSTS: This is private interview preparation for one person, Samantha. ' +
+  'Use ONLY the facts written in the notes below. Do not invent figures, dates, employers, names, tools or outcomes, ' +
+  'and do not add claims about her that are not in the notes. If a note says something is unknown or "check before quoting", say so. ' +
+  'The two hosts are Jess and Zac. Do not call them any other names. Never use the names Luna or Sol. ' +
+  'Do not name any podcast, show or brand of your own, and never mention The Grimoire. ' +
+  'Make it a real conversation: they react to each other, challenge each other, and talk through how to answer each question out loud. ' +
+  'UK English. No dashes used as punctuation.\n\n';
+
+export function buildDialogueNotes(questions: EpisodeQuestion[]): string {
+  return questions
+    .map((q, i) => `Question ${i + 1}: ${tidy(q.text)}` + (q.hint ? `\nAnswer notes: ${tidy(q.hint)}` : ''))
+    .join('\n\n');
+}
+
+export function buildDialogueSource(questions: EpisodeQuestion[]): { notes: string; source: string } {
+  const notes = buildDialogueNotes(questions);
+  return { notes, source: SOURCE_RULES + notes };
+}
+
+export function estimateDialogueCost(minutes: number = DEFAULT_DIALOGUE_MINUTES) {
+  const characters = Math.round(minutes * WORDS_PER_MINUTE * CHARS_PER_WORD);
+  const usd = (characters / 1_000_000) * ORPHEUS_USD_PER_MILLION_CHARS + SCRIPT_LLM_ALLOWANCE_USD;
+  const gbp = usd * GBP_PER_USD;
+  return { characters, usd, gbp, pence: gbp * 100 };
+}
+
+/** Hash of everything that decides the dialogue episode: the notes, the rules, host voices, length. */
+export function dialogueSourceHash(source: string, minutes: number = DEFAULT_DIALOGUE_MINUTES): string {
+  return createHash('sha256')
+    .update(
+      JSON.stringify({
+        style: 'dialogue',
+        v: EPISODE_FORMAT_VERSION,
+        model: DIALOGUE_TTS_MODEL,
+        voices: DIALOGUE_VOICES,
+        minutes,
+        source,
+      })
+    )
+    .digest('hex');
+}
+
+/** Host names or brand terms in the transcript that should fail the bank. */
+export function findBannedNames(transcript: string, notes: string): string[] {
+  const found: string[] = [];
+  for (const name of BANNED_HOST_NAMES) {
+    if (new RegExp(`\\b${name}\\b`, 'i').test(transcript)) found.push(name);
+  }
+  for (const term of BANNED_BRAND_TERMS) {
+    const re = new RegExp(`\\b${term}\\b`, 'i');
+    if (re.test(transcript) && !re.test(notes)) found.push(term);
+  }
+  return found;
+}
+
+function numberTokens(text: string): Set<string> {
+  const tokens = text.match(/\d[\d,.]*/g) ?? [];
+  const out = new Set<string>();
+  for (const t of tokens) {
+    const clean = t.replace(/[,.]+$/, '').replace(/,/g, '');
+    if (clean) out.add(clean);
+  }
+  return out;
+}
+
+/**
+ * Numbers spoken in the transcript that do not appear in the source notes.
+ * Question numbers (1..questionCount) are allowed because the hosts count through the questions.
+ */
+export function findUnsupportedNumbers(transcript: string, notes: string, questionCount = 0): string[] {
+  const allowed = numberTokens(notes);
+  for (let i = 1; i <= questionCount; i++) allowed.add(String(i));
+  return [...numberTokens(transcript)].filter((n) => !allowed.has(n)).sort((a, b) => Number(a) - Number(b) || a.localeCompare(b));
+}
+
+export interface DialogueCheck {
+  ok: boolean;
+  bannedNames: string[];
+  unsupportedNumbers: string[];
+  hasDashes: boolean;
+}
+
+export function checkDialogueTranscript(transcript: string, notes: string, questionCount: number): DialogueCheck {
+  const bannedNames = findBannedNames(transcript, notes);
+  const unsupportedNumbers = findUnsupportedNumbers(transcript, notes, questionCount);
+  return {
+    ok: bannedNames.length === 0 && unsupportedNumbers.length === 0,
+    bannedNames,
+    unsupportedNumbers,
+    hasDashes: /[–—]/.test(transcript),
+  };
+}
+
+export interface LocalState {
+  sourceHash: string;
+  status: 'ok' | 'needs-review';
+}
+
+export type BankAction =
+  | 'generate'
+  | 'regenerate'
+  | 'upload-local'
+  | 'skip-up-to-date'
+  | 'skip-local-ready'
+  | 'skip-needs-review'
+  | 'skip-unmanaged';
+
+/**
+ * Local-first decision. Remote (R2) up to date always wins; then a matching local render is reused
+ * (uploaded only with --upload, never regenerated); otherwise fall back to the remote decision.
+ */
+export function decideBankAction(opts: {
+  remote: { hasAudio: boolean; meta: { sourceHash: string } | null };
+  local: LocalState | null;
+  hash: string;
+  force: boolean;
+  upload: boolean;
+}): BankAction {
+  const { remote, local, hash, force, upload } = opts;
+  if (!force) {
+    if (remote.meta?.sourceHash === hash) return 'skip-up-to-date';
+    if (local && local.sourceHash === hash) {
+      if (local.status === 'needs-review') return 'skip-needs-review';
+      return upload ? 'upload-local' : 'skip-local-ready';
+    }
+  }
+  return decideEpisodeAction({ hasAudio: remote.hasAudio, meta: remote.meta as EpisodeMeta | null }, hash, force);
 }

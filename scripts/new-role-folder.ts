@@ -3,11 +3,12 @@
 // One step for a new role: folder + linked banks + audio episodes.
 //
 //   npx tsx scripts/new-role-folder.ts --title "Acme Interview Prep" --role-bank <bankId> \
-//       [--shared <bankId> ...] [--no-default-shared] [--no-audio] [--dry-run]
+//       [--shared <bankId> ...] [--no-default-shared] [--no-audio] [--style narrator] [--upload] [--out <dir>] [--dry-run]
 //
 // 1. Creates the folder (or reuses one with the same title) with the role bank first,
 //    then the shared banks (Design Systems, verified stories, real questions, interview communication by default).
-// 2. Runs scripts/generate-bank-episodes.ts for the folder (idempotent, cost capped, skips banks that already have audio).
+// 2. Runs scripts/generate-bank-episodes.ts for the folder: Jess and Zac dialogue episodes by default,
+//    written to a local preview folder. Nothing is uploaded unless you add --upload (idempotent, cost capped).
 //
 // The role bank itself is authored separately (iPrep UI import or the iPrep MCP create_bank tool).
 // ============================================================
@@ -27,7 +28,7 @@ const DEFAULT_SHARED_BANKS: Array<{ id: string; title: string }> = [
 ];
 
 function parse(argv: string[]) {
-  const out = { title: '', roleBank: '', shared: [] as string[], defaults: true, audio: true, dryRun: false };
+  const out = { title: '', roleBank: '', shared: [] as string[], defaults: true, audio: true, dryRun: false, passthrough: [] as string[] };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
     if (a === '--title') out.title = argv[++i];
@@ -36,6 +37,8 @@ function parse(argv: string[]) {
     else if (a === '--no-default-shared') out.defaults = false;
     else if (a === '--no-audio') out.audio = false;
     else if (a === '--dry-run') out.dryRun = true;
+    else if (a === '--upload') out.passthrough.push('--upload');
+    else if (a === '--style' || a === '--out' || a === '--max-gbp' || a === '--duration') out.passthrough.push(a, argv[++i]);
     else throw new Error(`Unknown option ${a}`);
   }
   if (!out.title) throw new Error('--title is required');
@@ -66,6 +69,7 @@ async function main() {
 
   if (!args.audio) return;
   const genArgs = ['tsx', join(__dirname, 'generate-bank-episodes.ts'), '--folder', folderId];
+  genArgs.push(...args.passthrough);
   if (args.dryRun) genArgs.push('--dry-run');
   if (existing || !args.dryRun) execFileSync('npx', genArgs, { stdio: 'inherit' });
   else console.log('Dry run: audio estimate needs the folder to exist. Run generate-bank-episodes.ts --dry-run on the role bank id instead.');
