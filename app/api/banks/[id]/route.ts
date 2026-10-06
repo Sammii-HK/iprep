@@ -123,10 +123,19 @@ export async function DELETE(
       throw new ValidationError('You do not have access to this question bank');
     }
 
-    // Delete the bank (cascade will handle related questions, quizzes, sessions)
-    await prisma.questionBank.delete({
-      where: { id },
-    });
+    // The schema does not cascade Question -> bank (or SessionItem/QuizAttempt/UserQuestionProgress ->
+    // Question), so a plain delete of a bank that has questions fails with a foreign key error (HTTP 500).
+    // Remove dependents in order inside one transaction. Sessions and quizzes keep their rows (bankId is
+    // optional and is set to null) so practice history stays in her stats.
+    await prisma.$transaction([
+      prisma.userQuestionProgress.deleteMany({ where: { question: { bankId: id } } }),
+      prisma.quizAttempt.deleteMany({ where: { question: { bankId: id } } }),
+      prisma.sessionItem.deleteMany({ where: { question: { bankId: id } } }),
+      prisma.question.deleteMany({ where: { bankId: id } }),
+      prisma.session.updateMany({ where: { bankId: id }, data: { bankId: null } }),
+      prisma.quiz.updateMany({ where: { bankId: id }, data: { bankId: null } }),
+      prisma.questionBank.delete({ where: { id } }),
+    ]);
 
     return NextResponse.json({
       message: 'Question bank deleted successfully',
