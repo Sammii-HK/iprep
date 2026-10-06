@@ -1,20 +1,13 @@
-import { existsSync, readFileSync } from 'fs';
-import { homedir } from 'os';
-import { join } from 'path';
-
+/**
+ * The target and credential come only from the process environment (or an explicit
+ * --env-file applied by the calling script). Nothing is read implicitly from other
+ * tools' config files, so a script never silently targets production.
+ */
 export function apiConfig(): { base: string; key: string } {
-  let base = process.env.IPREP_BASE_URL;
-  let key = process.env.IPREP_INTERNAL_KEY;
-  if (!base || !key) {
-    const claudeJson = join(homedir(), '.claude.json');
-    if (existsSync(claudeJson)) {
-      const env = JSON.parse(readFileSync(claudeJson, 'utf8'))?.mcpServers?.iprep?.env ?? {};
-      base = base || env.IPREP_BASE_URL;
-      key = key || env.IPREP_INTERNAL_KEY;
-    }
-  }
-  if (!base) throw new Error('Missing IPREP_BASE_URL (env or ~/.claude.json mcpServers.iprep.env)');
-  if (!key) throw new Error('Missing IPREP_INTERNAL_KEY (env or ~/.claude.json mcpServers.iprep.env)');
+  const base = process.env.IPREP_BASE_URL;
+  const key = process.env.IPREP_INTERNAL_KEY;
+  if (!base) throw new Error('Missing IPREP_BASE_URL (set it in the environment or pass --env-file <path>)');
+  if (!key) throw new Error('Missing IPREP_INTERNAL_KEY (set it in the environment or pass --env-file <path>)');
   return { base: base.replace(/\/$/, ''), key };
 }
 

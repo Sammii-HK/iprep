@@ -70,4 +70,4 @@ NODE_ENV=production
 3. Import GitHub repo
 4. Add all environment variables above
 5. Deploy!
-6. Run migration: `npx prisma migrate deploy` (or use Supabase SQL editor)
+6. Run migration: `npx tsx scripts/db/run.ts deploy --target <local|preview>` (see docs/DB_WORKFLOW.md)

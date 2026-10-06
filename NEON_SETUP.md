@@ -48,7 +48,7 @@ After setting DATABASE_URL in Vercel:
 ```bash
 # Option 1: Via Vercel CLI (recommended)
 vercel env pull .env.local
-npx prisma migrate deploy
+npx tsx scripts/db/run.ts deploy --target preview   # see docs/DB_WORKFLOW.md
 
 # Option 2: Via Neon SQL Editor
 # Go to Neon dashboard → SQL Editor
@@ -93,7 +93,7 @@ postgresql://neondb_owner:password123@ep-cool-name-123456.us-east-2.aws.neon.tec
 
 ### Migration Issues
 
-- Use `npx prisma migrate deploy` (not `dev`)
+- Use the guarded `npx tsx scripts/db/run.ts deploy` (see docs/DB_WORKFLOW.md); never `prisma db push`, and builds never migrate
 - Make sure DATABASE_URL is set correctly
 - Check Neon SQL Editor for errors
 
@@ -107,5 +107,5 @@ postgresql://neondb_owner:password123@ep-cool-name-123456.us-east-2.aws.neon.tec
 
 1. ✅ Set up Neon database (via Vercel or manually)
 2. ✅ Add `DATABASE_URL` to Vercel environment variables
-3. ✅ Run migration: `npx prisma migrate deploy`
+3. ✅ Run migration with the guarded command: `npx tsx scripts/db/run.ts deploy --target preview`
 4. ✅ Test the app!

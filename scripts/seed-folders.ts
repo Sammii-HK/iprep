@@ -1,8 +1,32 @@
 import { PrismaClient } from '@prisma/client';
 
+import { loadExplicitEnvFile, printTarget, resolveScriptTarget, TargetError } from './lib/target';
+
+const argv = process.argv.slice(2);
+Object.assign(process.env, loadExplicitEnvFile(argv));
+
+// Legacy one-off seed. Dry run by default; --execute needs an explicit --target (and --confirm for production).
+let dryRun = true;
+try {
+  const resolved = resolveScriptTarget({ argv, env: process.env, uses: { db: true }, mutating: true, destructive: true });
+  printTarget('Seed folders', resolved);
+  dryRun = resolved.dryRun;
+} catch (e) {
+  if (e instanceof TargetError) {
+    console.error(`Refused: ${e.message}`);
+    process.exit(3);
+  }
+  throw e;
+}
+const userIdIdx = argv.indexOf('--user-id');
+const ADMIN_USER_ID = userIdIdx >= 0 ? argv[userIdIdx + 1] : '';
+if (!ADMIN_USER_ID) {
+  console.error('Refused: pass --user-id <learner id>. The owner is no longer hard-coded.');
+  process.exit(3);
+}
+
 const prisma = new PrismaClient();
 
-const ADMIN_USER_ID = 'cmhnuilov0000ju04yxn0cmqz';
 
 // Existing bank IDs
 const BANKS = {
@@ -65,6 +89,10 @@ const folders = [
 ];
 
 async function main() {
+  if (dryRun) {
+    console.log(`Dry run: would create ${folders.length} folders for user ${ADMIN_USER_ID}. Pass --execute to apply.`);
+    return;
+  }
   console.log('Creating folders...');
 
   for (const folder of folders) {

@@ -82,7 +82,7 @@ After deployment, run migrations:
 ```bash
 vercel env pull .env.local
 npm run db:generate
-npx prisma migrate deploy
+npx tsx scripts/db/run.ts deploy --target preview   # see docs/DB_WORKFLOW.md (builds never migrate)
 ```
 
 **Option B: Via Supabase Dashboard**

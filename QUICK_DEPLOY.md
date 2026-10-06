@@ -37,7 +37,7 @@ After confirming env vars work:
 ```bash
 # Option 1: Via Vercel CLI
 vercel env pull .env.local
-npx prisma migrate deploy
+npx tsx scripts/db/run.ts deploy --target preview   # see docs/DB_WORKFLOW.md
 
 # Option 2: Via Neon Dashboard
 # Go to Neon SQL Editor and run:

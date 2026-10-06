@@ -3,7 +3,10 @@
 
 datasource db {
   provider = "postgresql"
-  url      = env("DATABASE_URL")
+  url       = env("DATABASE_URL")
+  // Used only by the Prisma CLI (migrate). The running application never reads it and it is never
+  // present in Vercel runtime configuration. See docs/DB_WORKFLOW.md.
+  directUrl = env("DATABASE_MIGRATION_URL")
 }
 
 generator client {
