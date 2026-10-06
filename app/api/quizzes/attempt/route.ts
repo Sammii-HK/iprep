@@ -3,6 +3,7 @@ import { prisma } from '@/lib/db';
 import { handleApiError, NotFoundError, ValidationError } from '@/lib/errors';
 import { requireAuth } from '@/lib/auth';
 import { ownsRecord } from '@/lib/access';
+import { persistQuizAttempt, type QuizCanonical } from '@/lib/attempt-compat';
 import { enforceAiLimits } from '@/lib/rate-limit';
 import { validateAudioFile } from '@/lib/validation';
 import { transcribeAudio } from '@/lib/ai';
@@ -70,6 +71,8 @@ export async function POST(request: NextRequest) {
     let transcript: string | null = null;
     let score: number | null = null;
     let feedback: string | null = null;
+    // What the canonical ledger records for this answer (set by whichever branch evaluates it).
+    let canonical: Omit<QuizCanonical, 'userId' | 'mode' | 'question' | 'hintUsed'> | null = null;
 
     if (quiz.type === 'SPOKEN') {
       if (!audioFile) {
@@ -114,6 +117,7 @@ export async function POST(request: NextRequest) {
       // Use optimized analysis (70% token reduction + caching)
       const questionTags = question.tags || [];
       let analysis;
+      let provenance: QuizCanonical['provenance'] = { status: 'COMPLETED' };
       try {
         analysis = await analyzeTranscriptOptimized(
           transcript || '',
@@ -134,6 +138,7 @@ export async function POST(request: NextRequest) {
         );
       } catch (error) {
         console.error('Error in AI analysis:', error);
+        provenance = { status: 'FAILED', reason: 'analysis-error' };
         // Fallback analysis
         analysis = {
           questionAnswered: wordCount > 20,
@@ -160,6 +165,9 @@ export async function POST(request: NextRequest) {
             'Include a specific example and what came of it, using only things that are true',
           ],
         };
+      }
+      if ('fallbackReason' in analysis && analysis.fallbackReason) {
+        provenance = { status: 'FAILED', reason: analysis.fallbackReason };
       }
       const confidenceScore = analyzeConfidenceFromTranscript(
         transcript,
@@ -203,6 +211,37 @@ export async function POST(request: NextRequest) {
           longPauses,
         },
       });
+      const spokenWpm = wordTimestamps ? Math.round((wordCount / wordTimestamps[wordTimestamps.length - 1].end) * 60) : null;
+      canonical = {
+        evidence: {
+          responseText: null,
+          transcript,
+          audioRef: audioUrl,
+          words: wordCount,
+          wpm: spokenWpm,
+          fillerCount,
+          fillerRate: calculateFillerRate(fillerCount, wordCount),
+          longPauses,
+        },
+        provenance,
+        questionAnswered: analysis.questionAnswered ?? null,
+        scores: {
+          answerQuality: analysis.answerQuality,
+          starScore: analysis.starScore,
+          impactScore: analysis.impactScore,
+          clarityScore: analysis.clarityScore,
+          technicalAccuracy: analysis.technicalAccuracy,
+          terminologyUsage: analysis.terminologyUsage,
+        },
+        feedback: {
+          whatWasRight: analysis.whatWasRight,
+          betterWording: analysis.betterWording,
+          dontForget: analysis.dontForget || [],
+          text: analysis.tips.join(' | '),
+        },
+        confidenceScore,
+        intonationScore,
+      };
     } else {
       // Written quiz - analyze text answer
       if (!answerText || answerText.trim().length === 0) {
@@ -259,29 +298,104 @@ export async function POST(request: NextRequest) {
             fillerRate: calculateFillerRate(countFillers(answerText), wordCount),
           },
         });
+        canonical = {
+          evidence: {
+            responseText: answerText,
+            transcript: null,
+            audioRef: null,
+            words: wordCount,
+            wpm: null,
+            fillerCount: countFillers(answerText),
+            fillerRate: calculateFillerRate(countFillers(answerText), wordCount),
+            longPauses: null,
+          },
+          provenance: analysis.fallbackReason
+            ? { status: 'FAILED', reason: analysis.fallbackReason }
+            : { status: 'COMPLETED' },
+          questionAnswered: analysis.questionAnswered ?? null,
+          scores: {
+            answerQuality: analysis.answerQuality,
+            starScore: analysis.starScore,
+            impactScore: analysis.impactScore,
+            clarityScore: analysis.clarityScore,
+            technicalAccuracy: analysis.technicalAccuracy,
+            terminologyUsage: analysis.terminologyUsage,
+          },
+          feedback: {
+            whatWasRight: analysis.whatWasRight,
+            betterWording: analysis.betterWording,
+            dontForget: analysis.dontForget || [],
+            text: analysis.tips.join(' | '),
+          },
+          confidenceScore: null,
+          intonationScore: null,
+        };
       } catch {
         // If analysis fails, still save the attempt
         score = null;
         feedback = 'Could not analyze answer. Please try again.';
+        canonical = {
+          evidence: {
+            responseText: answerText,
+            transcript: null,
+            audioRef: null,
+            words: countWords(answerText),
+            wpm: null,
+            fillerCount: countFillers(answerText),
+            fillerRate: calculateFillerRate(countFillers(answerText), countWords(answerText)),
+            longPauses: null,
+          },
+          provenance: { status: 'FAILED', reason: 'analysis-error' },
+          questionAnswered: null,
+          scores: {},
+          feedback: {},
+          confidenceScore: null,
+          intonationScore: null,
+        };
       }
     }
 
-    // Save attempt
-    const attempt = await prisma.quizAttempt.create({
-      data: {
-        quizId,
-        questionId,
-        answer: answerText,
-        audioUrl,
-        transcript,
-        score: score ? Math.round(score * 10) : null, // Convert 0-10 to 0-100
-        feedback,
-        hintUsed,
-        completedAt: new Date(),
-      },
-      include: {
-        question: true,
-      },
+    // Save attempt: the legacy row and the canonical Attempt in one transaction.
+    const legacyData = {
+      quizId,
+      questionId,
+      answer: answerText,
+      audioUrl,
+      transcript,
+      score: score ? Math.round(score * 10) : null, // Convert 0-10 to 0-100
+      feedback,
+      hintUsed,
+      completedAt: new Date(),
+    };
+    const saved = await persistQuizAttempt(
+      prisma,
+      legacyData,
+      canonical
+        ? {
+            ...canonical,
+            userId: user.id,
+            mode: quiz.type === 'SPOKEN' ? 'SPOKEN' : 'TYPED',
+            question: { id: question.id, text: question.text, type: question.type, tags: question.tags ?? [], bankId: question.bankId },
+            hintUsed,
+          }
+        : {
+            // Nothing was evaluated (empty or rejected answers return earlier); record the evidence alone.
+            userId: user.id,
+            mode: quiz.type === 'SPOKEN' ? 'SPOKEN' : 'TYPED',
+            question: { id: question.id, text: question.text, type: question.type, tags: question.tags ?? [], bankId: question.bankId },
+            hintUsed,
+            evidence: { responseText: answerText, transcript, audioRef: audioUrl, words: null, wpm: null, fillerCount: null, fillerRate: null, longPauses: null },
+            provenance: { status: 'SKIPPED', reason: 'not-evaluated' },
+            questionAnswered: null,
+            scores: {},
+            feedback: {},
+            confidenceScore: null,
+            intonationScore: null,
+          }
+    );
+    const attempt = await prisma.quizAttempt.findUniqueOrThrow({
+      where: { id: saved.quizAttemptId },
+      include: { question: true },
     });
 
     // Parse structured feedback for the response

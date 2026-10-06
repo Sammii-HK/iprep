@@ -28,6 +28,7 @@ import { ownsRecord } from "@/lib/access";
 import { enforceAiLimits } from "@/lib/rate-limit";
 import { getFactSheet } from "@/lib/fact-sheet";
 import { checkClaims } from "@/lib/claims-check";
+import { appendReanalysis } from "@/lib/attempt-compat";
 
 export async function POST(request: NextRequest) {
 	try {
@@ -135,6 +136,33 @@ export async function POST(request: NextRequest) {
 				dontForget: analysis.dontForget || [],
 				aiFeedback: analysis.tips.join(" | "),
 			} as Parameters<typeof prisma.sessionItem.update>[0]["data"],
+		});
+
+		// Canonical record: the corrected transcript is re-evaluated by appending a new evaluation. The recorded
+		// evidence and earlier evaluations are never edited. A fallback is recorded as FAILED, not as scores.
+		await appendReanalysis(prisma, sessionItem.attemptId, {
+			recordedTranscript: sessionItem.transcript,
+			correctedTranscript: trimmedTranscript,
+			provenance: analysis.fallbackReason
+				? { status: "FAILED", reason: analysis.fallbackReason }
+				: { status: "COMPLETED" },
+			questionAnswered: analysis.questionAnswered ?? null,
+			scores: {
+				answerQuality: analysis.answerQuality,
+				starScore: analysis.starScore,
+				impactScore: analysis.impactScore,
+				clarityScore: analysis.clarityScore,
+				technicalAccuracy: analysis.technicalAccuracy,
+				terminologyUsage: analysis.terminologyUsage,
+			},
+			feedback: {
+				whatWasRight: analysis.whatWasRight,
+				betterWording: analysis.betterWording,
+				dontForget: analysis.dontForget || [],
+				text: analysis.tips.join(" | "),
+			},
+			confidenceScore,
+			intonationScore,
 		});
 
 		return NextResponse.json({

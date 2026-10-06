@@ -14,6 +14,7 @@
  */
 import { PrismaClient } from '@prisma/client';
 import { canonicalEmail } from '../lib/email';
+import { ensureLearner } from '../lib/learner';
 import {
   MACHINE_SCOPES,
   PRINCIPAL_PRESETS,
@@ -94,6 +95,8 @@ async function main() {
     console.log(`Principal "${name}" would act as ${user.email} with scopes: ${scopes.join(', ')}${days ? ` (expires in ${days} days)` : ''}`);
     if (dryRun) return console.log('Dry run: nothing created. Pass --execute.');
 
+    // The principal acts on behalf of this user's learner. It is never a learner itself.
+    const learner = await ensureLearner(user.id, prisma);
     const token = generateMachineToken();
     await prisma.machinePrincipal.create({
       data: {
@@ -102,6 +105,7 @@ async function main() {
         tokenPrefix: token.slice(0, 8),
         scopes,
         userId: user.id,
+        learnerId: learner.id,
         expiresAt: days > 0 ? new Date(Date.now() + days * 86_400_000) : null,
       },
     });

@@ -60,6 +60,8 @@ export async function POST(request: NextRequest) {
         role: 'USER',
         isPremium: false,
         emailVerified: false,
+        // The learner (owner of learning evidence) is created with the account.
+        learner: { create: {} },
       },
       select: { id: true, email: true, name: true, role: true, isPremium: true, createdAt: true },
     });

@@ -4,7 +4,7 @@ import { uploadAudio, getAudioUrl } from "@/lib/r2";
 import { transcribeAudio } from "@/lib/ai";
 import {
 	analyzeTranscriptOptimized,
-	type EnhancedAnalysisResponse,
+	type AnalysisOutcome,
 } from "@/lib/ai-optimized";
 import {
 	countWords,
@@ -37,6 +37,7 @@ import { enforceAiLimits } from "@/lib/rate-limit";
 import { ownsRecord } from "@/lib/access";
 import { getFactSheet } from "@/lib/fact-sheet";
 import { checkClaims } from "@/lib/claims-check";
+import { persistPracticeAnswer, type AnalysisProvenance } from "@/lib/attempt-compat";
 
 export async function POST(request: NextRequest) {
 	try {
@@ -245,7 +246,9 @@ export async function POST(request: NextRequest) {
 		const factSheet = await factSheetPromise;
 
 		// Always analyze each attempt fresh - users re-practice to improve
-		let analysis: EnhancedAnalysisResponse | undefined;
+		let analysis: AnalysisOutcome | undefined;
+		// Whether `analysis` is a real evaluation. Fallback text is shown to the learner but never recorded as scores.
+		let provenance: AnalysisProvenance = { status: "COMPLETED" };
 		{
 			// Start AI analysis (this is the slowest operation)
 			// We already have all the metrics it needs
@@ -263,6 +266,7 @@ export async function POST(request: NextRequest) {
 			const hasMinimumContent = wordCount >= 5;
 
 			if (!hasMinimumContent) {
+				provenance = { status: "SKIPPED", reason: "too-brief" };
 				// Return a helpful message instead of default fallback
 				analysis = {
 					questionAnswered: false,
@@ -330,6 +334,10 @@ export async function POST(request: NextRequest) {
 						),
 					]);
 
+					if (analysis.fallbackReason) {
+						provenance = { status: "FAILED", reason: analysis.fallbackReason };
+					}
+
 					if (process.env.NODE_ENV === "development") {
 						console.log("AI analysis completed successfully", {
 							questionAnswered: analysis.questionAnswered,
@@ -360,6 +368,7 @@ export async function POST(request: NextRequest) {
 						});
 					}
 
+					provenance = { status: "FAILED", reason: "analysis-error" };
 					// Don't throw - return fallback analysis instead
 					const wordCount = countWords(transcript);
 					analysis = {
@@ -474,11 +483,51 @@ export async function POST(request: NextRequest) {
 				aiFeedback: analysis.tips?.join(" | ") || "",
 			};
 
-			const sessionItem = await prisma.sessionItem.create({ data: createData });
-			sessionItemId = sessionItem.id;
+			// One transaction writes the canonical attempt and the legacy row that carries its id.
+			const saved = await persistPracticeAnswer(prisma, createData, {
+				userId: user.id,
+				sessionId,
+				question: {
+					id: question.id,
+					text: question.text,
+					type: question.type,
+					tags: question.tags ?? [],
+					bankId: question.bankId,
+				},
+				evidence: {
+					transcript,
+					audioRef: createData.audioUrl,
+					words: createData.words,
+					wpm: createData.wpm,
+					fillerCount: createData.fillerCount,
+					fillerRate: createData.fillerRate,
+					longPauses: createData.longPauses,
+				},
+				provenance,
+				questionAnswered: createData.questionAnswered,
+				scores: {
+					answerQuality: createData.answerQuality,
+					starScore: createData.starScore,
+					impactScore: createData.impactScore,
+					clarityScore: createData.clarityScore,
+					technicalAccuracy: createData.technicalAccuracy,
+					terminologyUsage: createData.terminologyUsage,
+				},
+				feedback: {
+					whatWasRight: createData.whatWasRight,
+					whatWasWrong: createData.whatWasWrong,
+					betterWording: createData.betterWording,
+					dontForget: createData.dontForget,
+					text: createData.aiFeedback,
+				},
+				confidenceScore: createData.confidenceScore,
+				intonationScore: createData.intonationScore,
+			});
+			sessionItemId = saved.sessionItemId;
 
-			// Update SRS + streak in background (non-blocking)
-			if (analysis?.answerQuality != null) {
+			// Update SRS + streak in background (non-blocking). A fallback is not an assessment, so it must not
+			// move the learner's review schedule.
+			if (provenance.status === "COMPLETED" && analysis?.answerQuality != null) {
 				Promise.all([
 					updateSRSProgress(user.id, questionId, analysis.answerQuality),
 					updateStudyStreak(user.id),
