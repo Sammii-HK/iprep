@@ -278,13 +278,20 @@ export default function DashboardPage() {
       )}
 
       {/* ── Quick Start ───────────────────────────────────────── */}
-      <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-5 gap-4 mb-8">
+      <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-6 gap-4 mb-8">
         <Link
           href="/practice"
           className="p-4 bg-purple-50 dark:bg-purple-900/20 border-2 border-purple-200 dark:border-purple-800 rounded-lg hover:bg-purple-100 dark:hover:bg-purple-900/30 transition-colors"
         >
           <div className="text-sm font-semibold text-purple-800 dark:text-purple-200">Practice</div>
           <div className="text-xs text-purple-600 dark:text-purple-400 mt-1">Record answers</div>
+        </Link>
+        <Link
+          href="/debrief"
+          className="p-4 bg-rose-50 dark:bg-rose-900/20 border-2 border-rose-200 dark:border-rose-800 rounded-lg hover:bg-rose-100 dark:hover:bg-rose-900/30 transition-colors"
+        >
+          <div className="text-sm font-semibold text-rose-800 dark:text-rose-200">Debrief</div>
+          <div className="text-xs text-rose-600 dark:text-rose-400 mt-1">After a real interview</div>
         </Link>
         <Link
           href="/review"

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
+import { notFactsBank } from '@/lib/fact-sheet';
 import { requireAdmin } from '@/lib/auth';
 import { handleApiError } from '@/lib/errors';
 
@@ -34,8 +35,8 @@ export async function GET(request: NextRequest) {
         },
       }),
       prisma.session.count(),
-      prisma.questionBank.count(),
-      prisma.question.count(),
+      prisma.questionBank.count({ where: notFactsBank }),
+      prisma.question.count({ where: { bank: notFactsBank } }),
       prisma.user.findMany({
         take: 10,
         orderBy: {

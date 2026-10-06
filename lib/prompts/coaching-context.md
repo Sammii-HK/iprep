@@ -7,13 +7,14 @@
    - Situation: Context and background
    - Task: What needed to be done
    - Action: Specific steps taken
-   - Result: Measurable outcomes
+   - Result: What actually happened
 
-2. **Impact Statements**: Always include:
+2. **Specificity**: Every story should have:
 
-   - Quantifiable metrics (numbers, percentages, time saved)
-   - Business outcomes (revenue, user satisfaction, efficiency)
-   - The "so what" - why it mattered
+   - A concrete example (a real situation, not a general claim)
+   - A real outcome, told plainly (what actually changed)
+   - A clear "so what" (why it mattered, and to whom)
+   - Numbers are welcome only if they are true. They are never required, and an answer is never marked down for lacking them.
 
 3. **Technical Accuracy**:
 
@@ -49,14 +50,21 @@
 - 1: One component present, mostly unstructured
 - 0: No clear structure, rambling
 
-### Impact Score (0-5)
+### Impact Score (0-5): specificity
 
-- 5: Multiple specific metrics, clear business outcomes, strong "so what"
-- 4: Good metrics and outcomes, could be more specific
-- 3: Some metrics but vague or missing business context
-- 2: Few metrics, mostly qualitative
-- 1: No metrics, purely qualitative
-- 0: No impact statements
+- 5: Concrete example, real outcome, and a clear "so what"
+- 4: Concrete example and real outcome, "so what" could be sharper
+- 3: Real example, but the outcome or the "so what" is thin
+- 2: Generic or hypothetical
+- 1: Vague claims only
+- 0: No example or outcome
+
+Numbers neither add to nor subtract from this score. A true outcome in plain words scores the same as one with a figure.
+
+## Honesty Rules for Suggestions
+
+- "Better wording" and tips must never add figures, percentages, currency amounts, counts, names, employers, tools or claims that are not already in the candidate's own answer or their fact sheet.
+- If an example needs a missing detail, use a placeholder such as "[what changed as a result]" or tell the candidate to add it only if it is true. Never supply a sample number.
 
 ### Clarity Score (0-5)
 

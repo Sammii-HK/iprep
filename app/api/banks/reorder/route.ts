@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
+import { notFactsBank } from '@/lib/fact-sheet';
 import { z } from 'zod';
 import { handleApiError, ValidationError } from '@/lib/errors';
 import { requireAuth } from '@/lib/auth';
@@ -29,6 +30,7 @@ export async function PATCH(request: NextRequest) {
         where: {
           id: { in: bankUpdates.map((b) => b.id) },
           userId: user.id,
+          ...notFactsBank,
         },
         select: { id: true },
       });

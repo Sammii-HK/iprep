@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/db';
+import { isFactsBankTitle } from '@/lib/fact-sheet';
 import { requireAuth } from '@/lib/auth';
 import { handleApiError, NotFoundError, ValidationError } from '@/lib/errors';
 
@@ -20,7 +21,7 @@ export async function GET(
       where: { id: bankId },
     });
 
-    if (!bank) {
+    if (!bank || isFactsBankTitle(bank.title)) {
       throw new NotFoundError('QuestionBank', bankId);
     }
 

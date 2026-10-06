@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
+import { isFactsBankTitle } from '@/lib/fact-sheet';
 import { z } from 'zod';
 import { handleApiError, NotFoundError, ValidationError } from '@/lib/errors';
 import { requireAuth } from '@/lib/auth';
@@ -27,7 +28,7 @@ export async function GET(
       },
     });
 
-    if (!bank) {
+    if (!bank || isFactsBankTitle(bank.title)) {
       throw new NotFoundError('QuestionBank', id);
     }
 
@@ -55,13 +56,17 @@ export async function PATCH(
       where: { id },
     });
 
-    if (!bank) {
+    if (!bank || isFactsBankTitle(bank.title)) {
       throw new NotFoundError('QuestionBank', id);
     }
 
     // Verify user owns the bank (unless admin)
     if (bank.userId && bank.userId !== user.id && user.role !== 'ADMIN') {
       throw new ValidationError('You do not have access to this question bank');
+    }
+
+    if (isFactsBankTitle(validated.title)) {
+      throw new ValidationError('That title is reserved');
     }
 
     const updatedBank = await prisma.questionBank.update({
@@ -109,7 +114,7 @@ export async function DELETE(
       },
     });
 
-    if (!bank) {
+    if (!bank || isFactsBankTitle(bank.title)) {
       throw new NotFoundError('QuestionBank', id);
     }
 
@@ -118,10 +123,19 @@ export async function DELETE(
       throw new ValidationError('You do not have access to this question bank');
     }
 
-    // Delete the bank (cascade will handle related questions, quizzes, sessions)
-    await prisma.questionBank.delete({
-      where: { id },
-    });
+    // The schema does not cascade Question -> bank (or SessionItem/QuizAttempt/UserQuestionProgress ->
+    // Question), so a plain delete of a bank that has questions fails with a foreign key error (HTTP 500).
+    // Remove dependents in order inside one transaction. Sessions and quizzes keep their rows (bankId is
+    // optional and is set to null) so practice history stays in her stats.
+    await prisma.$transaction([
+      prisma.userQuestionProgress.deleteMany({ where: { question: { bankId: id } } }),
+      prisma.quizAttempt.deleteMany({ where: { question: { bankId: id } } }),
+      prisma.sessionItem.deleteMany({ where: { question: { bankId: id } } }),
+      prisma.question.deleteMany({ where: { bankId: id } }),
+      prisma.session.updateMany({ where: { bankId: id }, data: { bankId: null } }),
+      prisma.quiz.updateMany({ where: { bankId: id }, data: { bankId: null } }),
+      prisma.questionBank.delete({ where: { id } }),
+    ]);
 
     return NextResponse.json({
       message: 'Question bank deleted successfully',

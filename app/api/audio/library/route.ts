@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
+import { notFactsBank } from '@/lib/fact-sheet';
 import { requireAuth } from '@/lib/auth';
 import { getAudioUrl } from '@/lib/r2';
 import { existsSync, statSync } from 'fs';
@@ -17,7 +18,7 @@ export async function GET(request: NextRequest) {
     // Fetch all banks and folders with their structure
     const [banks, folders] = await Promise.all([
       prisma.questionBank.findMany({
-        where: { userId: user.id },
+        where: { userId: user.id, ...notFactsBank },
         include: {
           _count: { select: { questions: true } },
           folderItems: { select: { folderId: true } },
@@ -28,6 +29,7 @@ export async function GET(request: NextRequest) {
         where: { userId: user.id },
         include: {
           items: {
+            where: { bank: notFactsBank },
             include: {
               bank: {
                 include: {

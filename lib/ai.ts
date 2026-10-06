@@ -202,7 +202,7 @@ export async function analyzeTranscript(
 
 Given a transcript, return strict JSON with:
 - starScore 0..10 (Situation, Task, Action, Result present & balanced)
-- impactScore 0..10 (metrics, outcomes, 'so what')
+- impactScore 0..10 (specificity: a concrete example, a real outcome, a clear 'so what'; numbers only if true, never required)
 - clarityScore 0..10 (structure, concision)
 - tips: array of 3 short actionable tips (<= 16 words each)
 
@@ -333,17 +333,17 @@ Your role is to provide ${
 	}, actionable feedback that helps candidates improve their interview performance. Be specific and focus on actionable improvements.
 
 **Industry Knowledge Base:**
-- Technical interviews require: STAR method (Situation, Task, Action, Result), quantifiable metrics, domain-specific terminology, trade-off discussions, and learning reflection
-- Common pitfalls: rambling without structure, no metrics, technical inaccuracies, weak STAR structure, excessive filler words (>5%), no trade-offs, no learning/reflection
+- Technical interviews require: STAR method (Situation, Task, Action, Result), a concrete example with a real outcome, domain-specific terminology, trade-off discussions, and learning reflection
+- Common pitfalls: rambling without structure, vague examples, technical inaccuracies, weak STAR structure, excessive filler words (>5%), no trade-offs, no learning/reflection
 - Domain terminology: Use precise terms (e.g., "reduced latency by implementing Redis caching" not "made it faster")
 - Scoring benchmarks: ${coachingPrefs.experienceLevel} level expects ${
 		coachingPrefs.experienceLevel === "junior"
 			? "basic structure, fundamentals, learning mindset"
 			: coachingPrefs.experienceLevel === "mid"
-			? "good structure, some metrics, solid knowledge"
+			? "good structure, concrete examples, solid knowledge"
 			: coachingPrefs.experienceLevel === "senior"
-			? "excellent structure, strong metrics, deep expertise"
-			: "perfect structure, strategic metrics, strategic vision"
+			? "excellent structure, clear outcomes, deep expertise"
+			: "perfect structure, strategic outcomes, strategic vision"
 	}
 
 IMPORTANT: When analyzing the transcript, pay special attention to:
@@ -351,7 +351,7 @@ IMPORTANT: When analyzing the transcript, pay special attention to:
 - Pacing: Note if there are excessive pauses (>800ms) or if the speaker is rushing. Assess if pacing matches the content complexity.
 - Structure: Check if the answer follows STAR method (Situation, Task, Action, Result). Identify which components are missing or weak.
 - Technical depth: Evaluate if the answer demonstrates real understanding vs. surface knowledge. Compare against expected answer/hint if provided.
-- Impact: Look for specific metrics, numbers, percentages, time saved, revenue impact, user satisfaction, etc. The "so what" factor.
+- Specificity: Look for a concrete example, a real outcome and a clear "so what". Numbers are welcome only if true and are never required. Do not mark an answer down for lacking figures.
 - Delivery: Assess confidence indicators (filler rate, pauses, word choice) and intonation patterns.
 
 Given a transcript and question context, return strict JSON with:
@@ -378,13 +378,13 @@ Given a transcript and question context, return strict JSON with:
     * 3-4: Unclear or incomplete, poor organization
     * 1-2: Very unclear or mostly incorrect
     * 0: No coherent answer
-- impactScore 0..10 (metrics, outcomes, 'so what')
-  * 9-10: Multiple specific metrics, clear business outcomes, strong "so what"
-  * 7-8: Good metrics and outcomes, could be more specific
-  * 5-6: Some metrics but vague or missing business context
-  * 3-4: Few metrics, mostly qualitative
-  * 1-2: No metrics, purely qualitative
-  * 0: No impact statements
+- impactScore 0..10 (specificity: concrete example, real outcome, clear 'so what'; numbers only if true, never required)
+  * 9-10: Concrete example, real outcome and a clear "so what"
+  * 7-8: Concrete example and real outcome, "so what" could be sharper
+  * 5-6: Real example but outcome or "so what" is thin
+  * 3-4: Generic or hypothetical
+  * 1-2: Vague claims only
+  * 0: No example or outcome
 - clarityScore 0..10 (structure, concision)
   * 9-10: Concise, well-structured, easy to follow, no redundancy, appropriate length (200-300 words)
   * 7-8: Clear structure, minor redundancy or slightly too long/short
@@ -411,8 +411,8 @@ Given a transcript and question context, return strict JSON with:
   2. Content/structure tip - specific to what's missing or weak in this answer:
      - For behavioral questions: Focus on STAR structure (Situation, Task, Action, Result) WITH EXAMPLES
      - For factual/definition questions: Focus on clarity, completeness, and organization WITH EXAMPLES
-     - Include metrics where appropriate (e.g., "Add metrics like 'reduced latency by 60%' or 'handled 1M requests/day'")
-  3. Technical accuracy tip - specific to the question domain WITH EXAMPLES (e.g., "Instead of 'database', say 'PostgreSQL with read replicas' or 'Redis cache with 5-minute TTL'")
+     - Ask for a concrete example and a real outcome in plain words. Never add figures, percentages, amounts, counts, names or claims that are not in the candidate's own answer or fact sheet; use placeholders like '[what changed]' instead of sample numbers.
+  3. Technical accuracy tip - specific to the question domain WITH EXAMPLES (e.g., "Instead of 'database', name the specific database or cache you actually used")
   4. Delivery/confidence tip - address filler words, pacing, or confidence issues observed (specific counts/rates) WITH EXAMPLES (e.g., "Replace 'um'/'erm' with a 1-2 second pause")
   5. Specific improvement for this answer - what to change in this exact response (concrete, actionable) WITH BEFORE/AFTER EXAMPLES (e.g., "Instead of '[their vague phrase]', say '[specific example]'")
 
@@ -490,7 +490,7 @@ ${transcript}
 
 **CRITICAL: Use these actual metrics to score the answer. Different answers should get different scores based on:**
 - STAR structure quality (for behavioral questions) or clarity/organization (for factual questions)
-- Presence and quality of metrics/impact statements
+- Specificity: a concrete example, a real outcome, a clear 'so what' (numbers only if true; never penalise their absence)
 - Technical accuracy and terminology usage
 - Overall answer quality relative to the question asked
 
@@ -529,24 +529,24 @@ ${depthInstructions}
 
 3. What Needs Improvement: Identify 2-4 specific areas for improvement (distinguish between missing content vs. enhancement opportunities):
    - **Missing content**: Only flag if key concepts are completely absent
-   - **Enhancement opportunities**: If they have the basics but could add metrics, examples, depth, structure
+   - **Enhancement opportunities**: If they have the basics but could add examples, depth, structure
    - **Structure**: If organization could be clearer
    - **Specificity**: If vague terms could be more precise
    - **Examples**: If concrete examples would strengthen the answer
    - **IMPORTANT**: If they read the question, say "You correctly identified the question. Now expand with..." NOT "You lack depth"
 
 4. Better Wording: Provide 2-3 specific suggestions with CONCRETE EXAMPLES:
-   - Replace vague terms with specific ones (e.g., "improved performance" → "reduced latency from 500ms to 50ms")
+   - Replace vague terms with specific ones the candidate can stand behind (e.g., name the technique they used rather than "improved performance")
    - Improve sentence structure with examples (e.g., "Instead of 'I did X', say 'I implemented X by Y, which resulted in Z'")
    - Add missing transitions with examples (e.g., "Add: 'To accomplish this, I...' or 'The results were...'")
    - Clarify confusing statements with rewrites (e.g., "Instead of '[vague statement]', say '[specific statement]'")
-   - Use more precise terminology with examples (e.g., "Instead of 'database', say 'PostgreSQL with read replicas'")
+   - Use more precise terminology with examples (e.g., "Instead of 'database', name the specific database you actually used")
 
 Then assess speaking quality AND technical knowledge depth:
 
 5. Technical accuracy - does the answer demonstrate correct understanding of concepts related to the question tags? Compare against the expected answer/hint if provided.
 6. Terminology usage - does the answer use appropriate domain-specific terms from the question tags?
-7. Content quality - STAR structure (Situation, Task, Action, Result), impact statements with metrics, and clarity
+7. Content quality - STAR structure (Situation, Task, Action, Result), specificity (concrete example, real outcome, clear so-what), and clarity
 8. Filler words - count and note excessive use of "um", "uh", "like", "you know", "actually", "basically", "so", "well", "I mean", etc.
 9. Pacing and pauses - assess if pauses are natural or indicate uncertainty. Note if the speaker is rushing or too slow.
 10. Structure - is the answer well-organized with clear beginning, middle, and end?
@@ -561,10 +561,10 @@ When providing tips, be specific, actionable, and reference the transcript. Use 
 **For STAR structure (ONLY for behavioral/experience questions - "Tell me about a time when...", "Describe a situation...", etc.):**
 **If the question is factual/definitional (e.g., "What is X?", "Explain Y", "Define Z"), DO NOT use STAR feedback. Instead, focus on clarity, completeness, and organization.**
 
-- Missing Situation: "Your answer jumps into action without context. Start with: 'In my previous role at [Company], we faced [specific problem] that was impacting [business metric].'"
+- Missing Situation: "Your answer jumps into action without context. Start with: 'In my previous role at [Company], we faced [specific problem] that was affecting [what was at stake].'"
 - Missing Task: "Clarify what needed to be accomplished. State: 'I was tasked with [specific objective] within [constraints].'"
 - Missing Action: "Detail what YOU specifically did. Use 'I' statements: 'I implemented [solution] by [method], I analyzed [data], I collaborated with [team] to [action].' Avoid 'we' - focus on your contributions."
-- Missing Result: "End with measurable outcomes: 'This resulted in [specific metric], which [business impact].' Examples: reduced latency by 60%, increased conversion by 15%, saved $50K annually."
+- Missing Result: "End with what actually happened: 'This resulted in [what changed], which meant [why it mattered].' Only state outcomes that are true; a number is optional."
 - Weak transitions: "Your STAR components are present but transitions are unclear. Use: 'The situation was...', 'My task was to...', 'To accomplish this, I...', 'The results were...'"
 
 **For factual/definition questions (NOT behavioral):**
@@ -572,24 +572,25 @@ When providing tips, be specific, actionable, and reference the transcript. Use 
 - Focus on completeness: "Your answer covers [X] but is missing [Y]. Add: [specific missing element]."
 - Focus on structure: "Use signposts: 'First, X is...', 'Second, it has these characteristics...', 'For example...', 'In summary...'"
 
-**For metrics & impact (check for numbers and business connection - ALWAYS provide examples):**
-- No metrics: "Your answer lacks quantifiable impact. Include specific examples: percentages (e.g., 'reduced error rate by 60%'), time (e.g., 'reduced page load from 2s to 0.5s'), money (e.g., 'saved $50K annually'), scale (e.g., 'handled 1M requests/day'), or user impact (e.g., 'improved NPS from 40 to 65')."
-- Vague metrics: "Be more specific with concrete examples. Instead of 'improved performance', say 'reduced page load time from 3.5s to 0.8s' or 'increased API throughput from 1K to 5K requests/second'."
-- Missing business impact: "You have technical metrics but not business impact. Connect to outcomes with examples: 'This reduced server costs by 30%, saving $50K annually' or 'increased user conversion by 22%, generating $200K in additional revenue'."
+**For specificity (concrete example, real outcome, clear 'so what'; NEVER invent or suggest figures):**
+- Generic: "Your answer stays general. Anchor it in one real example: what the situation was, what you did, and what changed afterwards."
+- Thin outcome: "Say what actually happened as a result, in plain words. A number is welcome only if it is true; a clear outcome is enough."
+- Missing 'so what': "Connect the outcome to why it mattered: who benefited, what got easier, or what risk went away."
+- Never add figures, percentages, amounts, counts, names or claims that are not in the candidate's own answer or fact sheet; use placeholders like '[what changed]' instead of sample numbers.
 
 **For technical accuracy (evaluate correctness and depth - distinguish between missing vs. enhancement):**
 - Incorrect concepts: "Your explanation of [concept] is incorrect. [Correct explanation with example]. Review core concepts for [domain] before your next interview. Example: [provide a correct example]."
-- Surface-level (if they have basics): "Your answer demonstrates understanding but could go deeper. Expand with examples: explain why you chose [technology] (e.g., 'I chose Redis because it provides sub-millisecond latency'), what trade-offs you considered (e.g., 'I traded memory cost for speed'), alternative approaches (e.g., 'I also considered Memcached but Redis had better persistence'), and how you validated (e.g., 'I load-tested with 10K concurrent users')."
-- Missing technical details: "Add more technical specifics with concrete examples. Instead of 'I optimized the database', say 'I optimized queries by adding composite indexes on user_id and created_at columns, which reduced query time from 500ms to 50ms for the user activity feed'."
+- Surface-level (if they have basics): "Your answer demonstrates understanding but could go deeper. Expand with your own reasons: why you chose the approach you did, what trade-offs you considered, which alternatives you weighed, and how you checked it worked. Use only details that are true."
+- Missing technical details: "Add more technical specifics. Instead of 'I optimized the database', say what you actually changed and why, using only details that are true."
 - **IMPORTANT**: If they read/repeated the question, they understand it - focus on "how to expand" not "you lack depth"
 
 **For terminology (check for domain-specific vs generic terms):**
-- Generic terms: "Use domain-specific language. Instead of 'made it faster', say 'reduced latency by implementing Redis caching with TTL of 5 minutes' or 'optimized queries using composite indexes on user_id and created_at'."
+- Generic terms: "Use domain-specific language. Name the technique you actually used (for example a cache or an index) rather than a generic phrase."
 - Incorrect terminology: "You used '[term]' incorrectly. The correct term is '[correct term]', which means [definition]."
 - Missing technical terms: "Incorporate more domain-specific terminology. For [domain], use terms like: [list relevant terms from question tags]."
 
 **For pacing & delivery (analyze WPM and pause patterns):**
-- Too fast (>180 WPM): "You're speaking too quickly ([X] WPM). Slow down and pause between key points. Aim for 120-150 WPM. Practice: take a breath between sentences, pause after stating metrics."
+- Too fast (>180 WPM): "You're speaking too quickly ([X] WPM). Slow down and pause between key points. Aim for 120-150 WPM. Practice: take a breath between sentences, pause after stating your outcome."
 - Too slow (<100 WPM or many long pauses): "Your pacing is slow with many pauses ([X] WPM, [Y] long pauses). Practice speaking more fluidly while maintaining clarity."
 - Inconsistent: "Your pacing varies - fast in some parts, slow in others. Maintain consistent rhythm."
 
@@ -600,7 +601,7 @@ When providing tips, be specific, actionable, and reference the transcript. Use 
 **For structure & clarity (evaluate organization and length):**
 - Unclear organization: "Your answer lacks clear structure. Organize with: (1) Brief context, (2) Main points in logical order, (3) Supporting details, (4) Conclusion with impact. Use signposts: 'First, I...', 'Then, I...', 'Finally, I...'"
 - Too long (>400 words or >3 minutes): "Your answer is too long ([X] words). Aim for 2-3 minutes (200-300 words). Practice being concise: focus on key points, cut unnecessary details."
-- Too short (<150 words): "Your answer is too brief ([X] words). Expand with: (1) More context in Situation, (2) Specific steps in Action, (3) Detailed metrics in Result."
+- Too short (<150 words): "Your answer is too brief ([X] words). Expand with: (1) More context in Situation, (2) Specific steps in Action, (3) A clear, true outcome in Result."
 - Redundancy: "You repeated the same points multiple times. Be concise: state each point once with supporting details, then move on."
 
 **Additional considerations:**
@@ -749,7 +750,7 @@ Return JSON only.`;
 					betterWording: [
 						"Try speaking for 2-3 minutes with clear structure",
 						"Use the STAR method: Situation, Task, Action, Result",
-						"Include specific metrics and examples",
+						"Give a specific example and say what came of it",
 					],
 					starScore: hasContent ? 4 : 2,
 					impactScore: hasContent ? 4 : 2,
@@ -762,7 +763,7 @@ Return JSON only.`;
 								"Your response was recorded successfully",
 								"Try speaking more clearly and structure your answer",
 								"Use the STAR method: Situation, Task, Action, Result",
-								"Include specific metrics and outcomes when possible",
+								"Include a specific example and what came of it, using only things that are true",
 						  ]
 						: [
 								"Please provide a longer response",

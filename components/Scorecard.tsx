@@ -1,6 +1,8 @@
 "use client";
 
 import { useState } from "react";
+import type { ClaimsCheck } from "@/lib/claims-check";
+import { ClaimsCheckSection } from "@/components/ClaimsCheckSection";
 
 interface ScorecardProps {
 	metrics: {
@@ -31,6 +33,7 @@ interface ScorecardProps {
 	whatWasWrong?: string[];
 	betterWording?: string[];
 	dontForget?: string[];
+	claimsCheck?: ClaimsCheck | null;
 	repeatedWords?: Array<{ word: string; count: number; percentage: number }>;
 	hasExcessiveRepetition?: boolean;
 	transcript?: string | null;
@@ -142,6 +145,7 @@ export function Scorecard({
 	whatWasWrong,
 	betterWording,
 	dontForget,
+	claimsCheck,
 	repeatedWords,
 	hasExcessiveRepetition,
 	transcript,
@@ -246,6 +250,9 @@ export function Scorecard({
 					</div>
 				)}
 
+				{/* ── Claims not in the fact sheet ─────────────── */}
+				<ClaimsCheckSection claimsCheck={claimsCheck} />
+
 				{/* ── What You Got Right ───────────────────────── */}
 				{whatWasRight && whatWasRight.length > 0 && (
 					<div>
@@ -308,7 +315,7 @@ export function Scorecard({
 							<ScoreTile label="STAR Structure" value={scores.star} previousValue={previousScores?.star} />
 						)}
 						{isBehavioral && scores.impact != null && (
-							<ScoreTile label="Impact" value={scores.impact} previousValue={previousScores?.impact} />
+							<ScoreTile label="Specificity" value={scores.impact} previousValue={previousScores?.impact} />
 						)}
 						<ScoreTile label="Clarity" value={scores.clarity} previousValue={previousScores?.clarity} />
 						{scores.conciseness != null && (

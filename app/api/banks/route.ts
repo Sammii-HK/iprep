@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { QuestionType } from '@prisma/client';
 import { prisma } from '@/lib/db';
+import { isFactsBankTitle, notFactsBank } from '@/lib/fact-sheet';
 import { requireAuth } from '@/lib/auth';
 import { handleApiError } from '@/lib/errors';
 
@@ -12,6 +13,13 @@ export async function POST(request: NextRequest) {
     if (!body.title || !body.questions?.length) {
       return NextResponse.json(
         { error: 'title and questions are required', code: 'VALIDATION_ERROR' },
+        { status: 400 }
+      );
+    }
+
+    if (isFactsBankTitle(body.title)) {
+      return NextResponse.json(
+        { error: 'That title is reserved', code: 'VALIDATION_ERROR' },
         { status: 400 }
       );
     }
@@ -66,6 +74,7 @@ export async function GET(request: NextRequest) {
       const banks = await prisma.questionBank.findMany({
         where: {
           userId: user.id,
+          ...notFactsBank,
         },
         include: {
           _count: {
@@ -85,7 +94,7 @@ export async function GET(request: NextRequest) {
     // Unified response with folders and banks
     const [banks, folders] = await Promise.all([
       prisma.questionBank.findMany({
-        where: { userId: user.id },
+        where: { userId: user.id, ...notFactsBank },
         include: {
           _count: { select: { questions: true } },
           folderItems: { select: { folderId: true } },
@@ -96,6 +105,7 @@ export async function GET(request: NextRequest) {
         where: { userId: user.id },
         include: {
           items: {
+            where: { bank: notFactsBank },
             include: {
               bank: {
                 include: {

@@ -3,6 +3,7 @@
  */
 
 import { prisma } from "./db";
+import { notFactsBank } from "./fact-sheet";
 
 // ─── Streak ───────────────────────────────────────────────────────────────────
 
@@ -96,7 +97,7 @@ export async function getDailyQuota(
     // Questions in user's banks with no progress record yet
     prisma.question.count({
       where: {
-        bank: { userId },
+        bank: { userId, ...notFactsBank },
         userProgress: { none: { userId } },
       },
     }),
@@ -190,7 +191,11 @@ export async function getReviewQueue(
   const now = new Date();
 
   const due = await prisma.userQuestionProgress.findMany({
-    where: { userId, nextReviewAt: { lte: now } },
+    where: {
+      userId,
+      nextReviewAt: { lte: now },
+      question: { bank: notFactsBank },
+    },
     orderBy: { nextReviewAt: "asc" },
     take: limit,
     include: {
