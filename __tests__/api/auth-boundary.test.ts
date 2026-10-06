@@ -146,6 +146,7 @@ describe('machine principals and the old internal key', () => {
       scopes: ['banks:read'],
       revokedAt: null,
       expiresAt: null,
+      learnerId: 'learner-admin',
       user: adminLearner,
       ...overrides,
     };
@@ -173,6 +174,9 @@ describe('machine principals and the old internal key', () => {
     expect(ctx.user.id).toBe('admin-1');
     expect(ctx.user.role).toBe('USER'); // the learner is an ADMIN, the principal is not
     expect(ctx.principal?.name).toBe('mcp-read');
+    // It acts on behalf of a learner and carries that learner's id; it is never a learner itself.
+    expect(ctx.principal?.learnerId).toBe('learner-admin');
+    expect(ctx.principal?.learnerId).not.toBe(ctx.principal?.id);
     expect(db.machineAudit.create).toHaveBeenCalledWith({ data: expect.objectContaining({ scope: 'banks:read', status: 200 }) });
   });
 

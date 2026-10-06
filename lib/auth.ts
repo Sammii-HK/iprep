@@ -115,7 +115,7 @@ export async function requireAdmin(request: NextRequest): Promise<AuthUser> {
 export interface AccessContext {
   /** The learner the request acts as. For a machine principal the role is always USER. */
   user: AuthUser;
-  principal?: { id: string; name: string; scopes: string[] };
+  principal?: { id: string; name: string; scopes: string[]; learnerId: string };
 }
 
 /**
@@ -159,6 +159,6 @@ export async function requireAccess(request: NextRequest, scope: MachineScope): 
   return {
     // Never admin, whatever the learner's own role is.
     user: { ...principal.user, role: 'USER' },
-    principal: { id: principal.id, name: principal.name, scopes: principal.scopes },
+    principal: { id: principal.id, name: principal.name, scopes: principal.scopes, learnerId: principal.learnerId },
   };
 }

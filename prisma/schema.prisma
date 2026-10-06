@@ -46,6 +46,7 @@ model User {
   questionProgress      UserQuestionProgress[]
   interviews            Interview[]
   machinePrincipals     MachinePrincipal[]
+  learner               Learner?
 }
 
 model UserQuestionProgress {
@@ -79,6 +80,7 @@ model QuestionBank {
   quizzes     Quiz[]
   sessions    Session[]
   folderItems BankFolderItem[]
+  attempts    Attempt[]
 }
 
 model BankFolder {
@@ -128,6 +130,7 @@ model Question {
   items      SessionItem[]
   quizAttempts QuizAttempt[]
   userProgress UserQuestionProgress[]
+  attempts     Attempt[]
 
   @@index([bankId])
 }
@@ -145,6 +148,7 @@ model Session {
   bank        QuestionBank?     @relation(fields: [bankId], references: [id])
   items       SessionItem[]
   summary     LearningSummary?
+  attempts    Attempt[]
 
   @@index([userId, createdAt])
 }
@@ -175,8 +179,12 @@ model SessionItem {
   dontForget        String[] // Array of important points they forgot to mention
   aiFeedback        String?
   createdAt         DateTime @default(now())
+  // Compatibility link to the canonical record. NULL for rows with no learner (unowned sessions) and for
+  // rows whose ledger write failed; docs/P1_LEARNER_ATTEMPT_LEDGER.md describes the divergence check.
+  attemptId         String?  @unique
   session           Session  @relation(fields: [sessionId], references: [id])
   question          Question @relation(fields: [questionId], references: [id])
+  attempt           Attempt? @relation(fields: [attemptId], references: [id], onDelete: SetNull)
 
   @@index([sessionId])
 }
@@ -281,8 +289,13 @@ model MachinePrincipal {
   tokenHash   String         @unique // sha256 (hex) of the bearer token
   tokenPrefix String // first characters of the token, for identification in audit rows
   scopes      String[]
-  userId      String // the learner this principal acts as
+  userId      String // the user account whose data this principal acts on
   user        User           @relation(fields: [userId], references: [id], onDelete: Restrict)
+  // The learner this principal acts on behalf of. A principal is never a learner itself, and it does not
+  // inherit learner identity through its user: the binding is explicit and required.
+  learnerId   String
+  learner     Learner         @relation(fields: [learnerId], references: [id], onDelete: Restrict)
+  attempts    Attempt[]
   createdAt   DateTime       @default(now())
   expiresAt   DateTime?
   revokedAt   DateTime?
@@ -290,6 +303,7 @@ model MachinePrincipal {
   audits      MachineAudit[]
 
   @@index([userId])
+  @@index([learnerId])
 }
 
 model MachineAudit {
@@ -313,4 +327,203 @@ model RateLimitBucket {
 
   @@id([key, windowStart])
   @@index([windowStart])
+}
+
+// ---------------------------------------------------------------------------------------------------------
+// Learner and canonical attempt ledger (P1).
+//
+// "Listening is exposure. Retrieval is evidence. Performance is stronger evidence."
+// The learner record describes what the learner has demonstrated, not what content the product has shown them.
+//
+// Layering:
+//   User            credentials and account state (auth). Unchanged.
+//   Learner         the stable owner of learning evidence. 1:1 with User today; a later AuthIdentity split moves
+//                   credentials without touching a single Attempt.
+//   Attempt         one thing the learner did (append-only fact: who, what prompt, where, when).
+//   AttemptEvidence what the learner produced (transcript, audio reference, measured delivery metrics).
+//   AttemptEvaluation   an interpretation of the evidence by a named, versioned evaluator. Re-evaluation appends.
+//   AttemptMeasurement  sparse scores inside an evaluation, optionally tagged with a measurement dimension.
+//   Session         groups attempts. It never owns them: deleting a session leaves its attempts in the ledger.
+//
+// The ledger tables are append-only (database triggers; see the migration). Derived state is recomputable.
+// ---------------------------------------------------------------------------------------------------------
+
+model Learner {
+  id         String             @id @default(cuid())
+  userId     String             @unique
+  createdAt  DateTime           @default(now())
+  user       User               @relation(fields: [userId], references: [id], onDelete: Restrict)
+  goals      Goal[]
+  attempts   Attempt[]
+  principals MachinePrincipal[]
+}
+
+enum GoalStatus {
+  ACTIVE
+  ACHIEVED
+  ARCHIVED
+}
+
+/// What a learner is working towards. Deliberately minimal. Historical attempts have no goal (goalId NULL): no
+/// goal is ever invented for data recorded before goals existed.
+model Goal {
+  id         String     @id @default(cuid())
+  learnerId  String
+  title      String
+  targetDate DateTime?
+  status     GoalStatus @default(ACTIVE)
+  createdAt  DateTime   @default(now())
+  updatedAt  DateTime   @updatedAt
+  learner    Learner    @relation(fields: [learnerId], references: [id], onDelete: Restrict)
+  attempts   Attempt[]
+
+  @@index([learnerId, status])
+}
+
+/// Where and how the learner met the prompt. Supports every current surface and the planned ones.
+enum AttemptSurface {
+  WRITTEN_TO_SPOKEN // written prompt, spoken answer (practice sessions, spoken quizzes)
+  LIVE_SPOKEN // live, conversational spoken exchange
+  PODCAST_RETRIEVAL // a recall pause inside a podcast episode
+  PODCAST_LISTEN // listening only: exposure, never evidence of recall
+  CHALLENGE // timed or scored challenge
+  INTERVIEW_SIMULATION // mock interview
+  TYPED_RETRIEVAL // typed answer (written quizzes, typed recall)
+}
+
+enum ResponseMode {
+  SPOKEN
+  TYPED
+  NONE // exposure only: the learner produced nothing
+}
+
+model Attempt {
+  id               String         @id @default(cuid())
+  learnerId        String
+  goalId           String?
+  surface          AttemptSurface
+  responseMode     ResponseMode
+  // The prompt as the learner saw it. The question can later be edited or deleted; the attempt stays readable.
+  questionId       String?
+  promptSnapshot   String
+  questionType     String?
+  tagsSnapshot     String[]       @default([])
+  bankId           String?
+  // Grouping only. A session never owns its attempts.
+  sessionId        String?
+  hintUsed         Boolean?
+  // Who recorded it when it was not the learner themselves (a machine principal). Never a learner.
+  actorPrincipalId String?
+  // practice-api | quiz-api | legacy-backfill
+  source           String
+  // "SessionItem:<id>" or "QuizAttempt:<id>" for rows that came from legacy tables; makes the backfill idempotent.
+  legacyRef        String?        @unique
+  occurredAt       DateTime
+  recordedAt       DateTime       @default(now())
+
+  learner      Learner              @relation(fields: [learnerId], references: [id], onDelete: Restrict)
+  goal         Goal?                @relation(fields: [goalId], references: [id], onDelete: SetNull)
+  question     Question?            @relation(fields: [questionId], references: [id], onDelete: SetNull)
+  bank         QuestionBank?        @relation(fields: [bankId], references: [id], onDelete: SetNull)
+  session      Session?             @relation(fields: [sessionId], references: [id], onDelete: SetNull)
+  actor        MachinePrincipal?    @relation(fields: [actorPrincipalId], references: [id], onDelete: SetNull)
+  evidence     AttemptEvidence?
+  evaluations  AttemptEvaluation[]
+  measurements AttemptMeasurement[]
+  sessionItem  SessionItem?
+
+  @@index([learnerId, occurredAt])
+  @@index([questionId])
+  @@index([sessionId])
+  @@index([goalId])
+}
+
+/// What the learner produced. Facts only: no scores, no AI judgement. Every field is nullable because absence
+/// is honest (an exposure has no response; an old row may have no audio).
+model AttemptEvidence {
+  id           String   @id @default(cuid())
+  attemptId    String   @unique
+  responseText String? // typed answer
+  transcript   String? // spoken answer, as transcribed
+  // Reference to the stored recording, exactly as recorded at the time (a URL or object key). Not interpreted.
+  audioRef     String?
+  transcriber  String? // provider/model that produced the transcript; NULL when unknown
+  words        Int?
+  wpm          Int?
+  fillerCount  Int?
+  fillerRate   Float? // per 100 words
+  longPauses   Int?
+  recordedAt   DateTime @default(now())
+  attempt      Attempt  @relation(fields: [attemptId], references: [id], onDelete: Restrict)
+}
+
+enum EvaluatorKind {
+  AI_RUBRIC // a language model scored the answer against a rubric
+  DETERMINISTIC // code computed it from the evidence (delivery heuristics)
+  HUMAN
+  LEGACY_IMPORT // carried over from a table that never recorded who or what produced the numbers
+}
+
+enum EvaluationStatus {
+  COMPLETED
+  FAILED // the evaluator could not run. No measurements. A fallback is never stored as a score.
+  SKIPPED // not evaluated on purpose (for example too little to evaluate)
+}
+
+/// An interpretation of the evidence. Re-evaluating appends a new row; the latest COMPLETED one is "current".
+/// Everything needed to replay or compare evaluators is on the row; unknown values are NULL, never guessed.
+model AttemptEvaluation {
+  id               String               @id @default(cuid())
+  attemptId        String
+  kind             EvaluatorKind
+  status           EvaluationStatus
+  evaluatorVersion String // for example "spoken-answer@1"; "legacy-unversioned" for imports
+  rubricVersion    String?
+  promptVersion    String?
+  provider         String?
+  model            String?
+  failureReason    String?
+  questionAnswered Boolean?
+  // Narrative feedback exactly as produced: { whatWasRight, whatWasWrong, betterWording, dontForget, text }.
+  feedback         Json?
+  // Version of the metric-to-dimension tagging applied to this evaluation's measurements ("dimensions@1").
+  dimensionMap     String?
+  // The exact text the evaluator saw, only when it differs from the recorded evidence (a corrected transcript).
+  evaluatedText    String?
+  evaluatedAt      DateTime? // NULL when the original time is unknown
+  recordedAt       DateTime             @default(now())
+  legacyRef        String?              @unique
+  attempt          Attempt              @relation(fields: [attemptId], references: [id], onDelete: Restrict)
+  measurements     AttemptMeasurement[]
+
+  @@unique([id, attemptId])
+  @@index([attemptId, recordedAt])
+}
+
+enum MeasurementDimension {
+  RECALL // retrieved it from memory, accurately
+  EXPLANATION // explained it clearly in own words
+  APPLICATION // used it on a new situation
+  DELIVERY // how it was said
+  DISCRIMINATION // told it apart from something similar
+  EXPOSURE // the learner was shown it. Never counts as evidence of recall.
+}
+
+/// One score inside an evaluation. Sparse: only what was actually measured has a row. `dimension` is NULL for
+/// numbers that do not honestly belong to one dimension (composite scores, unclassified legacy metrics).
+model AttemptMeasurement {
+  id           String                @id @default(cuid())
+  evaluationId String
+  attemptId    String
+  dimension    MeasurementDimension?
+  metric       String // the name the evaluator gave it, for example "technicalAccuracy"
+  value        Float
+  scaleMin     Float                 @default(0)
+  scaleMax     Float                 @default(10)
+  evaluation   AttemptEvaluation     @relation(fields: [evaluationId, attemptId], references: [id, attemptId], onDelete: Restrict)
+  attempt      Attempt               @relation(fields: [attemptId], references: [id], onDelete: Restrict)
+
+  @@unique([evaluationId, metric])
+  @@index([attemptId])
+  @@index([dimension])
 }

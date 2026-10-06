@@ -9,6 +9,15 @@ vi.mock('@/lib/db', () => ({
   },
 }));
 
+vi.mock('@/lib/attempt-compat', () => ({
+  persistPracticeAnswer: vi.fn(),
+}));
+
+vi.mock('@/lib/study-tracker', () => ({
+  updateSRSProgress: vi.fn().mockResolvedValue(undefined),
+  updateStudyStreak: vi.fn().mockResolvedValue(undefined),
+}));
+
 vi.mock('@/lib/rate-limit', () => ({
   enforceAiLimits: vi.fn().mockResolvedValue(undefined),
 }));
@@ -59,6 +68,8 @@ vi.mock('@/lib/validation', () => ({
 }));
 
 import { prisma } from '@/lib/db';
+import { persistPracticeAnswer } from '@/lib/attempt-compat';
+import { updateSRSProgress } from '@/lib/study-tracker';
 import { requireAuth } from '@/lib/auth';
 import { transcribeAudio } from '@/lib/ai';
 import { analyzeTranscriptOptimized } from '@/lib/ai-optimized';
@@ -137,7 +148,7 @@ describe('POST /api/practice', () => {
     vi.mocked(requireAuth).mockResolvedValue(mockUser);
     vi.mocked(prisma.session.findUnique).mockResolvedValue(mockSession as never);
     vi.mocked(prisma.question.findUnique).mockResolvedValue(mockQuestion as never);
-    vi.mocked(prisma.sessionItem.create).mockResolvedValue({ id: 'item-1' } as never);
+    vi.mocked(persistPracticeAnswer).mockResolvedValue({ sessionItemId: 'item-1', attemptId: 'attempt-1' });
     vi.mocked(transcribeAudio).mockResolvedValue({
       transcript: 'At my previous company I led a team of eight engineers through a major migration project. The situation was that our monolithic application was becoming unmaintainable. I took the lead on creating a phased migration plan.',
       words: [
@@ -407,14 +418,17 @@ describe('POST /api/practice', () => {
     expect(data.answerQuality).toBe(4); // fallback quality
   });
 
-  it('saves session item to database', async () => {
+  it('saves the answer through the compatibility layer: legacy row and canonical attempt together', async () => {
     const formData = createPracticeFormData();
     const req = createFormDataRequest(formData);
 
-    await POST(req as never);
+    const response = await POST(req as never);
+    const data = await response.json();
 
-    expect(prisma.sessionItem.create).toHaveBeenCalledWith({
-      data: expect.objectContaining({
+    expect(data.id).toBe('item-1');
+    expect(persistPracticeAnswer).toHaveBeenCalledWith(
+      prisma,
+      expect.objectContaining({
         sessionId: mockSession.id,
         questionId: mockQuestion.id,
         transcript: expect.any(String),
@@ -422,7 +436,55 @@ describe('POST /api/practice', () => {
         wpm: expect.any(Number),
         fillerCount: expect.any(Number),
       }),
-    });
+      expect.objectContaining({
+        userId: mockUser.id,
+        sessionId: mockSession.id,
+        question: expect.objectContaining({ id: mockQuestion.id, text: mockQuestion.text, bankId: mockQuestion.bankId }),
+        provenance: { status: 'COMPLETED' },
+        questionAnswered: true,
+        scores: expect.objectContaining({ answerQuality: 4, technicalAccuracy: 3 }),
+      })
+    );
+    expect(updateSRSProgress).toHaveBeenCalledWith(mockUser.id, mockQuestion.id, 4);
+  });
+
+  it('records a failed AI analysis as FAILED, never as scores, and does not move the review schedule', async () => {
+    vi.mocked(analyzeTranscriptOptimized).mockRejectedValue(new Error('Analysis timeout'));
+
+    await POST(createFormDataRequest(createPracticeFormData()) as never);
+
+    expect(persistPracticeAnswer).toHaveBeenCalledWith(
+      prisma,
+      expect.anything(),
+      expect.objectContaining({ provenance: { status: 'FAILED', reason: 'analysis-error' } })
+    );
+    expect(updateSRSProgress).not.toHaveBeenCalled();
+  });
+
+  it('records the analyser\'s own fallback (every retry failed) as FAILED with its reason', async () => {
+    vi.mocked(analyzeTranscriptOptimized).mockResolvedValue({ ...mockAnalysis, fallbackReason: 'timeout' });
+
+    await POST(createFormDataRequest(createPracticeFormData()) as never);
+
+    expect(persistPracticeAnswer).toHaveBeenCalledWith(
+      prisma,
+      expect.anything(),
+      expect.objectContaining({ provenance: { status: 'FAILED', reason: 'timeout' } })
+    );
+    expect(updateSRSProgress).not.toHaveBeenCalled();
+  });
+
+  it('records an answer too short to evaluate as SKIPPED', async () => {
+    vi.mocked(transcribeAudio).mockResolvedValue({ transcript: 'Um yes', words: [] });
+
+    await POST(createFormDataRequest(createPracticeFormData()) as never);
+
+    expect(persistPracticeAnswer).toHaveBeenCalledWith(
+      prisma,
+      expect.anything(),
+      expect.objectContaining({ provenance: { status: 'SKIPPED', reason: 'too-brief' } })
+    );
+    expect(updateSRSProgress).not.toHaveBeenCalled();
   });
 
   it('includes conciseness and voice quality scores in response', async () => {

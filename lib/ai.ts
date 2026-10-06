@@ -1,3 +1,4 @@
+import { transcriptionModelInfo } from "./ai-models";
 import OpenAI from "openai";
 import { z } from "zod";
 import {
@@ -157,7 +158,7 @@ export async function transcribeAudio(
 	// Only request timestamps if explicitly needed (adds ~30-50% processing time)
 	const response = await openai.audio.transcriptions.create({
 		file: file,
-		model: process.env.DEEPINFRA_API_KEY ? "openai/whisper-large-v3-turbo" : "whisper-1",
+		model: transcriptionModelInfo().model,
 		language: "en", // Specify English for better accuracy
 		response_format: includeTimestamps ? "verbose_json" : "json", // Simpler format when no timestamps
 		...(includeTimestamps

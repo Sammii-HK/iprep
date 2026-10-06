@@ -5,6 +5,7 @@
  * - Ready for streaming (can be added later)
  */
 
+import { chatModelInfo } from "./ai-models";
 import OpenAI from "openai";
 import { z } from "zod";
 import {
@@ -59,10 +60,7 @@ export const getOpenAIClient = () => {
 };
 
 /** Chat model for the configured provider (Deep Infra when its key is set, else OpenAI). */
-export const getChatModel = () =>
-	process.env.DEEPINFRA_API_KEY
-		? "meta-llama/Meta-Llama-3.3-70B-Instruct-Turbo"
-		: "gpt-4o-mini";
+export const getChatModel = () => chatModelInfo().model;
 
 // Lazy getter - only initializes when actually used
 const openai = new Proxy({} as OpenAI, {
@@ -105,6 +103,15 @@ const EnhancedAnalysisResponseSchema = z.object({
 export type EnhancedAnalysisResponse = z.infer<
 	typeof EnhancedAnalysisResponseSchema
 >;
+
+/**
+ * What the analysis returns. When every retry failed the caller still gets a usable response so the learner is
+ * not left empty-handed, but `fallbackReason` is set: those numbers are canned, not an assessment, and must never
+ * be recorded as evidence.
+ */
+export type AnalysisOutcome = EnhancedAnalysisResponse & {
+	fallbackReason?: "timeout" | "network" | "provider-error";
+};
 
 /**
  * Build optimized system prompt (condensed from ~2000 to ~600 tokens)
@@ -456,7 +463,7 @@ export async function analyzeTranscriptOptimized(
 	},
 	questionType?: string,
 	factSheet?: string | null
-): Promise<EnhancedAnalysisResponse> {
+): Promise<AnalysisOutcome> {
 	// Validate transcript
 	const trimmedTranscript = transcript.trim();
 	if (!trimmedTranscript || trimmedTranscript.length === 0) {
@@ -749,7 +756,14 @@ export async function analyzeTranscriptOptimized(
 					transcriptPreview: trimmedTranscript.substring(0, 200),
 				});
 
-				return fallback;
+				return {
+					...fallback,
+					fallbackReason: isTimeout
+						? "timeout"
+						: isNetworkError
+						? "network"
+						: "provider-error",
+				};
 			}
 
 			// Exponential backoff (reduced delay for faster recovery)
