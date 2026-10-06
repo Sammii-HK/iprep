@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest';
+import { z } from 'zod';
 import {
 	AppError,
 	ValidationError,
@@ -64,6 +65,18 @@ describe('Error handling', () => {
 			expect(result.statusCode).toBe(500);
 			expect(result.message).toBe('Unknown error'); // In non-production, shows actual error message
 			expect(result.code).toBe('INTERNAL_ERROR');
+		});
+
+		it('treats an invalid request body as a 400, never a 500, and hides field detail in production', () => {
+			const parsed = z.object({ n: z.number() }).safeParse({ n: 'x' });
+			if (parsed.success) throw new Error('expected a validation failure');
+			const result = handleApiError(parsed.error);
+			expect(result.statusCode).toBe(400);
+			expect(result.code).toBe('VALIDATION_ERROR');
+			const prev = process.env.NODE_ENV;
+			(process.env as Record<string, string | undefined>).NODE_ENV = 'production';
+			expect(handleApiError(parsed.error).details).toBeUndefined();
+			(process.env as Record<string, string | undefined>).NODE_ENV = prev;
 		});
 
 		it('should preserve error details', () => {

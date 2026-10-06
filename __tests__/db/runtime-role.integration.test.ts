@@ -93,6 +93,35 @@ describe.skipIf(!ADMIN_URL)('runtime database role', () => {
     expect(await app.questionBank.count()).toBe(0);
   });
 
+  it('serves the security tables: atomic rate-limit counting and machine principal audit rows', async () => {
+    const hit = () =>
+      app.$queryRaw<Array<{ count: number }>>`
+        INSERT INTO "RateLimitBucket" ("key", "windowStart", "count")
+        VALUES (${'k'}, ${new Date(0)}, 1)
+        ON CONFLICT ("key", "windowStart") DO UPDATE SET "count" = "RateLimitBucket"."count" + 1
+        RETURNING "count"`;
+    expect(Number((await hit())[0].count)).toBe(1);
+    expect(Number((await hit())[0].count)).toBe(2);
+    const learner = await app.user.create({ data: { email: 'mp@example.com', password: 'x' } });
+    const principal = await app.machinePrincipal.create({
+      data: { name: 'it', tokenHash: 'h'.repeat(64), tokenPrefix: 'ipm_abcd', scopes: ['banks:read'], userId: learner.id },
+    });
+    await app.machineAudit.create({ data: { principalId: principal.id, method: 'GET', path: '/x', scope: 'banks:read', status: 200 } });
+    expect(await app.machineAudit.count()).toBe(1);
+  });
+
+  it('the database refuses a non-canonical email (case variants cannot become identities)', async () => {
+    await expect(app.user.create({ data: { email: 'Mixed@Case.io', password: 'x' } })).rejects.toThrow();
+    await expect(app.user.create({ data: { email: ' spaced@case.io', password: 'x' } })).rejects.toThrow();
+  });
+
+  it('deleting a user cannot turn their private rows into unowned rows', async () => {
+    const u = await app.user.create({ data: { email: 'del@example.com', password: 'x' } });
+    await app.questionBank.create({ data: { title: 'private', userId: u.id } });
+    await expect(app.user.delete({ where: { id: u.id } })).rejects.toThrow();
+    expect(await app.questionBank.count({ where: { userId: u.id } })).toBe(1);
+  });
+
   it('cannot run DDL', async () => {
     await expect(app.$executeRawUnsafe('CREATE TABLE should_not_exist (a int)')).rejects.toThrow();
     await expect(app.$executeRawUnsafe('ALTER TABLE "User" ADD COLUMN nope int')).rejects.toThrow();

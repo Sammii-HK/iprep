@@ -16,7 +16,7 @@ vi.mock('@/lib/ai', () => ({
 }));
 
 vi.mock('@/lib/rate-limit', () => ({
-  checkRateLimit: vi.fn().mockResolvedValue(true),
+  enforceAiLimits: vi.fn().mockResolvedValue(undefined),
 }));
 
 const create = vi.fn();
@@ -28,7 +28,8 @@ vi.mock('@/lib/ai-optimized', () => ({
 import { prisma } from '@/lib/db';
 import { requireAuth } from '@/lib/auth';
 import { transcribeAudio } from '@/lib/ai';
-import { checkRateLimit } from '@/lib/rate-limit';
+import { enforceAiLimits } from '@/lib/rate-limit';
+import { RateLimitError } from '@/lib/errors';
 import { AppError } from '@/lib/errors';
 import { POST } from '@/app/api/debriefs/route';
 
@@ -72,7 +73,7 @@ describe('POST /api/debriefs', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.mocked(requireAuth).mockResolvedValue(mockUser);
-    vi.mocked(checkRateLimit).mockResolvedValue(true);
+    vi.mocked(enforceAiLimits).mockResolvedValue(undefined);
     vi.mocked(transcribeAudio).mockResolvedValue({ transcript });
     create.mockResolvedValue({ choices: [{ message: { content: llmJson } }] });
     vi.mocked(prisma.questionBank.findFirst).mockResolvedValue(null);
@@ -197,8 +198,9 @@ describe('POST /api/debriefs', () => {
   });
 
   it('is rate limited', async () => {
-    vi.mocked(checkRateLimit).mockResolvedValue(false);
+    vi.mocked(enforceAiLimits).mockRejectedValue(new RateLimitError());
     const res = await POST(request() as never);
     expect(res.status).toBe(429);
+    expect(transcribeAudio).not.toHaveBeenCalled();
   });
 });

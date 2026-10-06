@@ -1,4 +1,4 @@
-import { isAdmin } from './auth';
+import { isAdminRole } from './access';
 
 export interface User {
   email: string | null;
@@ -7,8 +7,8 @@ export interface User {
 }
 
 export function isPremiumUser(user: User): boolean {
-  // Admin users always have premium access
-  if (user.email && isAdmin(user.email)) {
+  // Admin users always have premium access (the stored role, never an email match)
+  if (isAdminRole(user)) {
     return true;
   }
   // Check isPremium flag for regular users

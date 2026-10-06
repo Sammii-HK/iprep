@@ -1,18 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
-import { requireAuth } from '@/lib/auth';
+import { requireAccess } from '@/lib/auth';
 import { SyncPayloadSchema, planSync } from '@/lib/interviews';
 import { enforceRateLimit, errorResponse, parseJson } from '@/lib/interviews-api';
 
 /**
- * Machine route. Authenticated by requireAuth, which accepts the existing
- * x-internal-key header (IPREP_INTERNAL_KEY), exactly as /api/banks does.
+ * Machine route (the Notion sync). Accepts a signed-in learner, or a machine principal holding the
+ * interviews:sync scope (Authorization: Bearer ipm_...). The principal acts as its own learner and is never admin.
  * Upserts by (user, source, externalId).
  */
 export async function POST(request: NextRequest) {
   try {
-    await enforceRateLimit(request);
-    const user = await requireAuth(request);
+    const { user } = await requireAccess(request, 'interviews:sync');
+    await enforceRateLimit(request, user.id);
     const { source, complete, interviews } = SyncPayloadSchema.parse(await parseJson(request));
 
     const existing = await prisma.interview.findMany({

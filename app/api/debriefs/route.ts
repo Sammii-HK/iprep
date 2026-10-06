@@ -1,12 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/lib/auth";
 import { transcribeAudio } from "@/lib/ai";
-import { checkRateLimit } from "@/lib/rate-limit";
+import { enforceAiLimits } from "@/lib/rate-limit";
 import { validateAudioFile } from "@/lib/validation";
 import { countWords } from "@/lib/scoring";
 import {
 	ExternalServiceError,
-	RateLimitError,
 	ValidationError,
 	handleApiError,
 } from "@/lib/errors";
@@ -17,15 +16,9 @@ const MIN_WORDS = 8;
 
 export async function POST(request: NextRequest) {
 	try {
-		const ip =
-			request.headers.get("x-forwarded-for") ||
-			request.headers.get("x-real-ip") ||
-			"unknown";
-		if (!(await checkRateLimit(ip))) {
-			throw new RateLimitError("Rate limit exceeded. Please try again later.");
-		}
-
+		// Authenticate first, then durable per-user limits, before any paid work.
 		const user = await requireAuth(request);
+		await enforceAiLimits("debrief", user.id);
 
 		const formData = await request.formData();
 		const audio = formData.get("audio");

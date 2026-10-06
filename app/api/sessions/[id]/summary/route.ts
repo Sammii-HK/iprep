@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/db';
 import { requireAuth } from '@/lib/auth';
-import { handleApiError, NotFoundError, ValidationError } from '@/lib/errors';
+import { ownsRecord } from '@/lib/access';
+import { handleApiError, NotFoundError } from '@/lib/errors';
 
 export async function GET(
   request: NextRequest,
@@ -21,9 +22,9 @@ export async function GET(
       throw new NotFoundError('Session', id);
     }
 
-    // Verify user owns the session (unless admin)
-    if (session.userId && session.userId !== user.id && user.role !== 'ADMIN') {
-      throw new ValidationError('You do not have access to this session');
+    // Owner only. A session with no owner is never accessible here.
+    if (!ownsRecord(session, user)) {
+      throw new NotFoundError('Session', id);
     }
 
     // Check if session is completed, if not, try to complete it first

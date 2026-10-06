@@ -2,6 +2,8 @@
  * Error handling utilities for production
  */
 
+import { ZodError } from 'zod';
+
 export class AppError extends Error {
   constructor(
     message: string,
@@ -58,6 +60,17 @@ export function handleApiError(error: unknown): {
 } {
   // Don't log sensitive errors in production
   const isProduction = process.env.NODE_ENV === 'production';
+
+  // An invalid request body is the caller's mistake (400), not a server error. The field detail is only
+  // returned outside production.
+  if (error instanceof ZodError) {
+    return {
+      statusCode: 400,
+      message: 'Invalid request payload',
+      code: 'VALIDATION_ERROR',
+      details: isProduction ? undefined : error.flatten(),
+    };
+  }
 
   if (error instanceof AppError) {
     if (!isProduction) {

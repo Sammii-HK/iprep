@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
-import { verifyPassword, generateToken } from '@/lib/auth';
+import { createHash } from 'crypto';
+import { verifyPasswordOrDummy, generateToken } from '@/lib/auth';
+import { canonicalEmail } from '@/lib/email';
+import { LIMITS, clientIp, enforceRateLimit } from '@/lib/rate-limit';
 import { z } from 'zod';
 import { handleApiError } from '@/lib/errors';
 
@@ -11,24 +14,22 @@ const LoginSchema = z.object({
 
 export async function POST(request: NextRequest) {
   try {
+    await enforceRateLimit({ key: `login:ip:${clientIp(request)}`, ...LIMITS.loginIp });
+
     const body = await request.json();
     const validated = LoginSchema.parse(body);
+    const email = canonicalEmail(validated.email);
 
-    // Find user
-    const user = await prisma.user.findUnique({
-      where: { email: validated.email },
-    });
+    // Per-account limit as well as per-IP, so a distributed guess against one account is also slowed.
+    const accountKey = createHash('sha256').update(email).digest('hex').slice(0, 32);
+    await enforceRateLimit({ key: `login:acct:${accountKey}`, ...LIMITS.loginAccount });
 
-    if (!user || !user.password) {
-      return NextResponse.json(
-        { error: 'Invalid email or password' },
-        { status: 401 }
-      );
-    }
+    const user = await prisma.user.findUnique({ where: { email } });
 
-    // Verify password
-    const isValid = await verifyPassword(validated.password, user.password);
-    if (!isValid) {
+    // Always run a bcrypt comparison (against a dummy hash when the account does not exist) so an unknown
+    // email and a wrong password are indistinguishable by response and by timing.
+    const isValid = await verifyPasswordOrDummy(validated.password, user?.password);
+    if (!user || !isValid) {
       return NextResponse.json(
         { error: 'Invalid email or password' },
         { status: 401 }

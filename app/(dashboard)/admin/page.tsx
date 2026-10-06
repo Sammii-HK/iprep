@@ -48,7 +48,7 @@ export default function AdminPage() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const isAdmin = user?.role === 'ADMIN' || user?.email?.toLowerCase() === 'kellow.sammii@gmail.com';
+    const isAdmin = user?.role === 'ADMIN'; // UI only: the server enforces admin access on every admin route
     if (!isAdmin) {
       router.push('/');
       return;

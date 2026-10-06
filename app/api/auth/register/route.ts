@@ -1,83 +1,81 @@
+import { timingSafeEqual } from 'crypto';
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/db';
-import { hashPassword, generateToken, isAdmin } from '@/lib/auth';
 import { z } from 'zod';
+import { prisma } from '@/lib/db';
+import { hashPassword, generateToken } from '@/lib/auth';
+import { canonicalEmail } from '@/lib/email';
 import { handleApiError } from '@/lib/errors';
+import { LIMITS, clientIp, enforceRateLimit } from '@/lib/rate-limit';
 
 const RegisterSchema = z.object({
-  email: z.string().email('Invalid email address'),
-  password: z.string().min(8, 'Password must be at least 8 characters'),
-  name: z.string().min(1, 'Name is required').optional(),
+  email: z.string().email('Invalid email address').max(254),
+  // bcrypt only uses the first 72 bytes, so longer passwords are rejected rather than silently truncated.
+  password: z.string().min(8, 'Password must be at least 8 characters').max(72, 'Password must be at most 72 characters'),
+  name: z.string().min(1, 'Name is required').max(100).optional(),
+  inviteCode: z.string().max(200).optional(),
 });
+
+/**
+ * Public registration is closed. It opens only when BOTH REGISTRATION_ENABLED=true and a
+ * REGISTRATION_INVITE_CODE are configured, and the caller supplies the invite code. There is no
+ * SaaS onboarding here: this exists so a second learner can be added deliberately.
+ */
+function registrationOpenFor(inviteCode: string | undefined): boolean {
+  if (process.env.REGISTRATION_ENABLED !== 'true') return false;
+  const expected = process.env.REGISTRATION_INVITE_CODE;
+  if (!expected || !inviteCode) return false;
+  const a = Buffer.from(inviteCode);
+  const b = Buffer.from(expected);
+  return a.length === b.length && timingSafeEqual(a, b);
+}
 
 export async function POST(request: NextRequest) {
   try {
+    await enforceRateLimit({ key: `register:ip:${clientIp(request)}`, ...LIMITS.register });
+
     const body = await request.json();
     const validated = RegisterSchema.parse(body);
 
-    // Check if user already exists
-    const existingUser = await prisma.user.findUnique({
-      where: { email: validated.email },
-    });
-
-    if (existingUser) {
-      return NextResponse.json(
-        { error: 'User with this email already exists' },
-        { status: 400 }
-      );
+    if (!registrationOpenFor(validated.inviteCode)) {
+      return NextResponse.json({ error: 'Registration is closed.', code: 'REGISTRATION_CLOSED' }, { status: 403 });
     }
 
-    // Hash password
+    const email = canonicalEmail(validated.email);
+
+    const existing = await prisma.user.findUnique({ where: { email }, select: { id: true } });
+    if (existing) {
+      // Same response as any other failure to register, so accounts cannot be enumerated.
+      return NextResponse.json({ error: 'Unable to register with these details.', code: 'REGISTRATION_FAILED' }, { status: 400 });
+    }
+
     const hashedPassword = await hashPassword(validated.password);
 
-    // Determine role - admin if email matches ADMIN_EMAIL
-    const role = isAdmin(validated.email) ? 'ADMIN' : 'USER';
-    // Admin users get premium access automatically
-    const isPremium = isAdmin(validated.email);
-
-    // Create user
+    // The role is explicit and never derived from an email address or an environment variable.
+    // Administrators are created only by a migration or an operator script.
     const user = await prisma.user.create({
       data: {
-        email: validated.email,
-        name: validated.name || null,
+        email,
+        name: validated.name ?? null,
         password: hashedPassword,
-        role,
-        isPremium,
-        emailVerified: false, // Can add email verification later
+        role: 'USER',
+        isPremium: false,
+        emailVerified: false,
       },
-      select: {
-        id: true,
-        email: true,
-        name: true,
-        role: true,
-        isPremium: true,
-        createdAt: true,
-      },
+      select: { id: true, email: true, name: true, role: true, isPremium: true, createdAt: true },
     });
 
-    // Generate token
     const token = generateToken(user.id);
-
-    // Set cookie
-    const response = NextResponse.json({
-      user,
-      message: 'Registration successful',
-    });
-
+    const response = NextResponse.json({ user, message: 'Registration successful' });
     response.cookies.set('auth-token', token, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
       sameSite: 'lax',
       maxAge: 60 * 60 * 24 * 7, // 7 days
     });
-
     return response;
   } catch (error) {
     if (error instanceof z.ZodError) {
-      return NextResponse.json(
-        { error: 'Validation error', details: error.issues },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: 'Validation error', details: error.issues }, { status: 400 });
     }
     const errorData = handleApiError(error);
     return NextResponse.json(
@@ -86,4 +84,3 @@ export async function POST(request: NextRequest) {
     );
   }
 }
-

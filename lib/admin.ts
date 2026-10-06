@@ -1,16 +1,12 @@
-import { isAdmin } from './auth';
+import { isAdminRole } from './access';
 
-export function isAdminUser(email: string): boolean {
-  return isAdmin(email);
+/** Admin is the stored role only. It is never inferred from an email address. */
+export function isAdminUser(user: { role: string }): boolean {
+  return isAdminRole(user);
 }
 
-export function requireAdminAccess(user: { email: string | null; role: string }): void {
-  if (!user.email || !isAdmin(user.email)) {
-    throw new Error('Admin access required');
-  }
-  // Also check role if set in database
-  if (user.role !== 'ADMIN') {
+export function requireAdminAccess(user: { role: string }): void {
+  if (!isAdminRole(user)) {
     throw new Error('Admin access required');
   }
 }
-

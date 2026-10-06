@@ -24,12 +24,16 @@ import {
 	NotFoundError,
 } from "@/lib/errors";
 import { requireAuth } from "@/lib/auth";
+import { ownsRecord } from "@/lib/access";
+import { enforceAiLimits } from "@/lib/rate-limit";
 import { getFactSheet } from "@/lib/fact-sheet";
 import { checkClaims } from "@/lib/claims-check";
 
 export async function POST(request: NextRequest) {
 	try {
 		const user = await requireAuth(request);
+		// Re-analysis is model-backed, so it has the same durable per-user limits as practice.
+		await enforceAiLimits("reanalyze", user.id);
 		const body = await request.json();
 		const { sessionItemId, transcript, sessionId, questionId } = body;
 
@@ -37,8 +41,15 @@ export async function POST(request: NextRequest) {
 			throw new ValidationError("Missing required fields");
 		}
 
+		if (typeof transcript !== "string" || typeof sessionItemId !== "string") {
+			throw new ValidationError("Invalid request");
+		}
+
 		if (transcript.trim().length < 10) {
 			throw new ValidationError("Transcript too short for analysis");
+		}
+		if (transcript.length > 20000) {
+			throw new ValidationError("Transcript too long for analysis");
 		}
 
 		// Verify session item exists and user owns it
@@ -54,8 +65,9 @@ export async function POST(request: NextRequest) {
 			throw new NotFoundError("SessionItem", sessionItemId);
 		}
 
-		if (sessionItem.session.userId && sessionItem.session.userId !== user.id && user.role !== "ADMIN") {
-			throw new ValidationError("You do not have access to this session");
+		// Owner only.
+		if (!ownsRecord(sessionItem.session, user)) {
+			throw new NotFoundError("SessionItem", sessionItemId);
 		}
 
 		const question = sessionItem.question;

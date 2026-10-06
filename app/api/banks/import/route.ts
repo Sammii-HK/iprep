@@ -29,6 +29,9 @@ export async function POST(request: NextRequest) {
     }
 
     // Read file content
+    if (file.size > 2 * 1024 * 1024) {
+      return NextResponse.json({ error: 'File too large (2 MB maximum)', code: 'VALIDATION_ERROR' }, { status: 400 });
+    }
     const content = await file.text();
     const contentType = file.type;
 

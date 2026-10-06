@@ -17,9 +17,8 @@ export default function DashboardLayout({
 	const router = useRouter();
 	const pathname = usePathname();
 	const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-	const isAdmin =
-		user?.role === "ADMIN" ||
-		user?.email?.toLowerCase() === "kellow.sammii@gmail.com";
+	// UI only: the server enforces admin access on every admin route.
+	const isAdmin = user?.role === "ADMIN";
 
 	const handleLogout = async () => {
 		await logout();

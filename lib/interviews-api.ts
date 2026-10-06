@@ -1,15 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { ZodError } from 'zod';
 import { prisma } from '@/lib/db';
-import { checkRateLimit } from '@/lib/rate-limit';
-import { RateLimitError, ValidationError, handleApiError } from '@/lib/errors';
+import { LIMITS, enforceRateLimit as enforceDurableLimit } from '@/lib/rate-limit';
+import { ValidationError, handleApiError } from '@/lib/errors';
 
-export async function enforceRateLimit(request: NextRequest): Promise<void> {
-  const ip =
-    request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip') || 'unknown';
-  if (!(await checkRateLimit(`interviews:${ip}`))) {
-    throw new RateLimitError('Rate limit exceeded. Please try again later.');
-  }
+/** Durable per-learner limit shared by the interview routes. Keyed by user id, not by IP. */
+export async function enforceRateLimit(_request: NextRequest, userId: string): Promise<void> {
+  await enforceDurableLimit({ key: `interviews:${userId}`, ...LIMITS.interviews });
 }
 
 export async function parseJson(request: NextRequest): Promise<unknown> {

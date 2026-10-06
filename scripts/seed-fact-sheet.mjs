@@ -3,14 +3,14 @@
  * Upload a markdown fact sheet to iPrep (PUT /api/user/facts).
  *
  * Usage:
- *   IPREP_BASE_URL=https://your-host IPREP_INTERNAL_KEY=... \
+ *   IPREP_BASE_URL=https://your-host IPREP_API_TOKEN=ipm_... \
  *     node scripts/seed-fact-sheet.mjs path/to/fact-sheet.md --target preview
  *   ... --target production --confirm <host>     (production needs the typed host)
  *
+ * The token is a machine principal holding the facts:write scope (scripts/principals.ts create --name facts-seed).
  * The target is explicit: --target local|preview|production must match IPREP_BASE_URL.
  *
- * Auth is the x-internal-key header, which the API resolves to the admin
- * user (ADMIN_EMAIL). The sheet is capped at 8000 characters server side;
+ * Auth is a bearer machine principal acting as one learner (never admin). The sheet is capped at 8000 characters server side;
  * this script refuses to send anything longer rather than truncating it.
  */
 
@@ -26,7 +26,7 @@ async function main() {
 	};
 	const filePath = argv.find((a, i) => !a.startsWith("--") && !["--target", "--confirm"].includes(argv[i - 1]));
 	const baseUrl = process.env.IPREP_BASE_URL;
-	const key = process.env.IPREP_INTERNAL_KEY;
+	const key = process.env.IPREP_API_TOKEN;
 
 	const PRODUCTION_HOSTS = ["iprep-five.vercel.app"];
 	const target = flag("--target");
@@ -56,7 +56,7 @@ async function main() {
 		process.exit(1);
 	}
 	if (!baseUrl || !key) {
-		console.error("Set IPREP_BASE_URL and IPREP_INTERNAL_KEY in the environment.");
+		console.error("Set IPREP_BASE_URL and IPREP_API_TOKEN (a facts:write machine principal token) in the environment.");
 		process.exit(1);
 	}
 
@@ -75,7 +75,7 @@ async function main() {
 	const url = new URL("/api/user/facts", baseUrl);
 	const response = await fetch(url, {
 		method: "PUT",
-		headers: { "Content-Type": "application/json", "x-internal-key": key },
+		headers: { "Content-Type": "application/json", Authorization: `Bearer ${key}` },
 		body: JSON.stringify({ text }),
 	});
 

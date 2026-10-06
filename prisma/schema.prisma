@@ -45,6 +45,7 @@ model User {
   bankFolders           BankFolder[]
   questionProgress      UserQuestionProgress[]
   interviews            Interview[]
+  machinePrincipals     MachinePrincipal[]
 }
 
 model UserQuestionProgress {
@@ -72,7 +73,8 @@ model QuestionBank {
   order       Int              @default(0)
   createdAt   DateTime         @default(now())
   updatedAt   DateTime         @updatedAt
-  user        User?            @relation(fields: [userId], references: [id])
+  // Restrict: deleting a user must not silently turn their private bank into a shared (null-owner) one.
+  user        User?            @relation(fields: [userId], references: [id], onDelete: Restrict)
   questions   Question[]
   quizzes     Quiz[]
   sessions    Session[]
@@ -139,7 +141,7 @@ model Session {
   isCompleted Boolean           @default(false)
   completedAt DateTime?
   createdAt   DateTime          @default(now())
-  user        User?             @relation(fields: [userId], references: [id])
+  user        User?             @relation(fields: [userId], references: [id], onDelete: Restrict)
   bank        QuestionBank?     @relation(fields: [bankId], references: [id])
   items       SessionItem[]
   summary     LearningSummary?
@@ -188,7 +190,7 @@ model Quiz {
   bankId      String?
   createdAt   DateTime    @default(now())
   updatedAt   DateTime    @updatedAt
-  user        User?       @relation(fields: [userId], references: [id])
+  user        User?       @relation(fields: [userId], references: [id], onDelete: Restrict)
   bank        QuestionBank? @relation(fields: [bankId], references: [id])
   attempts    QuizAttempt[]
 }
@@ -269,4 +271,46 @@ model Interview {
 
   @@unique([userId, source, externalId])
   @@index([userId, startsAt])
+}
+
+/// A non-human credential (MCP server, Notion sync, scripts). It acts as one learner, holds an explicit
+/// list of scopes, is revocable and audited, and can never be admin. Only the hash of the token is stored.
+model MachinePrincipal {
+  id          String         @id @default(cuid())
+  name        String         @unique // e.g. "mcp-read", "notion-sync"
+  tokenHash   String         @unique // sha256 (hex) of the bearer token
+  tokenPrefix String // first characters of the token, for identification in audit rows
+  scopes      String[]
+  userId      String // the learner this principal acts as
+  user        User           @relation(fields: [userId], references: [id], onDelete: Restrict)
+  createdAt   DateTime       @default(now())
+  expiresAt   DateTime?
+  revokedAt   DateTime?
+  lastUsedAt  DateTime?
+  audits      MachineAudit[]
+
+  @@index([userId])
+}
+
+model MachineAudit {
+  id          String           @id @default(cuid())
+  principalId String
+  principal   MachinePrincipal @relation(fields: [principalId], references: [id], onDelete: Cascade)
+  method      String
+  path        String
+  scope       String
+  status      Int
+  at          DateTime         @default(now())
+
+  @@index([principalId, at])
+}
+
+/// Persistent fixed-window counters for security limits (login, registration, expensive routes).
+model RateLimitBucket {
+  key         String
+  windowStart DateTime
+  count       Int      @default(0)
+
+  @@id([key, windowStart])
+  @@index([windowStart])
 }

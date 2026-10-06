@@ -1,21 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAuth } from '@/lib/auth';
+import { PushSubscriptionSchema } from '@/lib/push-validation';
+import { LIMITS, enforceRateLimit } from '@/lib/rate-limit';
 import { getConfig } from '@/lib/config';
 import webpush from 'web-push';
-import { z } from 'zod';
 import { handleApiError, ValidationError } from '@/lib/errors';
 
-const SubscribeSchema = z.object({
-	endpoint: z.string().url(),
-	keys: z.object({
-		p256dh: z.string(),
-		auth: z.string(),
-	}),
-});
+// Only a real browser push-service endpoint is accepted. A user-supplied arbitrary URL would turn the
+// test notification below into a server-side request to wherever the caller points it.
+const SubscribeSchema = PushSubscriptionSchema;
 
 export async function POST(request: NextRequest) {
 	try {
-		await requireAuth(request); // Ensure user is authenticated
+		const user = await requireAuth(request);
+		await enforceRateLimit({ key: `push-subscribe:${user.id}`, ...LIMITS.push });
 		const body = await request.json();
 		const validated = SubscribeSchema.parse(body);
 

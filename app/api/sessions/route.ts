@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { isFactsBankTitle } from '@/lib/fact-sheet';
-import { requireAuth } from '@/lib/auth';
+import { requireAccess } from '@/lib/auth';
+import { canReadBank } from '@/lib/access';
 import { z } from 'zod';
 import { handleApiError, NotFoundError, ValidationError } from '@/lib/errors';
 
@@ -14,7 +15,7 @@ const CreateSessionSchema = z.object({
 
 export async function POST(request: NextRequest) {
   try {
-    const user = await requireAuth(request);
+    const { user } = await requireAccess(request, 'sessions:write');
     const body = await request.json();
     const validated = CreateSessionSchema.parse(body);
 
@@ -28,9 +29,9 @@ export async function POST(request: NextRequest) {
       throw new NotFoundError('Question bank', validated.bankId);
     }
 
-    // Verify bank belongs to user (unless admin)
-    if (bank.userId && bank.userId !== user.id && user.role !== 'ADMIN') {
-      throw new ValidationError('You do not have access to this question bank');
+    // Own bank or shared content only.
+    if (!canReadBank(bank, user)) {
+      throw new NotFoundError('Question bank', validated.bankId);
     }
 
     // Filter questions by tags if provided
@@ -75,7 +76,7 @@ export async function POST(request: NextRequest) {
 
 export async function GET(request: NextRequest) {
   try {
-    const user = await requireAuth(request);
+    const { user } = await requireAccess(request, 'sessions:read');
     
     const sessions = await prisma.session.findMany({
       where: {

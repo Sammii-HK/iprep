@@ -3,7 +3,8 @@ import { prisma } from '@/lib/db';
 import { isFactsBankTitle } from '@/lib/fact-sheet';
 import { z } from 'zod';
 import { handleApiError, NotFoundError, ValidationError } from '@/lib/errors';
-import { requireAuth } from '@/lib/auth';
+import { requireAccess, requireAuth } from '@/lib/auth';
+import { canReadBank, canWriteBank } from '@/lib/access';
 
 const UpdateBankSchema = z.object({
   title: z.string().min(1, 'Title is required').max(200),
@@ -14,6 +15,8 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    // Signed-in humans, or a machine principal holding banks:read.
+    const { user } = await requireAccess(request, 'banks:read');
     const { id } = await params;
     const bank = await prisma.questionBank.findUnique({
       where: {
@@ -28,7 +31,8 @@ export async function GET(
       },
     });
 
-    if (!bank || isFactsBankTitle(bank.title)) {
+    // 404 (not 403) for a bank the actor cannot read, so ids cannot be probed.
+    if (!bank || isFactsBankTitle(bank.title) || !canReadBank(bank, user)) {
       throw new NotFoundError('QuestionBank', id);
     }
 
@@ -60,9 +64,9 @@ export async function PATCH(
       throw new NotFoundError('QuestionBank', id);
     }
 
-    // Verify user owns the bank (unless admin)
-    if (bank.userId && bank.userId !== user.id && user.role !== 'ADMIN') {
-      throw new ValidationError('You do not have access to this question bank');
+    // Owner, or an admin for shared (no owner) content. An unowned bank is NOT writable by every signed-in user.
+    if (!canWriteBank(bank, user)) {
+      throw new NotFoundError('QuestionBank', id);
     }
 
     if (isFactsBankTitle(validated.title)) {
@@ -118,9 +122,9 @@ export async function DELETE(
       throw new NotFoundError('QuestionBank', id);
     }
 
-    // Verify user owns the bank (unless admin)
-    if (bank.userId && bank.userId !== user.id && user.role !== 'ADMIN') {
-      throw new ValidationError('You do not have access to this question bank');
+    // Owner, or an admin for shared (no owner) content.
+    if (!canWriteBank(bank, user)) {
+      throw new NotFoundError('QuestionBank', id);
     }
 
     // The schema does not cascade Question -> bank (or SessionItem/QuizAttempt/UserQuestionProgress ->

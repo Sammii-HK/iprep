@@ -6,8 +6,8 @@ import { assertFolderOwned, enforceRateLimit, errorResponse, parseJson } from '@
 
 export async function GET(request: NextRequest) {
   try {
-    await enforceRateLimit(request);
     const user = await requireAuth(request);
+    await enforceRateLimit(request, user.id);
     const includePast = request.nextUrl.searchParams.get('includePast') === 'true';
     const now = new Date();
 
@@ -28,8 +28,8 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    await enforceRateLimit(request);
     const user = await requireAuth(request);
+    await enforceRateLimit(request, user.id);
     const data = CreateInterviewSchema.parse(await parseJson(request));
     await assertFolderOwned(user.id, data.folderId);
 

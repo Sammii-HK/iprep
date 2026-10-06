@@ -3,6 +3,9 @@ import { prisma } from '@/lib/db';
 import { isFactsBankTitle } from '@/lib/fact-sheet';
 import { handleApiError, NotFoundError } from '@/lib/errors';
 import { getAudioUrl } from '@/lib/r2';
+import { requireAccess } from '@/lib/auth';
+import { canReadBank } from '@/lib/access';
+import { enforceRateLimit } from '@/lib/rate-limit';
 import { existsSync, statSync } from 'fs';
 import { join } from 'path';
 
@@ -20,14 +23,18 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    // Signed-in humans, or a machine principal holding banks:read. This route makes outbound requests to
+    // R2 and reveals which banks exist, so it is no longer public and is rate limited per learner.
+    const { user } = await requireAccess(request, 'banks:read');
+    await enforceRateLimit({ key: `bank-audio:${user.id}`, limit: 120, windowMs: 60_000 });
     const { id } = await params;
 
     const bank = await prisma.questionBank.findUnique({
       where: { id },
-      select: { id: true, title: true },
+      select: { id: true, title: true, userId: true },
     });
 
-    if (!bank || isFactsBankTitle(bank.title)) {
+    if (!bank || isFactsBankTitle(bank.title) || !canReadBank(bank, user)) {
       throw new NotFoundError('QuestionBank', id);
     }
 

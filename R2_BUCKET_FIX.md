@@ -30,4 +30,4 @@ The new test will:
 2. Test if it can read/write to the bucket
 3. Give you specific error messages if it fails
 
-Check `/api/env-check` after Vercel redeploys - it should now work!
+Check `/api/health` after Vercel redeploys - it should now work!

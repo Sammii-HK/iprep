@@ -21,7 +21,7 @@ git push origin main
 
 After deployment, visit:
 ```
-https://your-app.vercel.app/api/env-check
+https://your-app.vercel.app/api/health
 ```
 
 This will show you:
@@ -54,7 +54,7 @@ npx tsx scripts/db/run.ts deploy --target preview   # see docs/DB_WORKFLOW.md
 
 ## Troubleshooting
 
-If `/api/env-check` shows missing variables:
+If `/api/health` shows missing variables:
 1. Go to Vercel → Settings → Environment Variables
 2. Make sure all are set for **Production** environment
 3. Redeploy after adding variables

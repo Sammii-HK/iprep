@@ -40,7 +40,7 @@ If your current token doesn't have permissions:
 
 After redeploy, visit:
 ```
-https://your-app.vercel.app/api/env-check
+https://your-app.vercel.app/api/health
 ```
 
 The `r2_connection` should now show `"status": "ok"`.
@@ -74,5 +74,5 @@ vercel env pull .env.local
 
 # The env-check endpoint will work locally too
 npm run dev
-# Visit: http://localhost:3000/api/env-check
+# Visit: http://localhost:3000/api/health
 ```

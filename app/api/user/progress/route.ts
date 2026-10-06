@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import { requireAuth } from "@/lib/auth";
+import { requireAuth, requireAccess } from "@/lib/auth";
 import { handleApiError, ValidationError } from "@/lib/errors";
 import {
   getDailyProgress,
@@ -10,7 +10,7 @@ import {
 
 export async function GET(request: NextRequest) {
   try {
-    const user = await requireAuth(request);
+    const { user } = await requireAccess(request, 'progress:read');
 
     const userData = await prisma.user.findUnique({
       where: { id: user.id },

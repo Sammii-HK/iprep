@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { requireAuth } from "@/lib/auth";
+import { ownsRecord } from "@/lib/access";
 import { handleApiError, NotFoundError, ValidationError } from "@/lib/errors";
 import { jsPDF } from "jspdf";
 
@@ -29,8 +30,8 @@ export async function GET(request: NextRequest) {
       throw new NotFoundError("Session", sessionId);
     }
 
-    if (session.userId !== user.id && user.role !== "ADMIN") {
-      throw new ValidationError("You do not have access to this session");
+    if (!ownsRecord(session, user)) {
+      throw new NotFoundError("Session", sessionId);
     }
 
     const doc = new jsPDF();

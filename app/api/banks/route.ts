@@ -2,20 +2,44 @@ import { NextRequest, NextResponse } from 'next/server';
 import { QuestionType } from '@prisma/client';
 import { prisma } from '@/lib/db';
 import { isFactsBankTitle, notFactsBank } from '@/lib/fact-sheet';
-import { requireAuth } from '@/lib/auth';
+import { requireAccess } from '@/lib/auth';
 import { handleApiError } from '@/lib/errors';
+import { assertFolderOwned } from '@/lib/interviews-api';
+import { z } from 'zod';
+
+const CreateBankSchema = z.object({
+  title: z.string().min(1).max(200),
+  folderId: z.string().min(1).max(64).optional(),
+  questions: z
+    .array(
+      z.object({
+        text: z.string().min(1).max(2000),
+        hint: z.string().max(4000).optional().default(''),
+        type: z.nativeEnum(QuestionType).optional(),
+        difficulty: z.number().int().min(1).max(5).optional(),
+        tags: z.array(z.string().min(1).max(60)).max(20).optional(),
+      })
+    )
+    .min(1)
+    .max(1000),
+});
 
 export async function POST(request: NextRequest) {
   try {
-    const user = await requireAuth(request);
-    const body = await request.json() as { title: string; folderId?: string; questions: Array<{ text: string; hint: string; type?: string; difficulty?: number; tags?: string[] }> };
+    // Signed-in humans, or a machine principal holding banks:write.
+    const { user } = await requireAccess(request, 'banks:write');
+    const parsed = CreateBankSchema.safeParse(await request.json());
 
-    if (!body.title || !body.questions?.length) {
+    if (!parsed.success) {
       return NextResponse.json(
-        { error: 'title and questions are required', code: 'VALIDATION_ERROR' },
+        { error: 'title and questions are required and must be valid', code: 'VALIDATION_ERROR' },
         { status: 400 }
       );
     }
+    const body = parsed.data;
+
+    // A bank can only be filed into a folder the actor owns.
+    await assertFolderOwned(user.id, body.folderId);
 
     if (isFactsBankTitle(body.title)) {
       return NextResponse.json(
@@ -32,7 +56,7 @@ export async function POST(request: NextRequest) {
           create: body.questions.map((q) => ({
             text: q.text,
             hint: q.hint,
-            type: (q.type as QuestionType) || QuestionType.TECHNICAL,
+            type: q.type || QuestionType.TECHNICAL,
             difficulty: q.difficulty || 3,
             tags: q.tags || [],
           })),
@@ -66,7 +90,7 @@ export async function POST(request: NextRequest) {
 
 export async function GET(request: NextRequest) {
   try {
-    const user = await requireAuth(request);
+    const { user } = await requireAccess(request, 'banks:read');
     const includeFolders = request.nextUrl.searchParams.get('includeFolders') === 'true';
 
     if (!includeFolders) {

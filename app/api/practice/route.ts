@@ -25,7 +25,6 @@ import {
 } from "@/lib/enhanced-audio-analysis";
 import {
 	handleApiError,
-	RateLimitError,
 	ValidationError,
 	NotFoundError,
 	ExternalServiceError,
@@ -34,20 +33,16 @@ import { updateSRSProgress, updateStudyStreak } from "@/lib/study-tracker";
 import { validateAudioFile, validateId } from "@/lib/validation";
 import { CoachingPreferences } from "@/lib/coaching-config";
 import { requireAuth } from "@/lib/auth";
-import { checkRateLimit } from "@/lib/rate-limit";
+import { enforceAiLimits } from "@/lib/rate-limit";
+import { ownsRecord } from "@/lib/access";
 import { getFactSheet } from "@/lib/fact-sheet";
 import { checkClaims } from "@/lib/claims-check";
 
 export async function POST(request: NextRequest) {
 	try {
-		// Rate limiting
-		const ip =
-			request.headers.get("x-forwarded-for") ||
-			request.headers.get("x-real-ip") ||
-			"unknown";
-		if (!(await checkRateLimit(ip))) {
-			throw new RateLimitError("Rate limit exceeded. Please try again later.");
-		}
+		// Authenticate first, then apply durable per-user limits, before reading the body or doing any paid work.
+		const user = await requireAuth(request);
+		await enforceAiLimits("practice", user.id);
 
 		const formData = await request.formData();
 		const audioFile = formData.get("audio") as File | null;
@@ -91,9 +86,6 @@ export async function POST(request: NextRequest) {
 			throw new ValidationError(audioValidation.error || "Invalid audio file");
 		}
 
-		// Require authentication
-		const user = await requireAuth(request);
-
 		// Optional fact sheet. Non-critical: any failure just means no grounding
 		// and no claims check, exactly as for users without a sheet.
 		const factSheetPromise = getFactSheet(user.id).catch(() => null);
@@ -117,9 +109,9 @@ export async function POST(request: NextRequest) {
 			throw new NotFoundError("Question", questionId);
 		}
 
-		// Verify user owns the session (unless admin)
-		if (session.userId && session.userId !== user.id && user.role !== "ADMIN") {
-			throw new ValidationError("You do not have access to this session");
+		// Owner only.
+		if (!ownsRecord(session, user)) {
+			throw new NotFoundError("Session", sessionId);
 		}
 
 		// Validate that the question belongs to the session's bank
@@ -189,12 +181,8 @@ export async function POST(request: NextRequest) {
 				message: error instanceof Error ? error.message : "Unknown error",
 				audioSize: audioBlob.size,
 			});
-			throw new ExternalServiceError(
-				"OpenAI Whisper",
-				`Failed to transcribe audio: ${
-					error instanceof Error ? error.message : "Unknown error"
-				}`
-			);
+			// Provider error text stays in the server log; the client gets a generic message.
+			throw new ExternalServiceError("speech-to-text", "Failed to transcribe audio");
 		}
 
 		// Start audio upload in background (non-blocking)
@@ -393,9 +381,7 @@ export async function POST(request: NextRequest) {
 						technicalAccuracy: 4,
 						terminologyUsage: 4,
 						tips: [
-							`AI analysis error: ${
-								error instanceof Error ? error.message : "Unknown error"
-							}`,
+							"AI analysis temporarily unavailable",
 							"Your response was recorded successfully",
 							"Review your transcript and practice speaking more clearly",
 							"Use the STAR method: Situation, Task, Action, Result",

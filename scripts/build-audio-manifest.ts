@@ -19,7 +19,7 @@
 //   - Legacy static files (public/audio/study) are listed once: where a numbered file and a bare file
 //     are the same audio, the numbered one is kept.
 //   - Sub-groups of "Past roles" are folders with "group": "Past roles", so the app can show them together.
-//   - Reads folders through the iPrep API (IPREP_BASE_URL + x-internal-key). The key is never printed.
+//   - Reads folders through the iPrep API (IPREP_BASE_URL + a machine principal token in IPREP_API_TOKEN). The token is never printed.
 // ============================================================
 
 import { writeFile } from 'fs/promises';
@@ -171,11 +171,13 @@ async function main() {
     if (getStudyAudioState) {
       has = (await getStudyAudioState(bank.id)).hasAudio;
     } else {
-      const res = await fetch(`${PUBLIC_API_BASE}/api/banks/${bank.id}/audio`);
-      if (res.ok) {
-        const j = (await res.json()) as { hasAudio?: boolean; fileSizeBytes?: number };
+      // The audio probe is no longer public: it goes through the API with the machine principal token (banks:read).
+      try {
+        const j = await api<{ hasAudio?: boolean; fileSizeBytes?: number }>(`/api/banks/${bank.id}/audio`);
         has = Boolean(j.hasAudio);
         routeBytes = j.fileSizeBytes ?? 0;
+      } catch {
+        // not reachable or not permitted: treat as no audio
       }
     }
     let result: ManifestEpisode | null = null;
