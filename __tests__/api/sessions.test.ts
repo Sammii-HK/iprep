@@ -18,9 +18,11 @@ vi.mock('@/lib/db', () => ({
   },
 }));
 
-vi.mock('@/lib/auth', () => ({
-  requireAuth: vi.fn(),
-}));
+vi.mock('@/lib/auth', () => {
+  const requireAuth = vi.fn();
+  // Routes that accept machine principals call requireAccess; in these tests it resolves to the signed-in user.
+  return { requireAuth, requireAccess: vi.fn(async (...args: unknown[]) => ({ user: await (requireAuth as (...a: unknown[]) => unknown)(...args) })) };
+});
 
 import { prisma } from '@/lib/db';
 import { requireAuth } from '@/lib/auth';
@@ -137,7 +139,7 @@ describe('POST /api/sessions', () => {
     expect(data.error).toContain('not found');
   });
 
-  it('returns 400 when bank belongs to another user', async () => {
+  it('returns 404 (not 400) when the bank belongs to another user, so ids cannot be probed', async () => {
     const mockBank = {
       id: 'clxxxxxxxxxxxxxxxxxxxxxxxxx',
       title: 'Other User Bank',
@@ -155,8 +157,8 @@ describe('POST /api/sessions', () => {
     const response = await POST(req as never);
     const data = await response.json();
 
-    expect(response.status).toBe(400);
-    expect(data.error).toContain('access');
+    expect(response.status).toBe(404);
+    expect(data.error).toContain('not found');
   });
 
   it('returns 401 when not authenticated', async () => {

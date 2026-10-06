@@ -1,13 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import { requireAuth } from "@/lib/auth";
+import { requireAccess } from "@/lib/auth";
 import { isPremiumUser } from "@/lib/premium";
 import { aggregateUserInsights } from "@/lib/learning-analytics";
 import { handleApiError, ValidationError } from "@/lib/errors";
 
 export async function GET(request: NextRequest) {
 	try {
-		const user = await requireAuth(request);
+		const { user } = await requireAccess(request, 'insights:read');
 
 		// Check premium access
 		if (!isPremiumUser(user)) {

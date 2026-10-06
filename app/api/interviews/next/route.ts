@@ -12,8 +12,8 @@ import { enforceRateLimit, errorResponse } from '@/lib/interviews-api';
  */
 export async function GET(request: NextRequest) {
   try {
-    await enforceRateLimit(request);
     const user = await requireAuth(request);
+    await enforceRateLimit(request, user.id);
     const now = new Date();
 
     const candidates = await prisma.interview.findMany({

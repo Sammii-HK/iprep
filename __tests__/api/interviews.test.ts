@@ -1,7 +1,14 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
-vi.mock('@/lib/auth', () => ({ requireAuth: vi.fn() }));
-vi.mock('@/lib/rate-limit', () => ({ checkRateLimit: vi.fn().mockResolvedValue(true) }));
+vi.mock('@/lib/auth', () => {
+  const requireAuth = vi.fn();
+  // The sync route accepts a machine principal via requireAccess; in these tests it resolves to the signed-in user.
+  return { requireAuth, requireAccess: vi.fn(async (...args: unknown[]) => ({ user: await (requireAuth as (...a: unknown[]) => unknown)(...args) })) };
+});
+vi.mock('@/lib/rate-limit', () => ({
+  enforceRateLimit: vi.fn().mockResolvedValue(undefined),
+  LIMITS: { interviews: { limit: 60, windowMs: 60000 } },
+}));
 vi.mock('@/lib/db', () => ({
   prisma: {
     interview: {
@@ -19,9 +26,9 @@ vi.mock('@/lib/db', () => ({
 
 import { NextRequest } from 'next/server';
 import { requireAuth } from '@/lib/auth';
-import { checkRateLimit } from '@/lib/rate-limit';
+import { enforceRateLimit } from '@/lib/rate-limit';
 import { prisma } from '@/lib/db';
-import { AppError } from '@/lib/errors';
+import { AppError, RateLimitError } from '@/lib/errors';
 import { GET, POST } from '@/app/api/interviews/route';
 import { PATCH, DELETE } from '@/app/api/interviews/[id]/route';
 import { POST as SYNC } from '@/app/api/interviews/sync/route';
@@ -44,7 +51,7 @@ const inDays = (d: number) => new Date(Date.now() + d * 86400000);
 beforeEach(() => {
   vi.clearAllMocks();
   vi.mocked(requireAuth).mockResolvedValue(user);
-  vi.mocked(checkRateLimit).mockResolvedValue(true);
+  vi.mocked(enforceRateLimit).mockResolvedValue(undefined);
 });
 
 describe('POST /api/interviews', () => {
@@ -54,7 +61,7 @@ describe('POST /api/interviews', () => {
   });
 
   it('is rate limited', async () => {
-    vi.mocked(checkRateLimit).mockResolvedValue(false);
+    vi.mocked(enforceRateLimit).mockRejectedValue(new RateLimitError());
     expect((await POST(req('POST', valid))).status).toBe(429);
   });
 

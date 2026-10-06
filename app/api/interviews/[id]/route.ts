@@ -15,8 +15,8 @@ async function findOwned(userId: string, id: string) {
 
 export async function PATCH(request: NextRequest, { params }: Params) {
   try {
-    await enforceRateLimit(request);
     const user = await requireAuth(request);
+    await enforceRateLimit(request, user.id);
     const { id } = await params;
     const data = UpdateInterviewSchema.parse(await parseJson(request));
     await findOwned(user.id, id);
@@ -31,8 +31,8 @@ export async function PATCH(request: NextRequest, { params }: Params) {
 
 export async function DELETE(request: NextRequest, { params }: Params) {
   try {
-    await enforceRateLimit(request);
     const user = await requireAuth(request);
+    await enforceRateLimit(request, user.id);
     const { id } = await params;
     await findOwned(user.id, id);
     await prisma.interview.delete({ where: { id } });

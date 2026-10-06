@@ -9,6 +9,10 @@ vi.mock('@/lib/db', () => ({
   },
 }));
 
+vi.mock('@/lib/rate-limit', () => ({
+  enforceAiLimits: vi.fn().mockResolvedValue(undefined),
+}));
+
 vi.mock('@/lib/auth', () => ({
   requireAuth: vi.fn(),
 }));
@@ -296,7 +300,7 @@ describe('POST /api/practice', () => {
     expect(data.error).toContain('not found');
   });
 
-  it('returns 400 when session belongs to another user', async () => {
+  it('returns 404 when the session belongs to another user', async () => {
     vi.mocked(prisma.session.findUnique).mockResolvedValue({
       ...mockSession,
       userId: 'other-user-id',
@@ -307,8 +311,8 @@ describe('POST /api/practice', () => {
     const response = await POST(req as never);
     const data = await response.json();
 
-    expect(response.status).toBe(400);
-    expect(data.error).toContain('access');
+    expect(response.status).toBe(404);
+    expect(data.error).toContain('not found');
   });
 
   it('returns 400 when question does not belong to session bank', async () => {

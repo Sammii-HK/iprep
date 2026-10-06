@@ -3,7 +3,8 @@ import { prisma } from '@/lib/db';
 import { isFactsBankTitle } from '@/lib/fact-sheet';
 import { z } from 'zod';
 import { handleApiError, NotFoundError, ValidationError } from '@/lib/errors';
-import { requireAuth } from '@/lib/auth';
+import { requireAccess } from '@/lib/auth';
+import { canReadBank } from '@/lib/access';
 
 const AddBankSchema = z.object({
   bankId: z.string().min(1).max(64).regex(/^[A-Za-z0-9_-]+$/, 'Invalid bank ID format'),
@@ -14,7 +15,7 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const user = await requireAuth(request);
+    const { user } = await requireAccess(request, 'folders:write');
     const { id: folderId } = await params;
     const body = await request.json();
     const validated = AddBankSchema.parse(body);
@@ -41,9 +42,9 @@ export async function POST(
       throw new NotFoundError('QuestionBank', validated.bankId);
     }
 
-    // Shared seed banks have no owner (userId null): anyone can file them into their own folder.
-    if (bank.userId && bank.userId !== user.id) {
-      throw new ValidationError('You do not have access to this question bank');
+    // Own bank, or shared content (no owner), may be filed into the learner's own folder.
+    if (!canReadBank(bank, user)) {
+      throw new NotFoundError('QuestionBank', validated.bankId);
     }
 
     // Auto-assign order = max(existing in folder) + 1

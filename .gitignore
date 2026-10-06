@@ -42,3 +42,6 @@ next-env.d.ts
 
 /app/generated/prisma
 .env*.local
+
+# Local Preview-rehearsal receipts for guarded migrations
+.db-rehearsals.json

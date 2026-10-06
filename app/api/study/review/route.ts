@@ -1,13 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requireAuth } from "@/lib/auth";
+import { requireAccess } from "@/lib/auth";
 import { handleApiError } from "@/lib/errors";
 import { getReviewQueue } from "@/lib/study-tracker";
 
 export async function GET(request: NextRequest) {
   try {
-    const user = await requireAuth(request);
+    const { user } = await requireAccess(request, 'review:read');
     const { searchParams } = new URL(request.url);
-    const limit = Math.min(Number(searchParams.get("limit") ?? "20"), 50);
+    const rawLimit = Number(searchParams.get("limit") ?? "20");
+    const limit = Number.isFinite(rawLimit) ? Math.min(Math.max(Math.trunc(rawLimit), 1), 50) : 20;
 
     const queue = await getReviewQueue(user.id, limit);
 

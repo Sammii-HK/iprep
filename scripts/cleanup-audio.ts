@@ -4,13 +4,21 @@
  * Deletes R2 audio files older than a configurable retention period.
  * Keeps transcripts and scores permanently — only audio blobs are removed.
  *
- * Usage:
- *   npx tsx scripts/cleanup-audio.ts                  # dry run (default 90 days)
- *   npx tsx scripts/cleanup-audio.ts --execute        # actually delete
- *   npx tsx scripts/cleanup-audio.ts --days 60        # custom retention
- *   npx tsx scripts/cleanup-audio.ts --days 60 --execute
+ * This script deletes external objects, so it has the strongest guard in the repo:
+ *   - no env file is ever loaded implicitly (use --env-file <path>);
+ *   - an explicit --target local|preview|production is required;
+ *   - the database and the R2 bucket must both match that target;
+ *   - default is a DRY RUN. Deleting needs --execute AND --expect-delete <N>, where N is
+ *     the count the dry run reported, so a changed dataset cannot surprise you;
+ *   - production additionally needs --confirm <production database endpoint id>;
+ *   - orphaned objects are only reported unless --delete-orphans is also given.
  *
- * Requires environment variables:
+ * Usage:
+ *   npx tsx scripts/cleanup-audio.ts --target preview --env-file <file>                       # dry run
+ *   npx tsx scripts/cleanup-audio.ts --target preview --env-file <file> --execute --expect-delete 12
+ *   npx tsx scripts/cleanup-audio.ts --target production --env-file <file> --confirm <endpoint> --days 60
+ *
+ * Variables (from the environment or --env-file):
  *   DATABASE_URL, R2_ENDPOINT, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY, R2_BUCKET_NAME
  */
 
@@ -21,8 +29,32 @@ import {
   ListObjectsV2Command,
 } from "@aws-sdk/client-s3";
 
+import { loadExplicitEnvFile, printTarget, resolveScriptTarget, TargetError } from "./lib/target";
+
 const args = process.argv.slice(2);
-const dryRun = !args.includes("--execute");
+Object.assign(process.env, loadExplicitEnvFile(args));
+
+let dryRun = true;
+try {
+  const resolved = resolveScriptTarget({
+    argv: args,
+    env: process.env,
+    uses: { db: true, r2: true },
+    mutating: true,
+    destructive: true,
+  });
+  printTarget("Audio Cleanup Script", resolved);
+  dryRun = resolved.dryRun;
+} catch (e) {
+  if (e instanceof TargetError) {
+    console.error(`Refused: ${e.message}`);
+    process.exit(3);
+  }
+  throw e;
+}
+const expectDeleteIdx = args.indexOf("--expect-delete");
+const expectDelete = expectDeleteIdx >= 0 ? parseInt(args[expectDeleteIdx + 1], 10) : NaN;
+const deleteOrphans = args.includes("--delete-orphans");
 const daysIndex = args.indexOf("--days");
 const retentionDays = daysIndex >= 0 ? parseInt(args[daysIndex + 1], 10) : 90;
 
@@ -34,7 +66,6 @@ if (isNaN(retentionDays) || retentionDays < 1) {
 const cutoffDate = new Date();
 cutoffDate.setDate(cutoffDate.getDate() - retentionDays);
 
-console.log(`Audio Cleanup Script`);
 console.log(`  Mode: ${dryRun ? "DRY RUN (no deletions)" : "EXECUTE (will delete!)"}`);
 console.log(`  Retention: ${retentionDays} days`);
 console.log(`  Cutoff date: ${cutoffDate.toISOString()}`);
@@ -69,6 +100,14 @@ async function main() {
     });
 
     console.log(`Found ${oldItems.length} session items with audio older than ${retentionDays} days.`);
+
+    if (!dryRun && expectDelete !== oldItems.length) {
+      console.error(
+        `Refused: --execute needs --expect-delete ${oldItems.length} (the count found now). ` +
+          `Got ${Number.isNaN(expectDelete) ? "nothing" : expectDelete}. Re-run the dry run and pass its count.`
+      );
+      process.exit(3);
+    }
 
     let deleted = 0;
     let failed = 0;
@@ -153,8 +192,8 @@ async function main() {
 
           if (refCount === 0) {
             orphanCount++;
-            if (dryRun) {
-              console.log(`  [ORPHAN] ${obj.Key} (${obj.LastModified.toISOString()}) - no DB reference`);
+            if (dryRun || !deleteOrphans) {
+              console.log(`  [ORPHAN] ${obj.Key} (${obj.LastModified.toISOString()}) - no DB reference${dryRun || deleteOrphans ? "" : " (not deleted: pass --delete-orphans)"}`);
             } else {
               await s3.send(new DeleteObjectCommand({ Bucket: bucketName, Key: obj.Key }));
               console.log(`  Deleted orphan: ${obj.Key}`);

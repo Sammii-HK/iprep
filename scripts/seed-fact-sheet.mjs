@@ -3,11 +3,14 @@
  * Upload a markdown fact sheet to iPrep (PUT /api/user/facts).
  *
  * Usage:
- *   IPREP_BASE_URL=https://your-host IPREP_INTERNAL_KEY=... \
- *     node scripts/seed-fact-sheet.mjs path/to/fact-sheet.md
+ *   IPREP_BASE_URL=https://your-host IPREP_API_TOKEN=ipm_... \
+ *     node scripts/seed-fact-sheet.mjs path/to/fact-sheet.md --target preview
+ *   ... --target production --confirm <host>     (production needs the typed host)
  *
- * Auth is the x-internal-key header, which the API resolves to the admin
- * user (ADMIN_EMAIL). The sheet is capped at 8000 characters server side;
+ * The token is a machine principal holding the facts:write scope (scripts/principals.ts create --name facts-seed).
+ * The target is explicit: --target local|preview|production must match IPREP_BASE_URL.
+ *
+ * Auth is a bearer machine principal acting as one learner (never admin). The sheet is capped at 8000 characters server side;
  * this script refuses to send anything longer rather than truncating it.
  */
 
@@ -16,16 +19,44 @@ import { readFile } from "node:fs/promises";
 const MAX_CHARS = 8000;
 
 async function main() {
-	const [, , filePath] = process.argv;
+	const argv = process.argv.slice(2);
+	const flag = (name) => {
+		const i = argv.indexOf(name);
+		return i >= 0 ? argv[i + 1] : undefined;
+	};
+	const filePath = argv.find((a, i) => !a.startsWith("--") && !["--target", "--confirm"].includes(argv[i - 1]));
 	const baseUrl = process.env.IPREP_BASE_URL;
-	const key = process.env.IPREP_INTERNAL_KEY;
+	const key = process.env.IPREP_API_TOKEN;
+
+	const PRODUCTION_HOSTS = ["iprep-five.vercel.app"];
+	const target = flag("--target");
+	if (!["local", "preview", "production"].includes(target ?? "")) {
+		console.error("Refused: pass --target local|preview|production. There is no default.");
+		process.exit(3);
+	}
+	let host = "";
+	try {
+		host = new URL(baseUrl ?? "").hostname;
+	} catch {
+		// handled below
+	}
+	const kind = PRODUCTION_HOSTS.includes(host) ? "production" : ["localhost", "127.0.0.1"].includes(host) ? "local" : "preview";
+	if (kind !== target) {
+		console.error(`Refused: --target ${target} but IPREP_BASE_URL host "${host}" is a ${kind} target.`);
+		process.exit(3);
+	}
+	if (target === "production" && flag("--confirm") !== host) {
+		console.error(`Refused: production needs --confirm ${host}.`);
+		process.exit(3);
+	}
+	console.log(`Target: ${target} (${host})`);
 
 	if (!filePath) {
-		console.error("Usage: node scripts/seed-fact-sheet.mjs <fact-sheet.md>");
+		console.error("Usage: node scripts/seed-fact-sheet.mjs <fact-sheet.md> --target <local|preview|production>");
 		process.exit(1);
 	}
 	if (!baseUrl || !key) {
-		console.error("Set IPREP_BASE_URL and IPREP_INTERNAL_KEY in the environment.");
+		console.error("Set IPREP_BASE_URL and IPREP_API_TOKEN (a facts:write machine principal token) in the environment.");
 		process.exit(1);
 	}
 
@@ -44,7 +75,7 @@ async function main() {
 	const url = new URL("/api/user/facts", baseUrl);
 	const response = await fetch(url, {
 		method: "PUT",
-		headers: { "Content-Type": "application/json", "x-internal-key": key },
+		headers: { "Content-Type": "application/json", Authorization: `Bearer ${key}` },
 		body: JSON.stringify({ text }),
 	});
 

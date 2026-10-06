@@ -1,110 +1,115 @@
-import { getConfig } from "@/lib/config";
+/**
+ * Durable rate limiting.
+ *
+ * Counters live in Postgres (table RateLimitBucket), so a limit holds across serverless instances and
+ * deploys, and no extra service is needed. A hit is one atomic upsert, so concurrent requests cannot slip
+ * past a limit. This is the minimum durable primitive for the security boundary; the AI usage and cost
+ * accounting from section S of the vNext plan builds on the same keys.
+ *
+ * Policy:
+ *  - security and expensive routes FAIL CLOSED: if the counter store is unavailable the request is refused
+ *    (503) rather than allowed through;
+ *  - the client IP comes only from headers the platform sets (never a raw, client-extendable
+ *    X-Forwarded-For list);
+ *  - authenticated routes are keyed by user id, not by IP.
+ */
+import type { NextRequest } from 'next/server';
+import { AppError, RateLimitError } from '@/lib/errors';
 
-interface RateLimitRecord {
-  count: number;
-  resetTime: number;
+export interface RateLimitStore {
+  /** Count one hit in the window containing `now` and return the count including this hit. */
+  hit(key: string, windowMs: number, now: number): Promise<number>;
 }
 
-interface RateLimitBackend {
-  get(key: string): Promise<RateLimitRecord | null>;
-  set(key: string, record: RateLimitRecord): Promise<void>;
-}
-
-// In-memory backend (default, resets on deploy)
-class MemoryBackend implements RateLimitBackend {
-  private store = new Map<string, RateLimitRecord>();
-
-  async get(key: string): Promise<RateLimitRecord | null> {
-    return this.store.get(key) || null;
-  }
-
-  async set(key: string, record: RateLimitRecord): Promise<void> {
-    this.store.set(key, record);
-    // Prevent unbounded memory growth - clean up expired entries periodically
-    if (this.store.size > 10000) {
-      const now = Date.now();
-      for (const [k, v] of this.store) {
-        if (now > v.resetTime) this.store.delete(k);
-      }
+class PostgresStore implements RateLimitStore {
+  async hit(key: string, windowMs: number, now: number): Promise<number> {
+    const { prisma } = await import('@/lib/db');
+    const windowStart = new Date(Math.floor(now / windowMs) * windowMs);
+    const rows = await prisma.$queryRaw<Array<{ count: number }>>`
+      INSERT INTO "RateLimitBucket" ("key", "windowStart", "count")
+      VALUES (${key}, ${windowStart}, 1)
+      ON CONFLICT ("key", "windowStart")
+      DO UPDATE SET "count" = "RateLimitBucket"."count" + 1
+      RETURNING "count"`;
+    // Opportunistic cleanup of old windows (about 1 in 200 hits); failure here never affects the request.
+    if (Math.random() < 0.005) {
+      void prisma
+        .$executeRaw`DELETE FROM "RateLimitBucket" WHERE "windowStart" < ${new Date(now - 2 * 24 * 60 * 60 * 1000)}`
+        .catch(() => undefined);
     }
+    return Number(rows[0].count);
   }
 }
 
-// KV backend (Vercel KV / Redis) - only used when KV_REST_API_URL is set
-class KVBackend implements RateLimitBackend {
-  private kv: { get: (key: string) => Promise<unknown>; set: (key: string, value: unknown, opts?: { ex?: number }) => Promise<unknown> } | null = null;
-
-  private async getClient() {
-    if (!this.kv) {
-      try {
-        // @ts-expect-error - @vercel/kv is an optional dependency
-        const mod = await import("@vercel/kv");
-        this.kv = mod.kv;
-      } catch {
-        console.warn("@vercel/kv not installed, falling back to memory backend");
-        return null;
-      }
-    }
-    return this.kv;
-  }
-
-  async get(key: string): Promise<RateLimitRecord | null> {
-    const client = await this.getClient();
-    if (!client) return null;
-    const record = await client.get(`ratelimit:${key}`);
-    return record as RateLimitRecord | null;
-  }
-
-  async set(key: string, record: RateLimitRecord): Promise<void> {
-    const client = await this.getClient();
-    if (!client) return;
-    const ttlMs = record.resetTime - Date.now();
-    const ttlSec = Math.max(1, Math.ceil(ttlMs / 1000));
-    await client.set(`ratelimit:${key}`, record, { ex: ttlSec });
+/** In-memory store for tests. Never used in production code paths. */
+export class MemoryRateLimitStore implements RateLimitStore {
+  private counts = new Map<string, number>();
+  async hit(key: string, windowMs: number, now: number): Promise<number> {
+    const id = `${key}@${Math.floor(now / windowMs)}`;
+    const next = (this.counts.get(id) ?? 0) + 1;
+    this.counts.set(id, next);
+    return next;
   }
 }
 
-// Select backend based on environment
-function createBackend(): RateLimitBackend {
-  if (process.env.KV_REST_API_URL) {
-    return new KVBackend();
-  }
-  return new MemoryBackend();
+let defaultStore: RateLimitStore = new PostgresStore();
+
+/** Test hook. */
+export function setRateLimitStore(store: RateLimitStore): void {
+  defaultStore = store;
 }
 
-const backend = createBackend();
+export interface RateLimitOptions {
+  key: string;
+  limit: number;
+  windowMs: number;
+  /** Refuse (503) when the counter store is unavailable. Default true. */
+  failClosed?: boolean;
+  store?: RateLimitStore;
+  now?: number;
+}
+
+/** Throws RateLimitError (429) when the limit is exceeded. */
+export async function enforceRateLimit(opts: RateLimitOptions): Promise<void> {
+  const { key, limit, windowMs, failClosed = true, store = defaultStore, now = Date.now() } = opts;
+  let count: number;
+  try {
+    count = await store.hit(key, windowMs, now);
+  } catch (error) {
+    console.error('Rate limit store unavailable:', error instanceof Error ? error.message : 'unknown error');
+    if (failClosed) throw new AppError('Service temporarily unavailable. Please try again shortly.', 503, 'RATE_LIMIT_UNAVAILABLE');
+    return;
+  }
+  if (count > limit) throw new RateLimitError('Too many requests. Please try again later.');
+}
 
 /**
- * Check rate limit for a given key (typically IP address).
- * Returns true if the request is allowed, false if rate limited.
+ * Client IP from platform-set headers only. On Vercel, x-vercel-forwarded-for and x-real-ip are set by the
+ * platform and cannot be overridden by the client. A raw X-Forwarded-For list is never used because a client can
+ * prepend values to it. Self-hosting behind a proxy must set x-real-ip at the proxy.
  */
-export async function checkRateLimit(key: string): Promise<boolean> {
-  const { rateLimitRequests, rateLimitWindowMs } = getConfig().limits;
-  const now = Date.now();
+export function clientIp(request: Pick<NextRequest, 'headers'>): string {
+  const vercel = request.headers.get('x-vercel-forwarded-for')?.split(',')[0]?.trim();
+  if (vercel) return vercel;
+  const real = request.headers.get('x-real-ip')?.trim();
+  if (real) return real;
+  return 'unknown';
+}
 
-  try {
-    const record = await backend.get(key);
+/** Route-class policies. Values are deliberately modest for a single-learner product. */
+export const LIMITS = {
+  loginIp: { limit: 20, windowMs: 15 * 60_000 },
+  loginAccount: { limit: 8, windowMs: 15 * 60_000 },
+  register: { limit: 5, windowMs: 60 * 60_000 },
+  /** Expensive model-backed routes, per signed-in user. */
+  aiBurst: { limit: 10, windowMs: 60_000 },
+  aiHourly: { limit: 120, windowMs: 60 * 60_000 },
+  interviews: { limit: 60, windowMs: 60_000 },
+  push: { limit: 10, windowMs: 60_000 },
+} as const;
 
-    if (!record || now > record.resetTime) {
-      await backend.set(key, {
-        count: 1,
-        resetTime: now + rateLimitWindowMs,
-      });
-      return true;
-    }
-
-    if (record.count >= rateLimitRequests) {
-      return false;
-    }
-
-    await backend.set(key, {
-      count: record.count + 1,
-      resetTime: record.resetTime,
-    });
-    return true;
-  } catch (error) {
-    // If rate limiting fails (e.g., KV down), allow the request
-    console.error("Rate limit check failed:", error);
-    return true;
-  }
+/** Both the burst and the hourly limit for an expensive route, keyed by user. */
+export async function enforceAiLimits(route: string, userId: string): Promise<void> {
+  await enforceRateLimit({ key: `ai:${route}:${userId}:burst`, ...LIMITS.aiBurst });
+  await enforceRateLimit({ key: `ai:${route}:${userId}:hour`, ...LIMITS.aiHourly });
 }

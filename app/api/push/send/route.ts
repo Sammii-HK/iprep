@@ -1,29 +1,29 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requireAuth } from "@/lib/auth";
+import { requireAdmin } from "@/lib/auth";
+import { PushSubscriptionSchema } from "@/lib/push-validation";
+import { LIMITS, enforceRateLimit } from "@/lib/rate-limit";
 import { getConfig } from "@/lib/config";
 import webpush from "web-push";
 import { z } from "zod";
 import { handleApiError, ValidationError } from "@/lib/errors";
 
+// The subscription must point at a real browser push service (never an arbitrary URL: that would make this
+// server a request relay) and the payload is bounded. The click target must be a path inside this app.
 const SendNotificationSchema = z.object({
-	subscription: z.object({
-		endpoint: z.string().url(),
-		keys: z.object({
-			p256dh: z.string(),
-			auth: z.string(),
-		}),
-	}),
+	subscription: PushSubscriptionSchema,
 	payload: z.object({
-		title: z.string(),
-		body: z.string(),
-		tag: z.string().optional(),
-		url: z.string().optional(),
+		title: z.string().min(1).max(100),
+		body: z.string().min(1).max(300),
+		tag: z.string().max(64).optional(),
+		url: z.string().max(200).regex(/^\/[A-Za-z0-9\-._~\/?=&%#]*$/, "Must be a path inside the app").optional(),
 	}),
 });
 
 export async function POST(request: NextRequest) {
 	try {
-		await requireAuth(request); // Ensure user is authenticated
+		// Sending arbitrary notifications under the app's VAPID identity is an admin operation.
+		const admin = await requireAdmin(request);
+		await enforceRateLimit({ key: `push-send:${admin.id}`, ...LIMITS.push });
 		const body = await request.json();
 		const validated = SendNotificationSchema.parse(body);
 

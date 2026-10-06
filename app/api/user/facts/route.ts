@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requireAuth } from "@/lib/auth";
+import { requireAccess } from "@/lib/auth";
 import { handleApiError, ValidationError } from "@/lib/errors";
 import {
 	FACT_SHEET_MAX_CHARS,
@@ -22,7 +22,7 @@ function errorResponse(error: unknown) {
 
 export async function GET(request: NextRequest) {
 	try {
-		const user = await requireAuth(request);
+		const { user } = await requireAccess(request, 'facts:read');
 		const text = await getFactSheet(user.id);
 		return NextResponse.json({ text, maxChars: FACT_SHEET_MAX_CHARS });
 	} catch (error) {
@@ -32,7 +32,7 @@ export async function GET(request: NextRequest) {
 
 export async function PUT(request: NextRequest) {
 	try {
-		const user = await requireAuth(request);
+		const { user } = await requireAccess(request, 'facts:write');
 
 		const declared = Number(request.headers.get("content-length") ?? "0");
 		if (declared > MAX_BODY_BYTES) {

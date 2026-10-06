@@ -1,8 +1,10 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
-vi.mock('@/lib/auth', () => ({
-  requireAuth: vi.fn(),
-}));
+vi.mock('@/lib/auth', () => {
+  const requireAuth = vi.fn();
+  // Routes that accept machine principals call requireAccess; in these tests it resolves to the signed-in user.
+  return { requireAuth, requireAccess: vi.fn(async (...args: unknown[]) => ({ user: await (requireAuth as (...a: unknown[]) => unknown)(...args) })) };
+});
 
 vi.mock('@/lib/fact-sheet', async () => {
   const limits = await vi.importActual<typeof import('@/lib/fact-sheet-limits')>(

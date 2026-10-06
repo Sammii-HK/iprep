@@ -1,6 +1,6 @@
 /**
  * Seed script: AI & Architecture question banks
- * Run: DATABASE_URL="..." npx tsx scripts/seed-ai-banks.ts
+ * Run: npx tsx scripts/seed-ai-banks.ts --target preview --user-id <learner id> --env-file <file> [--execute]
  *
  * Creates 3 new banks under a new "AI & Architecture" folder:
  *  - AI Orchestration & Agent Systems
@@ -10,9 +10,33 @@
 
 import { PrismaClient, QuestionType } from '@prisma/client';
 
+import { loadExplicitEnvFile, printTarget, resolveScriptTarget, TargetError } from './lib/target';
+
+const argv = process.argv.slice(2);
+Object.assign(process.env, loadExplicitEnvFile(argv));
+
+// Legacy one-off seed. Dry run by default; --execute needs an explicit --target (and --confirm for production).
+let dryRun = true;
+try {
+  const resolved = resolveScriptTarget({ argv, env: process.env, uses: { db: true }, mutating: true, destructive: true });
+  printTarget('Seed AI banks', resolved);
+  dryRun = resolved.dryRun;
+} catch (e) {
+  if (e instanceof TargetError) {
+    console.error(`Refused: ${e.message}`);
+    process.exit(3);
+  }
+  throw e;
+}
+const userIdIdx = argv.indexOf('--user-id');
+const ADMIN_USER_ID = userIdIdx >= 0 ? argv[userIdIdx + 1] : '';
+if (!ADMIN_USER_ID) {
+  console.error('Refused: pass --user-id <learner id>. The owner is no longer hard-coded.');
+  process.exit(3);
+}
+
 const prisma = new PrismaClient();
 
-const ADMIN_USER_ID = 'cmhnuilov0000ju04yxn0cmqz';
 
 // The "AI & Architecture" folder created at end
 const AI_FOLDER_COLOR = '#06b6d4';
@@ -339,6 +363,10 @@ const banks = [
 ];
 
 async function main() {
+  if (dryRun) {
+    console.log(`Dry run: would create ${banks.length} banks and the AI & Architecture folder for user ${ADMIN_USER_ID}. Pass --execute to apply.`);
+    return;
+  }
   const DB_URL = process.env.DATABASE_URL;
   if (!DB_URL) {
     console.error('DATABASE_URL not set');

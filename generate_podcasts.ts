@@ -1,7 +1,25 @@
 #!/usr/bin/env node
+// LEGACY (April 2026 podcast pipeline v1). Superseded by scripts/generate-bank-episodes.ts, which writes R2
+// objects keyed by bank id. Kept working for now and slated for a deliberate cleanup. It writes
+// QuestionBank.audioUrl, so it can change data: it now needs an explicit target and never loads an env file
+// implicitly. Usage:
+//   npx tsx generate_podcasts.ts --target local|preview|production [--confirm <endpoint>] --env-file <file>
 import { PrismaClient } from '@prisma/client';
 import * as fs from 'fs';
 import * as path from 'path';
+import { loadExplicitEnvFile, printTarget, resolveScriptTarget, TargetError } from './scripts/lib/target';
+
+const argv = process.argv.slice(2);
+Object.assign(process.env, loadExplicitEnvFile(argv));
+try {
+  printTarget('Generate podcasts (legacy v1)', resolveScriptTarget({ argv, env: process.env, uses: { db: true }, mutating: true }));
+} catch (e) {
+  if (e instanceof TargetError) {
+    console.error(`Refused: ${e.message}`);
+    process.exit(3);
+  }
+  throw e;
+}
 
 const prisma = new PrismaClient();
 

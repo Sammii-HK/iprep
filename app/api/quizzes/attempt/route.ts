@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
-import { handleApiError, NotFoundError } from '@/lib/errors';
+import { handleApiError, NotFoundError, ValidationError } from '@/lib/errors';
+import { requireAuth } from '@/lib/auth';
+import { ownsRecord } from '@/lib/access';
+import { enforceAiLimits } from '@/lib/rate-limit';
+import { validateAudioFile } from '@/lib/validation';
 import { transcribeAudio } from '@/lib/ai';
 import { analyzeTranscriptOptimized } from '@/lib/ai-optimized';
 import { uploadAudio, getAudioUrl } from '@/lib/r2';
@@ -18,6 +22,10 @@ import {
 
 export async function POST(request: NextRequest) {
   try {
+    // Authentication and per-user limits come before anything expensive (R2 upload, Whisper, LLM).
+    const user = await requireAuth(request);
+    await enforceAiLimits('quiz-attempt', user.id);
+
     const formData = await request.formData();
     const quizId = formData.get('quizId') as string;
     const questionId = formData.get('questionId') as string;
@@ -44,8 +52,12 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    if (!quiz) {
+    // Only the quiz's owner may attempt it. An unowned or someone else's quiz is a 404.
+    if (!quiz || !ownsRecord(quiz, user)) {
       throw new NotFoundError('Quiz', quizId);
+    }
+    if (answer && answer.length > 20000) {
+      throw new ValidationError('Answer is too long');
     }
 
     const question = quiz.bank?.questions.find((q: { id: string }) => q.id === questionId);
@@ -65,6 +77,11 @@ export async function POST(request: NextRequest) {
           { error: 'Audio file required for spoken quiz' },
           { status: 400 }
         );
+      }
+
+      const audioCheck = validateAudioFile(audioFile);
+      if (!audioCheck.valid) {
+        throw new ValidationError(audioCheck.error ?? 'Invalid audio file');
       }
 
       // Upload audio

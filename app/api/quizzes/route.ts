@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { isFactsBankTitle } from '@/lib/fact-sheet';
 import { requireAuth } from '@/lib/auth';
+import { canReadBank } from '@/lib/access';
 import { handleApiError, ValidationError, NotFoundError } from '@/lib/errors';
 import { z } from 'zod';
 
@@ -29,9 +30,9 @@ export async function POST(request: NextRequest) {
       throw new NotFoundError('QuestionBank', validated.bankId);
     }
 
-    // Verify user owns the bank (unless admin)
-    if (bank.userId && bank.userId !== user.id && user.role !== 'ADMIN') {
-      throw new ValidationError('You do not have access to this question bank');
+    // Own bank or shared content only.
+    if (!canReadBank(bank, user)) {
+      throw new NotFoundError('QuestionBank', validated.bankId);
     }
 
     if (bank.questions.length === 0) {

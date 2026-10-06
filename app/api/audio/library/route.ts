@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { notFactsBank } from '@/lib/fact-sheet';
 import { requireAuth } from '@/lib/auth';
+import { enforceRateLimit } from '@/lib/rate-limit';
 import { getAudioUrl } from '@/lib/r2';
 import { existsSync, statSync } from 'fs';
 import { join } from 'path';
@@ -14,6 +15,8 @@ function slugify(title: string): string {
 export async function GET(request: NextRequest) {
   try {
     const user = await requireAuth(request);
+    // This route makes one outbound request per bank, so it is limited per learner.
+    await enforceRateLimit({ key: `audio-library:${user.id}`, limit: 20, windowMs: 60_000 });
 
     // Fetch all banks and folders with their structure
     const [banks, folders] = await Promise.all([

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/db';
-import { requireAuth } from '@/lib/auth';
+import { requireAdmin } from '@/lib/auth';
 import { analyzeSessionPerformance } from '@/lib/learning-analytics';
 import { handleApiError } from '@/lib/errors';
 
@@ -11,15 +11,8 @@ import { handleApiError } from '@/lib/errors';
  */
 export async function POST(request: NextRequest) {
   try {
-    const user = await requireAuth(request);
-
-    // Only allow admin users
-    if (user.role !== 'ADMIN') {
-      return NextResponse.json(
-        { error: 'Unauthorized - Admin access required' },
-        { status: 403 }
-      );
-    }
+    // Admin only: the stored role, from a signed-in human (never a machine principal).
+    await requireAdmin(request);
 
     // Get all completed sessions without summaries
     const sessionsWithoutSummaries = await prisma.session.findMany({
@@ -117,10 +110,9 @@ export async function POST(request: NextRequest) {
 
         results.processed++;
       } catch (error) {
-        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
         results.errors.push({
           sessionId: session.id,
-          error: errorMessage,
+          error: 'Failed to analyse this session (see server log)',
         });
         console.error(`Error processing session ${session.id}:`, error);
       }

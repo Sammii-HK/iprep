@@ -16,6 +16,7 @@
 import { execFileSync } from 'child_process';
 import { join } from 'path';
 import { api } from './lib/iprep-api';
+import { loadExplicitEnvFile, printTarget, resolveScriptTarget, TargetError } from './lib/target';
 
 /** Shared banks every role folder links. Keep in sync with the user's rule for role folders. */
 const DEFAULT_SHARED_BANKS: Array<{ id: string; title: string }> = [
@@ -38,6 +39,7 @@ function parse(argv: string[]) {
     else if (a === '--no-audio') out.audio = false;
     else if (a === '--dry-run') out.dryRun = true;
     else if (a === '--upload') out.passthrough.push('--upload');
+    else if (a === '--target' || a === '--confirm' || a === '--env-file') out.passthrough.push(a, argv[++i]);
     else if (a === '--style' || a === '--out' || a === '--max-gbp' || a === '--duration') out.passthrough.push(a, argv[++i]);
     else throw new Error(`Unknown option ${a}`);
   }
@@ -47,7 +49,18 @@ function parse(argv: string[]) {
 }
 
 async function main() {
-  const args = parse(process.argv.slice(2));
+  const argv = process.argv.slice(2);
+  Object.assign(process.env, loadExplicitEnvFile(argv));
+  const args = parse(argv);
+  try {
+    printTarget('New role folder', resolveScriptTarget({ argv, env: process.env, uses: { api: true }, mutating: !args.dryRun }));
+  } catch (e) {
+    if (e instanceof TargetError) {
+      console.error(`Refused: ${e.message}`);
+      process.exit(3);
+    }
+    throw e;
+  }
   const bankIds = [...new Set([args.roleBank, ...(args.defaults ? DEFAULT_SHARED_BANKS.map((b) => b.id) : []), ...args.shared])];
 
   const folders = await api<Array<{ id: string; title: string }>>('/api/folders');

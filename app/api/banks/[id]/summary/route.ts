@@ -3,7 +3,9 @@ import { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/db';
 import { isFactsBankTitle } from '@/lib/fact-sheet';
 import { requireAuth } from '@/lib/auth';
-import { handleApiError, NotFoundError, ValidationError } from '@/lib/errors';
+import { canReadBank } from '@/lib/access';
+import { enforceAiLimits } from '@/lib/rate-limit';
+import { handleApiError, NotFoundError } from '@/lib/errors';
 
 /**
  * Get aggregated learning summary for all sessions from a specific question bank
@@ -14,6 +16,8 @@ export async function GET(
 ) {
   try {
     const user = await requireAuth(request);
+    // The summary recomputes model-backed analysis, so it shares the expensive-route limits.
+    await enforceAiLimits('bank-summary', user.id);
     const { id: bankId } = await params;
 
     // Verify bank exists and user owns it
@@ -25,9 +29,9 @@ export async function GET(
       throw new NotFoundError('QuestionBank', bankId);
     }
 
-    // Verify user owns the bank (unless admin)
-    if (bank.userId && bank.userId !== user.id && user.role !== 'ADMIN') {
-      throw new ValidationError('You do not have access to this question bank');
+    // Own bank or shared content only; the sessions below are always filtered to this learner.
+    if (!canReadBank(bank, user)) {
+      throw new NotFoundError('QuestionBank', bankId);
     }
 
     // Get all sessions for this bank (including incomplete ones with items)

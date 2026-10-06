@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "prisma generate && prisma migrate deploy && next build",
+    "build": "prisma generate && next build",
     "start": "next start",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
@@ -12,14 +12,15 @@
     "test:ui": "vitest --ui",
     "test:coverage": "vitest --coverage",
     "test:watch": "vitest --watch",
+    "test:db": "TEST_PG_ADMIN_URL=${TEST_PG_ADMIN_URL:-postgresql://$USER@localhost:5432/postgres} vitest run __tests__/db",
     "db:generate": "prisma generate",
-    "db:migrate": "prisma migrate dev",
-    "db:push": "prisma db push",
+    "db:status": "npx tsx scripts/db/run.ts status",
+    "db:deploy": "npx tsx scripts/db/run.ts deploy",
+    "db:migrate": "npx tsx scripts/db/run.ts dev --target local",
     "db:studio": "prisma studio",
     "postinstall": "prisma generate",
     "prepare": "husky",
-    "generate-vapid-keys": "node scripts/generate-vapid-keys.js",
-    "migrate:frequentlyforgottenpoints": "node scripts/migrate-frequentlyforgottenpoints.js"
+    "generate-vapid-keys": "node scripts/generate-vapid-keys.js"
   },
   "lint-staged": {
     "*.{ts,tsx}": [

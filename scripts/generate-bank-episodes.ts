@@ -35,13 +35,13 @@
 // Idempotency: a sidecar hash (keyed by style, voices, length, notes and rules) is kept locally and in R2.
 // ============================================================
 
-import { config } from 'dotenv';
 import { existsSync, readFileSync, readdirSync, statSync } from 'fs';
 import { mkdtemp, writeFile, readFile, rm, mkdir } from 'fs/promises';
 import { tmpdir, homedir } from 'os';
 import { join, resolve } from 'path';
 import { execFileSync } from 'child_process';
 import { api } from './lib/iprep-api';
+import { loadExplicitEnvFile, printTarget, resolveScriptTarget, TargetError } from './lib/target';
 import {
   DEFAULT_DIALOGUE_MINUTES,
   DEFAULT_STYLE,
@@ -65,11 +65,8 @@ import {
   type LocalState,
 } from '../lib/bank-audio';
 
-// Env: current dir first, then the main iprep checkout next to this worktree.
-for (const dir of [process.cwd(), resolve(process.cwd(), '..', 'iprep')]) {
-  config({ path: join(dir, '.env.production.local'), quiet: true });
-  config({ path: join(dir, '.env.local'), quiet: true });
-}
+// No env file is loaded implicitly. Pass --env-file <path> or export the variables. Production is
+// never the default: --upload needs --target (and for production --confirm <bucket>).
 
 interface Args {
   bankIds: string[];
@@ -116,6 +113,8 @@ function parseArgs(argv: string[]): Args {
       const v = argv[++i];
       if (v !== 'dialogue' && v !== 'narrator') throw new Error('--style must be dialogue or narrator');
       args.style = v;
+    } else if (a === '--target' || a === '--confirm' || a === '--env-file') {
+      i++; // consumed by the target guard
     } else if (a.startsWith('--')) throw new Error(`Unknown option ${a}`);
     else args.bankIds.push(a);
   }
@@ -340,7 +339,23 @@ async function printStatus(args: Args) {
 }
 
 async function main() {
-  const args = parseArgs(process.argv.slice(2));
+  const argv = process.argv.slice(2);
+  Object.assign(process.env, loadExplicitEnvFile(argv));
+  const args = parseArgs(argv);
+  try {
+    printTarget('Generate bank episodes', resolveScriptTarget({
+      argv,
+      env: process.env,
+      uses: { api: true, r2: args.upload || hasR2() },
+      mutating: args.upload,
+    }));
+  } catch (e) {
+    if (e instanceof TargetError) {
+      console.error(`Refused: ${e.message}`);
+      process.exit(3);
+    }
+    throw e;
+  }
   if (args.status) {
     if (!hasR2()) throw new Error('Missing R2 credentials (R2_ENDPOINT, R2_BUCKET_NAME, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY)');
     await printStatus(args);

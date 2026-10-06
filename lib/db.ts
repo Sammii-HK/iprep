@@ -1,4 +1,8 @@
 import { PrismaClient } from '@prisma/client';
+import { assertRuntimeDbAllowed } from '@/lib/db-targets';
+
+// Fail loudly if a preview or development process is pointed at the production database.
+assertRuntimeDbAllowed(process.env.DATABASE_URL);
 
 const globalForPrisma = globalThis as unknown as {
   prisma: PrismaClient | undefined;

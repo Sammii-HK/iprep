@@ -3,16 +3,18 @@
 // Generate audio study sessions for iPrep question banks
 //
 // Usage:
-//   npx tsx scripts/generate-audio.ts --bank <bank-id>              # From production DB
-//   npx tsx scripts/generate-audio.ts --bank all                    # All banks from production DB
-//   npx tsx scripts/generate-audio.ts --csv public/banks/file.csv --id <id>  # From CSV
-//   npx tsx scripts/generate-audio.ts --bank <id> --duration 20min  # Custom duration
+//   npx tsx scripts/generate-audio.ts --bank <bank-id> --env-file <file>      # generate locally, no upload
+//   npx tsx scripts/generate-audio.ts --bank all --env-file <file>
+//   npx tsx scripts/generate-audio.ts --csv public/banks/file.csv --id <id>   # From CSV
+//   npx tsx scripts/generate-audio.ts --bank <id> --duration 20min            # Custom duration
+//   ... add --upload --target production --confirm <bucket> to write to R2
+//
+// Target safety: no .env file is loaded implicitly (it used to load a production env file first).
+// Reading banks needs a database in DATABASE_URL (from the environment or --env-file). Uploading to R2 is
+// the only mutation: it needs --upload, an explicit --target, and for production --confirm <bucket>.
 // ============================================================
 
-import { config } from 'dotenv';
-config({ path: '.env.production.local' });
-config({ path: '.env.local' });
-config();
+import { loadExplicitEnvFile, printTarget, resolveScriptTarget, TargetError } from './lib/target';
 
 import { readFile } from 'fs/promises';
 import { join } from 'path';
@@ -104,7 +106,7 @@ async function listAllBanks(): Promise<{ id: string; title: string; questionCoun
   return result.rows;
 }
 
-async function generateForBank(bankId: string, title: string, content: string, duration: string) {
+async function generateForBank(bankId: string, title: string, content: string, duration: string, upload: boolean) {
   console.log(`\n${'='.repeat(60)}`);
   console.log(`Generating: ${title}`);
   console.log(`  Bank ID: ${bankId}`);
@@ -144,6 +146,11 @@ async function generateForBank(bankId: string, title: string, content: string, d
   let transcript: string | undefined;
   try { transcript = await readFile(join(episodeDir, 'transcript.txt'), 'utf-8'); } catch {}
 
+  if (!upload) {
+    console.log(`\nGenerated locally in ${episodeDir}. Not uploaded (pass --upload with an explicit --target to write to R2).`);
+    return { audioUrl: '', transcriptUrl: undefined };
+  }
+
   console.log(`\nUploading to R2...`);
   const { audioUrl, transcriptUrl } = await uploadStudyAudio(bankId, mp3Buffer, transcript);
 
@@ -153,12 +160,30 @@ async function generateForBank(bankId: string, title: string, content: string, d
 }
 
 async function main() {
+  const rawArgv = process.argv.slice(2);
+  Object.assign(process.env, loadExplicitEnvFile(rawArgv));
   const args = parseArgs();
   const duration = args.duration || '15min';
+  const upload = args.upload === 'true';
+  try {
+    const resolved = resolveScriptTarget({
+      argv: rawArgv,
+      env: process.env,
+      uses: { db: Boolean(args.bank) || !args.csv, r2: upload },
+      mutating: upload,
+    });
+    printTarget('Generate audio', resolved);
+  } catch (e) {
+    if (e instanceof TargetError) {
+      console.error(`Refused: ${e.message}`);
+      process.exit(3);
+    }
+    throw e;
+  }
 
   if (args.csv && args.id) {
     const { title, content } = await loadBankFromCSV(args.csv);
-    await generateForBank(args.id, title, content, duration);
+    await generateForBank(args.id, title, content, duration, upload);
     return;
   }
 
@@ -175,7 +200,7 @@ async function main() {
       }
       try {
         const { content } = await loadBankFromDB(bank.id);
-        await generateForBank(bank.id, bank.title, content, duration);
+        await generateForBank(bank.id, bank.title, content, duration, upload);
       } catch (err: any) {
         console.error(`\nFailed on ${bank.title}: ${err.message}\n`);
       }
@@ -188,7 +213,7 @@ async function main() {
 
   if (args.bank) {
     const bank = await loadBankFromDB(args.bank);
-    await generateForBank(bank.id, bank.title, bank.content, duration);
+    await generateForBank(bank.id, bank.title, bank.content, duration, upload);
     return;
   }
 

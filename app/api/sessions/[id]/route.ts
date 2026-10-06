@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import { requireAuth } from "@/lib/auth";
+import { requireAuth, requireAccess } from "@/lib/auth";
+import { canAccessOwnedRecord } from "@/lib/access";
 import { handleApiError, NotFoundError, ValidationError } from "@/lib/errors";
 
 export async function GET(
@@ -8,7 +9,7 @@ export async function GET(
 	{ params }: { params: Promise<{ id: string }> }
 ) {
 	try {
-		const user = await requireAuth(request);
+		const { user } = await requireAccess(request, 'sessions:read');
 		const { id } = await params;
 		const { searchParams } = new URL(request.url);
 		const maxQuestionsParam = searchParams.get("maxQuestions");
@@ -50,9 +51,9 @@ export async function GET(
 			throw new NotFoundError("Session", id);
 		}
 
-		// Verify user owns the session (unless admin)
-		if (session.userId && session.userId !== user.id && user.role !== "ADMIN") {
-			throw new ValidationError("You do not have access to this session");
+		// Owner only (an admin may read an orphan with no owner).
+		if (!canAccessOwnedRecord(session, user)) {
+			throw new NotFoundError("Session", id);
 		}
 
 		// Validate session has a bank
@@ -230,9 +231,9 @@ export async function DELETE(
 			throw new NotFoundError("Session", id);
 		}
 
-		// Verify user owns the session (unless admin)
-		if (session.userId && session.userId !== user.id && user.role !== "ADMIN") {
-			throw new ValidationError("You do not have access to this session");
+		// Owner only (an admin may delete an orphan with no owner).
+		if (!canAccessOwnedRecord(session, user)) {
+			throw new NotFoundError("Session", id);
 		}
 
 		// Delete the session (cascade will handle related items)

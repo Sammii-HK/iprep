@@ -3,7 +3,7 @@ import { prisma } from '@/lib/db';
 import { notFactsBank } from '@/lib/fact-sheet';
 import { z } from 'zod';
 import { handleApiError, ValidationError } from '@/lib/errors';
-import { requireAuth } from '@/lib/auth';
+import { requireAccess } from '@/lib/auth';
 
 const CreateFolderSchema = z.object({
   title: z.string().min(1, 'Title is required').max(200, 'Title too long'),
@@ -13,7 +13,7 @@ const CreateFolderSchema = z.object({
 
 export async function GET(request: NextRequest) {
   try {
-    const user = await requireAuth(request);
+    const { user } = await requireAccess(request, 'folders:read');
 
     const folders = await prisma.bankFolder.findMany({
       where: { userId: user.id },
@@ -62,7 +62,7 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    const user = await requireAuth(request);
+    const { user } = await requireAccess(request, 'folders:write');
     const body = await request.json();
     const validated = CreateFolderSchema.parse(body);
 

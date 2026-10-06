@@ -18,7 +18,7 @@ export async function POST(request: NextRequest) {
     const user = await requireAuth(request);
     
     const formData = await request.formData();
-    const files = formData.getAll('files') as File[];
+    const files = (formData.getAll('files') as File[]).slice(0, 25); // at most 25 files per request
 
     if (!files || files.length === 0) {
       throw new ValidationError('No files provided');
@@ -38,6 +38,7 @@ export async function POST(request: NextRequest) {
         const title = file.name.replace(/\.[^/.]+$/, '').replace(/[-_]/g, ' ').trim() || 'Untitled Bank';
 
         // Read file content
+        if (file.size > 2 * 1024 * 1024) throw new Error('File too large (2 MB maximum)');
         const content = await file.text();
         const contentType = file.type;
 

@@ -19,18 +19,15 @@
 //   - Legacy static files (public/audio/study) are listed once: where a numbered file and a bare file
 //     are the same audio, the numbered one is kept.
 //   - Sub-groups of "Past roles" are folders with "group": "Past roles", so the app can show them together.
-//   - Reads folders through the iPrep API (IPREP_BASE_URL + x-internal-key). The key is never printed.
+//   - Reads folders through the iPrep API (IPREP_BASE_URL + a machine principal token in IPREP_API_TOKEN). The token is never printed.
 // ============================================================
 
-import { config } from 'dotenv';
 import { writeFile } from 'fs/promises';
-import { join, resolve } from 'path';
 import { api, apiConfig } from './lib/iprep-api';
+import { loadExplicitEnvFile, printTarget, resolveScriptTarget, TargetError } from './lib/target';
 
-for (const dir of [process.cwd(), resolve(process.cwd(), '..', 'iprep')]) {
-  config({ path: join(dir, '.env.production.local'), quiet: true });
-  config({ path: join(dir, '.env.local'), quiet: true });
-}
+// No env file is loaded implicitly. Pass --env-file <path> or export the variables.
+// --upload writes production storage, so it needs --target production --confirm <bucket>.
 
 /** Where the app downloads episodes from. */
 const AUDIO_BASE = (process.env.AUDIO_PUBLIC_BASE || 'https://iprep.sammii.dev').replace(/\/$/, '');
@@ -135,9 +132,25 @@ async function main() {
   for (let i = 0; i < argv.length; i++) {
     if (argv[i] === '--out') out = argv[++i];
     else if (argv[i] === '--upload') upload = true;
+    else if (argv[i] === '--target' || argv[i] === '--confirm' || argv[i] === '--env-file') i++;
     else throw new Error(`Unknown option ${argv[i]}`);
   }
   if (!out) throw new Error('--out needs a path');
+  Object.assign(process.env, loadExplicitEnvFile(argv));
+  try {
+    printTarget('Build audio manifest', resolveScriptTarget({
+      argv,
+      env: process.env,
+      uses: { api: true, r2: upload },
+      mutating: upload,
+    }));
+  } catch (e) {
+    if (e instanceof TargetError) {
+      console.error(`Refused: ${e.message}`);
+      process.exit(3);
+    }
+    throw e;
+  }
 
   apiConfig(); // fail early with a clear message if credentials are missing
   const r2 = hasR2();
@@ -158,11 +171,13 @@ async function main() {
     if (getStudyAudioState) {
       has = (await getStudyAudioState(bank.id)).hasAudio;
     } else {
-      const res = await fetch(`${PUBLIC_API_BASE}/api/banks/${bank.id}/audio`);
-      if (res.ok) {
-        const j = (await res.json()) as { hasAudio?: boolean; fileSizeBytes?: number };
+      // The audio probe is no longer public: it goes through the API with the machine principal token (banks:read).
+      try {
+        const j = await api<{ hasAudio?: boolean; fileSizeBytes?: number }>(`/api/banks/${bank.id}/audio`);
         has = Boolean(j.hasAudio);
         routeBytes = j.fileSizeBytes ?? 0;
+      } catch {
+        // not reachable or not permitted: treat as no audio
       }
     }
     let result: ManifestEpisode | null = null;

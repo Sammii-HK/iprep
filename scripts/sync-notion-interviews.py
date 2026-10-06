@@ -7,7 +7,8 @@ Reads upcoming interviews from Notion and POSTs them to iPrep's
 Environment:
   NOTION_TOKEN         Notion integration token (secret, never printed)
   IPREP_BASE_URL       e.g. https://iprep.example.com
-  IPREP_INTERNAL_KEY   the x-internal-key value iPrep accepts (secret)
+  IPREP_API_TOKEN      a machine principal token with the interviews:sync and folders:read scopes (secret).
+                       Create it with: npx tsx scripts/principals.ts create --name notion-sync ...
   NOTION_DATA_SOURCE_ID / NOTION_DATABASE_ID   optional overrides
 
 Usage:
@@ -215,12 +216,12 @@ def fetch_notion_pages(token: str) -> List[Dict[str, Any]]:
 
 
 def fetch_folders(base_url: str, key: str) -> List[Dict[str, Any]]:
-    data = _request(base_url.rstrip("/") + "/api/folders", "GET", {"x-internal-key": key})
+    data = _request(base_url.rstrip("/") + "/api/folders", "GET", {"Authorization": "Bearer " + key})
     return data if isinstance(data, list) else []
 
 
 def post_sync(base_url: str, key: str, payload: Dict[str, Any]) -> Dict[str, Any]:
-    headers = {"x-internal-key": key, "Content-Type": "application/json"}
+    headers = {"Authorization": "Bearer " + key, "Content-Type": "application/json"}
     return _request(base_url.rstrip("/") + "/api/interviews/sync", "POST", headers, payload)
 
 
@@ -241,14 +242,14 @@ def main(argv: Optional[List[str]] = None) -> int:
     args = ap.parse_args(argv)
 
     base_url = os.environ.get("IPREP_BASE_URL", "")
-    key = os.environ.get("IPREP_INTERNAL_KEY", "")
+    key = os.environ.get("IPREP_API_TOKEN", "")
     token = os.environ.get("NOTION_TOKEN", "")
 
     if not args.fixture and not token:
         print("NOTION_TOKEN is not set.", file=sys.stderr)
         return 2
     if not args.dry_run and not (base_url and key):
-        print("IPREP_BASE_URL and IPREP_INTERNAL_KEY must be set to sync.", file=sys.stderr)
+        print("IPREP_BASE_URL and IPREP_API_TOKEN must be set to sync.", file=sys.stderr)
         return 2
 
     try:

@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { requireAuth } from "@/lib/auth";
-import { handleApiError, NotFoundError, ValidationError } from "@/lib/errors";
+import { canAccessOwnedRecord } from "@/lib/access";
+import { handleApiError, NotFoundError } from "@/lib/errors";
 
 export async function GET(
 	request: NextRequest,
@@ -58,9 +59,9 @@ export async function GET(
 			throw new NotFoundError("Quiz", id);
 		}
 
-		// Verify user owns the quiz (unless admin)
-		if (quiz.userId && quiz.userId !== user.id && user.role !== "ADMIN") {
-			throw new ValidationError("You do not have access to this quiz");
+		// Owner only. An unowned quiz is an orphan: only an admin may touch it (to repair it).
+		if (!canAccessOwnedRecord(quiz, user)) {
+			throw new NotFoundError("Quiz", id);
 		}
 
 		let questions = quiz.bank?.questions || [];
@@ -130,9 +131,9 @@ export async function DELETE(
 			throw new NotFoundError("Quiz", id);
 		}
 
-		// Verify user owns the quiz (unless admin)
-		if (quiz.userId && quiz.userId !== user.id && user.role !== "ADMIN") {
-			throw new ValidationError("You do not have access to this quiz");
+		// Owner only (an admin may delete an orphan with no owner).
+		if (!canAccessOwnedRecord(quiz, user)) {
+			throw new NotFoundError("Quiz", id);
 		}
 
 		// Delete the quiz (cascade will handle related attempts)

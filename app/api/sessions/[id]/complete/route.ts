@@ -1,16 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/db';
-import { requireAuth } from '@/lib/auth';
+import { requireAccess } from '@/lib/auth';
+import { ownsRecord } from '@/lib/access';
 import { analyzeSessionPerformance, aggregateUserInsights } from '@/lib/learning-analytics';
-import { handleApiError, NotFoundError, ValidationError } from '@/lib/errors';
+import { handleApiError, NotFoundError } from '@/lib/errors';
 
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const user = await requireAuth(request);
+    const { user } = await requireAccess(request, 'sessions:write');
     const { id } = await params;
 
     // Get session
@@ -29,9 +30,9 @@ export async function POST(
       throw new NotFoundError('Session', id);
     }
 
-    // Verify user owns the session (unless admin)
-    if (session.userId && session.userId !== user.id && user.role !== 'ADMIN') {
-      throw new ValidationError('You do not have access to this session');
+    // Owner only. A session with no owner is never accessible here.
+    if (!ownsRecord(session, user)) {
+      throw new NotFoundError('Session', id);
     }
 
     // Check if already completed
