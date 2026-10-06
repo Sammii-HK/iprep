@@ -8,13 +8,17 @@
 //   --out <path>   Where to write manifest.json (default ./manifest.json)
 //   --upload       Also upload it to R2 as audio/study/manifest.json (writes to production storage)
 //
-// Rules:
-//   - Folders whose title starts "Archive:" and banks whose title starts "OLD" are left out.
-//   - Only banks that have an episode are listed (checked on R2 when credentials exist,
-//     otherwise through the auth-free GET /api/banks/<id>/audio route).
-//   - A bank appears under its first non-role folder AND under every role folder
-//     (titles ending "Interview Prep") it belongs to, so role playlists stay complete.
-//   - Legacy static episodes are included only if they are generic (see LEGACY_GENERAL).
+// Rules (nothing is left out: every episode that exists is listed):
+//   - Every bank in every folder with an episode is included, including "Archive:" folders and "OLD" banks.
+//     An episode is checked on R2 when credentials exist, otherwise through the auth-free
+//     GET /api/banks/<id>/audio route.
+//   - Order: live role folders (titles ending "Interview Prep"), then the other folders in their
+//     normal order, then a "Past roles" group (archive banks and legacy files by company,
+//     plus "Superseded" for OLD banks in live folders), then "General" (generic legacy files).
+//   - A bank appears under its first non-role folder AND under every role folder it belongs to.
+//   - Legacy static files (public/audio/study) are listed once: where a numbered file and a bare file
+//     are the same audio, the numbered one is kept.
+//   - Sub-groups of "Past roles" are folders with "group": "Past roles", so the app can show them together.
 //   - Reads folders through the iPrep API (IPREP_BASE_URL + x-internal-key). The key is never printed.
 // ============================================================
 
@@ -33,20 +37,48 @@ const AUDIO_BASE = (process.env.AUDIO_PUBLIC_BASE || 'https://iprep.sammii.dev')
 /** Public, auth-free deployment used for the legacy static files and for the audio check. */
 const PUBLIC_API_BASE = 'https://iprep-five.vercel.app';
 
+const PAST_ROLES = 'Past roles';
+/** Past-role companies, in display order. `match` is tested against bank titles. */
+const COMPANIES: Array<{ name: string; match: RegExp }> = [
+  { name: 'WunderGraph', match: /^WunderGraph\b/i },
+  { name: 'n8n', match: /^n8n\b/i },
+  { name: 'StackOne', match: /^StackOne\b/i },
+  { name: 'Ashby', match: /^Ashby\b/i },
+  { name: 'Cloudflare', match: /^Cloudflare\b/i },
+  { name: 'Found By Few', match: /^Found By Few\b/i },
+];
+const SUPERSEDED = 'Superseded';
+const OTHER_ARCHIVED = 'Other archived';
+
 /**
- * Legacy static episodes that are not tied to a rejected or old application.
- * Left out on purpose: WunderGraph, n8n, StackOne (rejected), Ashby, Cloudflare, Found By Few (old applications).
+ * Legacy static episodes in public/audio/study (31 files, 22 distinct recordings).
+ * Bare-named copies of numbered files (for example frontend-system-design.mp3 and
+ * 04-frontend-system-design.mp3) are byte-identical and are left out; the numbered file is kept.
+ * `folder` is the company, or 'General' for recordings that are not tied to one role.
  */
-const LEGACY_GENERAL: Array<{ id: string; title: string }> = [
-  { id: 'take-home-assignment-prep', title: 'Take-Home Assignment Prep' },
-  { id: 'frontend-system-design', title: 'Frontend System Design' },
-  { id: 'design-engineer-technical', title: 'Design Engineer: Technical' },
-  { id: 'design-engineer-behavioral', title: 'Design Engineer: Behavioural' },
-  { id: 'design-token-architecture', title: 'Design Token Architecture' },
-  { id: 'javascript-deep-dive', title: 'JavaScript Deep Dive' },
-  { id: 'performance-core-web-vitals', title: 'Performance and Core Web Vitals' },
-  { id: 'accessibility-wcag', title: 'Accessibility and WCAG' },
-  { id: 'star-stories', title: 'STAR Stories' },
+const LEGACY: Array<{ id: string; title: string; folder: string }> = [
+  { id: '01-wundergraph-role-specific', title: 'WunderGraph: Role Specific', folder: 'WunderGraph' },
+  { id: '08-graphql-federation-product', title: 'GraphQL Federation and Product', folder: 'WunderGraph' },
+  { id: '10-ux-audit-methodology', title: 'UX Audit Methodology', folder: 'WunderGraph' },
+  { id: 'wundergraph-interview', title: 'WunderGraph: Full Interview', folder: 'WunderGraph' },
+  { id: 'n8n-interview', title: 'n8n: Interview', folder: 'n8n' },
+  { id: 'n8n-behavioural', title: 'n8n: Behavioural', folder: 'n8n' },
+  { id: 'n8n-design-challenge', title: 'n8n: Design Challenge', folder: 'n8n' },
+  { id: 'n8n-design-systems', title: 'n8n: Design Systems', folder: 'n8n' },
+  { id: 'n8n-company-specific', title: 'n8n: Company Specific', folder: 'n8n' },
+  { id: 'stackone-interview', title: 'StackOne: Interview', folder: 'StackOne' },
+  { id: 'ashby-interview', title: 'Ashby: Interview', folder: 'Ashby' },
+  { id: 'cloudflare-interview', title: 'Cloudflare: Interview', folder: 'Cloudflare' },
+  { id: 'found-by-few-interview', title: 'Found By Few: Interview', folder: 'Found By Few' },
+  { id: 'take-home-assignment-prep', title: 'Take-Home Assignment Prep', folder: 'General' },
+  { id: '02-design-engineer-technical', title: 'Design Engineer: Technical', folder: 'General' },
+  { id: '03-design-engineer-behavioral', title: 'Design Engineer: Behavioural', folder: 'General' },
+  { id: '04-frontend-system-design', title: 'Frontend System Design', folder: 'General' },
+  { id: '05-star-stories', title: 'STAR Stories', folder: 'General' },
+  { id: '06-javascript-deep-dive', title: 'JavaScript Deep Dive', folder: 'General' },
+  { id: '07-design-token-architecture', title: 'Design Token Architecture', folder: 'General' },
+  { id: '09-performance-core-web-vitals', title: 'Performance and Core Web Vitals', folder: 'General' },
+  { id: '11-accessibility-wcag', title: 'Accessibility and WCAG', folder: 'General' },
 ];
 
 interface ApiFolder {
@@ -66,11 +98,13 @@ interface ManifestEpisode {
 interface ManifestFolder {
   title: string;
   order: number;
+  group?: string;
   episodes: ManifestEpisode[];
 }
 
 const isArchiveFolder = (title: string) => /^Archive:/i.test(title);
 const isOldBank = (title: string) => /^OLD\b/.test(title);
+const companyFor = (title: string) => COMPANIES.find((c) => c.match.test(title))?.name ?? OTHER_ARCHIVED;
 const isRoleFolder = (title: string) => /Interview Prep$/i.test(title);
 
 function hasR2(): boolean {
@@ -110,9 +144,9 @@ async function main() {
   const { getStudyAudioState } = r2 ? await import('../lib/r2') : { getStudyAudioState: null };
   console.log(r2 ? 'Checking episodes on R2.' : 'No R2 credentials: checking episodes through the public audio route.');
 
-  const folders = (await api<ApiFolder[]>('/api/folders'))
-    .filter((f) => !isArchiveFolder(f.title))
-    .sort((a, b) => a.order - b.order);
+  const folders = (await api<ApiFolder[]>('/api/folders')).sort((a, b) => a.order - b.order);
+  const live = folders.filter((f) => !isArchiveFolder(f.title));
+  const archive = folders.filter((f) => isArchiveFolder(f.title));
 
   // bankId -> episode (or null when there is no audio), so each bank is checked once.
   const episodes = new Map<string, ManifestEpisode | null>();
@@ -141,40 +175,73 @@ async function main() {
     return result;
   }
 
-  const out_folders = new Map<string, ManifestFolder>();
-  const placed = new Set<string>(); // banks already listed under a non-role folder
-  const add = (folder: ApiFolder, ep: ManifestEpisode) => {
-    const entry = out_folders.get(folder.id) ?? { title: folder.title, order: folder.order, episodes: [] };
+  const roleFolders = new Map<string, ManifestFolder>();
+  const genericFolders = new Map<string, ManifestFolder>();
+  /** Past-roles sub-folders by name. */
+  const past = new Map<string, ManifestEpisode[]>();
+  const general: ManifestEpisode[] = [];
+
+  const push = (into: Map<string, ManifestFolder>, folder: ApiFolder, ep: ManifestEpisode) => {
+    const entry = into.get(folder.id) ?? { title: folder.title, order: 0, episodes: [] };
     if (!entry.episodes.some((e) => e.bankId === ep.bankId)) entry.episodes.push(ep);
-    out_folders.set(folder.id, entry);
+    into.set(folder.id, entry);
+  };
+  const pushPast = (name: string, ep: ManifestEpisode) => {
+    const list = past.get(name) ?? [];
+    if (!list.some((e) => e.bankId === ep.bankId)) list.push(ep);
+    past.set(name, list);
   };
 
-  for (const folder of folders) {
+  const placed = new Set<string>(); // banks already listed once outside the role folders
+  for (const folder of live) {
     const role = isRoleFolder(folder.title);
     for (const bank of folder.banks) {
-      if (isOldBank(bank.title)) continue;
-      if (!role && placed.has(bank.id)) continue; // first non-role folder wins
       const ep = await episodeFor(bank);
       if (!ep) continue;
-      add(folder, ep);
-      if (!role) placed.add(bank.id);
+      if (isOldBank(bank.title)) {
+        if (!placed.has(bank.id)) pushPast(SUPERSEDED, ep);
+        placed.add(bank.id);
+        continue;
+      }
+      if (role) {
+        push(roleFolders, folder, ep);
+      } else if (!placed.has(bank.id)) {
+        push(genericFolders, folder, ep); // first non-role folder wins
+        placed.add(bank.id);
+      }
+    }
+  }
+  for (const folder of archive) {
+    for (const bank of folder.banks) {
+      if (placed.has(bank.id)) continue; // already listed in a live folder
+      const ep = await episodeFor(bank);
+      if (!ep) continue;
+      placed.add(bank.id);
+      pushPast(isOldBank(bank.title) ? SUPERSEDED : companyFor(bank.title), ep);
     }
   }
 
-  const result: ManifestFolder[] = [...out_folders.values()].sort((a, b) => a.order - b.order);
-
-  const general: ManifestEpisode[] = [];
-  for (const ep of LEGACY_GENERAL) {
-    const bytes = await headBytes(`${PUBLIC_API_BASE}/audio/study/${ep.id}.mp3`);
+  for (const legacy of LEGACY) {
+    const url = `${PUBLIC_API_BASE}/audio/study/${legacy.id}.mp3`;
+    const bytes = await headBytes(url);
     if (!bytes) {
-      console.warn(`  skipping legacy episode ${ep.id}: not reachable`);
+      console.warn(`  skipping legacy episode ${legacy.id}: not reachable`);
       continue;
     }
-    general.push({ bankId: ep.id, title: ep.title, url: `${PUBLIC_API_BASE}/audio/study/${ep.id}.mp3`, bytes });
+    const ep = { bankId: legacy.id, title: legacy.title, url, bytes };
+    if (legacy.folder === 'General') general.push(ep);
+    else pushPast(legacy.folder, ep);
   }
-  if (general.length > 0) {
-    result.push({ title: 'General', order: (result.at(-1)?.order ?? 0) + 1, episodes: general });
-  }
+
+  const result: ManifestFolder[] = [];
+  const add = (f: Omit<ManifestFolder, 'order'>) => {
+    if (f.episodes.length > 0) result.push({ ...f, order: result.length });
+  };
+  for (const f of roleFolders.values()) add(f);
+  for (const f of genericFolders.values()) add(f);
+  const pastOrder = [...COMPANIES.map((c) => c.name), SUPERSEDED, OTHER_ARCHIVED];
+  for (const name of pastOrder) add({ title: name, group: PAST_ROLES, episodes: past.get(name) ?? [] });
+  add({ title: 'General', episodes: general });
 
   const manifest = { generatedAt: new Date().toISOString(), folders: result };
   const json = JSON.stringify(manifest, null, 2) + '\n';
@@ -182,7 +249,7 @@ async function main() {
 
   const count = result.reduce((n, f) => n + f.episodes.length, 0);
   const totalBytes = result.reduce((n, f) => n + f.episodes.reduce((m, e) => m + e.bytes, 0), 0);
-  for (const f of result) console.log(`  ${f.title}: ${f.episodes.length}`);
+  for (const f of result) console.log(`  ${f.group ? `${f.group} / ` : ''}${f.title}: ${f.episodes.length}`);
   console.log(`\nWrote ${out}: ${result.length} folders, ${count} episodes, ${(totalBytes / 1024 / 1024).toFixed(0)} MB if everything were downloaded.`);
 
   if (upload) {
