@@ -133,3 +133,19 @@ export async function getStudyAudioState<T = unknown>(
     return { hasAudio: true, meta: null };
   }
 }
+
+/** Publishes the podcast manifest the iOS app reads (audio/study/manifest.json). */
+export async function uploadStudyManifest(json: string): Promise<{ manifestUrl: string }> {
+  const s3Client = getS3Client();
+  const key = 'audio/study/manifest.json';
+  await s3Client.send(
+    new PutObjectCommand({
+      Bucket: process.env.R2_BUCKET_NAME!,
+      Key: key,
+      Body: Buffer.from(json),
+      ContentType: 'application/json',
+      CacheControl: 'public, max-age=300',
+    })
+  );
+  return { manifestUrl: getAudioUrl(key) };
+}
