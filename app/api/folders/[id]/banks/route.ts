@@ -41,7 +41,8 @@ export async function POST(
       throw new NotFoundError('QuestionBank', validated.bankId);
     }
 
-    if (bank.userId !== user.id) {
+    // Shared seed banks have no owner (userId null): anyone can file them into their own folder.
+    if (bank.userId && bank.userId !== user.id) {
       throw new ValidationError('You do not have access to this question bank');
     }
 
