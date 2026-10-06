@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
+import { NextInterviewCard } from "@/components/interviews/NextInterviewCard";
 
 interface RecentSession {
   id: string;
@@ -125,6 +126,8 @@ export default function DashboardPage() {
           Your practice overview and quick actions
         </p>
       </div>
+
+      <NextInterviewCard />
 
       {/* ── Study Hub ─────────────────────────────────────────── */}
       {study && (

@@ -30,6 +30,7 @@ export default function DashboardLayout({
 	const navLinks = [
 		{ href: "/dashboard", label: "Dashboard" },
 		{ href: "/review", label: "Review" },
+		{ href: "/interviews", label: "Interviews" },
 		{ href: "/banks", label: "Banks" },
 		{ href: "/practice", label: "Practice" },
 		{ href: "/debrief", label: "Debrief" },

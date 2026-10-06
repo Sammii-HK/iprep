@@ -1,0 +1,44 @@
+{
+  "results": [
+    {
+      "id": "11111111-aaaa-4bbb-8ccc-000000000001",
+      "properties": {
+        "Title": { "title": [{ "plain_text": "Attio design systems screen" }] },
+        "Company": { "rich_text": [{ "plain_text": "Attio" }] },
+        "Role": { "rich_text": [{ "plain_text": "Design Systems Engineer" }] },
+        "Interview Date": { "date": { "start": "2099-10-08T14:00:00.000", "end": "2099-10-08T14:45:00.000", "time_zone": "Europe/London" } },
+        "Interview Round": { "select": { "name": "Recruiter screen" } },
+        "Interview Link": { "url": "https://meet.example.com/abc" },
+        "Booking Link": { "url": "javascript:alert(1)" },
+        "Interviewer": { "rich_text": [{ "plain_text": "Alex Doe" }] },
+        "Status": { "select": { "name": "Scheduled" } }
+      }
+    },
+    {
+      "id": "11111111-aaaa-4bbb-8ccc-000000000002",
+      "properties": {
+        "Title": { "title": [{ "plain_text": "Date only row" }] },
+        "Company": { "rich_text": [{ "plain_text": "Acme" }] },
+        "Role": { "rich_text": [] },
+        "Interview Date": { "date": { "start": "2099-11-01", "end": null, "time_zone": null } },
+        "Interview Round": { "select": null }
+      }
+    },
+    {
+      "id": "11111111-aaaa-4bbb-8ccc-000000000003",
+      "properties": {
+        "Company": { "rich_text": [{ "plain_text": "Old Co" }] },
+        "Role": { "rich_text": [{ "plain_text": "Engineer" }] },
+        "Interview Date": { "date": { "start": "2020-01-01T10:00:00.000+00:00", "end": null, "time_zone": null } }
+      }
+    },
+    {
+      "id": "11111111-aaaa-4bbb-8ccc-000000000004",
+      "properties": {
+        "Company": { "rich_text": [{ "plain_text": "No Date Ltd" }] },
+        "Role": { "rich_text": [{ "plain_text": "Engineer" }] },
+        "Interview Date": { "date": null }
+      }
+    }
+  ]
+}
