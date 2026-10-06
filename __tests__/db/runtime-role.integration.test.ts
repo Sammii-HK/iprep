@@ -103,8 +103,9 @@ describe.skipIf(!ADMIN_URL)('runtime database role', () => {
     expect(Number((await hit())[0].count)).toBe(1);
     expect(Number((await hit())[0].count)).toBe(2);
     const learner = await app.user.create({ data: { email: 'mp@example.com', password: 'x' } });
+    const principalLearner = await app.learner.create({ data: { userId: learner.id } });
     const principal = await app.machinePrincipal.create({
-      data: { name: 'it', tokenHash: 'h'.repeat(64), tokenPrefix: 'ipm_abcd', scopes: ['banks:read'], userId: learner.id },
+      data: { name: 'it', tokenHash: 'h'.repeat(64), tokenPrefix: 'ipm_abcd', scopes: ['banks:read'], userId: learner.id, learnerId: principalLearner.id },
     });
     await app.machineAudit.create({ data: { principalId: principal.id, method: 'GET', path: '/x', scope: 'banks:read', status: 200 } });
     expect(await app.machineAudit.count()).toBe(1);

@@ -36,9 +36,18 @@ describe('machine principals', () => {
     expect(upsert).not.toHaveBeenCalled();
   });
 
-  it('a principal created before it was bound resolves its user\'s learner (and is still the actor, not the learner)', async () => {
+  it('never inherits a learner through its user: without a binding it is refused, and the user\'s learner is not touched', async () => {
+    const { db, upsert } = fakeDb();
+    await expect(
+      resolveLearnerActor({ user: { id: 'admin-1' }, principal: { id: 'principal-9', learnerId: '' } }, db)
+    ).rejects.toThrow(/bound to a learner/);
+    expect(upsert).not.toHaveBeenCalled();
+  });
+
+  it('is never the learner: the actor id and the learner id are different identities', async () => {
     const { db } = fakeDb();
-    const actor = await resolveLearnerActor({ user: { id: 'user-1' }, principal: { id: 'principal-9', learnerId: null } }, db);
-    expect(actor).toEqual({ learnerId: 'learner-for-user-1', actorPrincipalId: 'principal-9' });
+    const actor = await resolveLearnerActor({ user: { id: 'u' }, principal: { id: 'p-1', learnerId: 'l-1' } }, db);
+    expect(actor.actorPrincipalId).toBe('p-1');
+    expect(actor.learnerId).toBe('l-1');
   });
 });

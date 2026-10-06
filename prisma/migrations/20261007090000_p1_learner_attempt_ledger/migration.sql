@@ -17,6 +17,7 @@ CREATE TYPE "EvaluationStatus" AS ENUM ('COMPLETED', 'FAILED', 'SKIPPED');
 CREATE TYPE "MeasurementDimension" AS ENUM ('RECALL', 'EXPLANATION', 'APPLICATION', 'DELIVERY', 'DISCRIMINATION', 'EXPOSURE');
 
 -- AlterTable
+-- Added nullable so existing rows can be bound by the backfill below, then made NOT NULL.
 ALTER TABLE "MachinePrincipal" ADD COLUMN     "learnerId" TEXT;
 
 -- AlterTable
@@ -306,6 +307,8 @@ ON CONFLICT ("userId") DO NOTHING;
 -- Machine principals act on behalf of their user's learner. They do not become learners.
 UPDATE "MachinePrincipal" m SET "learnerId" = l."id"
 FROM "Learner" l WHERE l."userId" = m."userId" AND m."learnerId" IS NULL;
+-- Every principal is now bound to exactly one learner. There is no fallback through its user.
+ALTER TABLE "MachinePrincipal" ALTER COLUMN "learnerId" SET NOT NULL;
 
 -- Practice answers that belong to a learner. SessionItem has no owner of its own: the learner is the session's
 -- owner. Items in sessions with no owner cannot be attributed to anyone and are intentionally not imported.
@@ -326,8 +329,9 @@ FROM "SessionItem" si
 WHERE EXISTS (SELECT 1 FROM "Attempt" a WHERE a."id" = 'att_' || si."id")
 ON CONFLICT ("attemptId") DO NOTHING;
 
--- Content evaluation. When the stored feedback is one of the application's own failure messages, the numbers on
--- the row were a canned fallback, not an assessment: the evaluation is recorded as FAILED with no measurements.
+-- Content evaluation. When the stored feedback is one of the application's own failure messages, the numbers,
+-- the answered flag and the feedback on the row were canned fallback output, not an assessment. The evaluation is
+-- recorded as FAILED carrying only the failure message: no measurements, no feedback, no answered flag.
 INSERT INTO "AttemptEvaluation" ("id", "attemptId", "kind", "status", "evaluatorVersion", "failureReason",
                                  "questionAnswered", "feedback", "dimensionMap", "legacyRef")
 SELECT 'evl_' || si."id", 'att_' || si."id", 'LEGACY_IMPORT',
@@ -335,10 +339,11 @@ SELECT 'evl_' || si."id", 'att_' || si."id", 'LEGACY_IMPORT',
             THEN 'FAILED'::"EvaluationStatus" ELSE 'COMPLETED'::"EvaluationStatus" END,
        'legacy-unversioned',
        CASE WHEN si."aiFeedback" ~ '^(AI analysis temporarily unavailable|AI analysis error|Could not analyze response|AI analysis timed out|Network error during AI analysis)'
-            THEN 'legacy row stored the application''s fallback analysis (canned scores), not an evaluation' END,
-       si."questionAnswered",
-       jsonb_build_object('whatWasRight', si."whatWasRight", 'whatWasWrong', si."whatWasWrong",
-                          'betterWording', si."betterWording", 'dontForget', si."dontForget", 'text', si."aiFeedback"),
+            THEN 'legacy fallback stored as scores: ' || left(split_part(si."aiFeedback", ' | ', 1), 200) END,
+       CASE WHEN si."aiFeedback" ~ '^(AI analysis temporarily unavailable|AI analysis error|Could not analyze response|AI analysis timed out|Network error during AI analysis)' THEN NULL ELSE si."questionAnswered" END,
+       CASE WHEN si."aiFeedback" ~ '^(AI analysis temporarily unavailable|AI analysis error|Could not analyze response|AI analysis timed out|Network error during AI analysis)' THEN NULL
+            ELSE jsonb_build_object('whatWasRight', si."whatWasRight", 'whatWasWrong', si."whatWasWrong",
+                                    'betterWording', si."betterWording", 'dontForget', si."dontForget", 'text', si."aiFeedback") END,
        'dimensions@1',
        'SessionItem:' || si."id"
 FROM "SessionItem" si

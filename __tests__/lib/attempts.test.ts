@@ -3,6 +3,7 @@ import { AttemptSurface, MeasurementDimension } from '@prisma/client';
 import {
   DELIVERY_HEURISTICS_VERSION,
   DIMENSION_MAP_VERSION,
+  EVIDENCE_DIMENSIONS,
   LedgerInputError,
   METRIC_DIMENSIONS,
   SPOKEN_ANSWER_EVALUATOR,
@@ -82,6 +83,20 @@ describe('exposure is not recall', () => {
     expect(() => validateAttemptInput(withDimension('RECALL'))).toThrow(/EXPOSURE/);
     expect(() => validateAttemptInput(withDimension(null))).toThrow(/EXPOSURE/);
     expect(() => validateAttemptInput(withDimension('EXPOSURE'))).not.toThrow();
+  });
+});
+
+describe('exposure cannot leak into evidence', () => {
+  it('no scored metric is ever tagged EXPOSURE, and the evidence dimensions exclude it', () => {
+    expect(Object.values(METRIC_DIMENSIONS)).not.toContain('EXPOSURE');
+    expect(EVIDENCE_DIMENSIONS).not.toContain('EXPOSURE');
+    expect([...EVIDENCE_DIMENSIONS, 'EXPOSURE'].sort()).toEqual(Object.values(MeasurementDimension).sort());
+  });
+
+  it('generic scoring never produces an exposure or recall measurement from an exposure attempt', () => {
+    const listen: AttemptInput = { ...base, surface: 'PODCAST_LISTEN', responseMode: 'NONE' };
+    const ai = aiEvaluation({ outcome: { status: 'COMPLETED', questionAnswered: true, scores: { technicalAccuracy: 9 }, feedback: {} }, provider: 'p', model: 'm' });
+    expect(() => validateAttemptInput({ ...listen, evaluations: [ai] })).toThrow(/EXPOSURE/);
   });
 });
 

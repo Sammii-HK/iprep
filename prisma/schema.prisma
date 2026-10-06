@@ -291,10 +291,10 @@ model MachinePrincipal {
   scopes      String[]
   userId      String // the user account whose data this principal acts on
   user        User           @relation(fields: [userId], references: [id], onDelete: Restrict)
-  // The learner this principal acts on behalf of. A principal is never a learner itself. Nullable only so that
-  // code from before this column existed can still create principals; ensureLearner() fills it.
-  learnerId   String?
-  learner     Learner?       @relation(fields: [learnerId], references: [id], onDelete: Restrict)
+  // The learner this principal acts on behalf of. A principal is never a learner itself, and it does not
+  // inherit learner identity through its user: the binding is explicit and required.
+  learnerId   String
+  learner     Learner         @relation(fields: [learnerId], references: [id], onDelete: Restrict)
   attempts    Attempt[]
   createdAt   DateTime       @default(now())
   expiresAt   DateTime?

@@ -32,6 +32,13 @@ export const SPOKEN_ANSWER_EVALUATOR = {
 export const DELIVERY_HEURISTICS_VERSION = 'delivery-heuristics@1';
 
 /**
+ * The dimensions that count as evidence of retrieval or performance. EXPOSURE is deliberately absent: being shown
+ * something never counts as having demonstrated it. Any aggregate that asks "what has the learner demonstrated"
+ * must filter on this list, not on "every dimension".
+ */
+export const EVIDENCE_DIMENSIONS = ['RECALL', 'EXPLANATION', 'APPLICATION', 'DELIVERY', 'DISCRIMINATION'] as const;
+
+/**
  * dimensions@1. Only what can be defended is tagged; everything else has no dimension rather than a guess.
  *   technicalAccuracy -> RECALL       (was the retrieved content right)
  *   clarityScore      -> EXPLANATION  (was it explained clearly)

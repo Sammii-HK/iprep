@@ -14,7 +14,7 @@ import { cpSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync }
 import { tmpdir } from 'os';
 import { join } from 'path';
 import { PrismaClient } from '@prisma/client';
-import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { classifyDbTarget } from '@/lib/db-targets';
 import { METRIC_DIMENSIONS, aiEvaluation, appendEvaluation, deliveryEvaluation, recordAttempt } from '@/lib/attempts';
 import { persistPracticeAnswer } from '@/lib/attempt-compat';
@@ -101,6 +101,9 @@ describe.skipIf(!ADMIN_URL)('learner and attempt ledger (P1)', () => {
     await run(`INSERT INTO "SessionItem" ("id","sessionId","questionId","audioUrl","transcript","words","wpm","fillerCount","fillerRate","longPauses",
         "confidenceScore","intonationScore","starScore","impactScore","clarityScore","whatWasRight","whatWasWrong","betterWording","dontForget","aiFeedback","createdAt")
       VALUES ('si-old','s-owned','q1',NULL,'old style answer here ok',5,90,0,0,0,3,3,2,2,3,ARRAY[]::text[],ARRAY[]::text[],ARRAY[]::text[],ARRAY[]::text[],'Expand your answer','2025-12-01')`);
+    // an owned answer with no scores, no feedback and no delivery scores: it has evidence but nothing was evaluated
+    await run(`INSERT INTO "SessionItem" ("id","sessionId","questionId","audioUrl","transcript","whatWasRight","whatWasWrong","betterWording","dontForget","createdAt")
+      VALUES ('si-bare','s-owned','q1','https://r2.example/b','a bare answer with nothing evaluated',ARRAY[]::text[],ARRAY[]::text[],ARRAY[]::text[],ARRAY[]::text[],'2025-12-02')`);
     // unowned session: nobody to attribute it to
     await run(`INSERT INTO "SessionItem" ("id","sessionId","questionId","audioUrl","transcript","words","wpm","fillerCount","fillerRate","longPauses",
         "confidenceScore","intonationScore","whatWasRight","whatWasWrong","betterWording","dontForget","createdAt")
@@ -153,7 +156,7 @@ describe.skipIf(!ADMIN_URL)('learner and attempt ledger (P1)', () => {
       const a = await rows<{ id: string; learnerId: string; surface: string; responseMode: string; source: string; sessionId: string; questionId: string; promptSnapshot: string; goalId: string | null; actorPrincipalId: string | null }>(
         `SELECT "id","learnerId","surface","responseMode","source","sessionId","questionId","promptSnapshot","goalId","actorPrincipalId" FROM "Attempt" ORDER BY "id"`
       );
-      expect(a.map((x) => x.id)).toEqual(['att_si-failed', 'att_si-ok', 'att_si-old']);
+      expect(a.map((x) => x.id)).toEqual(['att_si-bare', 'att_si-failed', 'att_si-ok', 'att_si-old']);
       for (const x of a) {
         expect(x).toMatchObject({ learnerId: 'lrn_u-admin', surface: 'WRITTEN_TO_SPOKEN', responseMode: 'SPOKEN', source: 'legacy-backfill', sessionId: 's-owned' });
         expect(x.goalId).toBeNull(); // no goal is ever invented for historical data
@@ -166,6 +169,7 @@ describe.skipIf(!ADMIN_URL)('learner and attempt ledger (P1)', () => {
       expect(await rows(`SELECT 1 FROM "Attempt" WHERE "legacyRef" = 'SessionItem:si-unowned'`)).toHaveLength(0);
       const link = await rows<{ id: string; attemptId: string | null }>(`SELECT "id","attemptId" FROM "SessionItem" ORDER BY "id"`);
       expect(link).toEqual([
+        { id: 'si-bare', attemptId: 'att_si-bare' },
         { id: 'si-failed', attemptId: 'att_si-failed' },
         { id: 'si-ok', attemptId: 'att_si-ok' },
         { id: 'si-old', attemptId: 'att_si-old' },
@@ -213,13 +217,45 @@ describe.skipIf(!ADMIN_URL)('learner and attempt ledger (P1)', () => {
       expect(m.find((x) => x.metric === 'answerQuality')?.value).toBe(7.5);
     });
 
-    it('records a stored fallback as a FAILED evaluation with no scores, but keeps its valid delivery scores', async () => {
-      const [ai] = await rows<{ status: string; failureReason: string }>(`SELECT "status","failureReason" FROM "AttemptEvaluation" WHERE "id" = 'evl_si-failed'`);
+    it('records a stored fallback as evaluator failure metadata only: no scores, no canned feedback, no answered flag', async () => {
+      const [ai] = await rows<{ status: string; failureReason: string; questionAnswered: boolean | null; feedback: unknown }>(
+        `SELECT "status","failureReason","questionAnswered","feedback" FROM "AttemptEvaluation" WHERE "id" = 'evl_si-failed'`
+      );
       expect(ai.status).toBe('FAILED');
-      expect(ai.failureReason).toMatch(/fallback/);
+      expect(ai.failureReason).toBe('legacy fallback stored as scores: AI analysis temporarily unavailable');
+      expect(ai.questionAnswered).toBeNull(); // the fixture row says true: that was canned
+      expect(ai.feedback).toBeNull(); // "Your response was recorded" is boilerplate, not feedback
       expect(await rows(`SELECT 1 FROM "AttemptMeasurement" WHERE "evaluationId" = 'evl_si-failed'`)).toHaveLength(0);
+      // delivery heuristics are real measurements of the transcript and stay valid
       const delivery = await rows<{ metric: string; value: number }>(`SELECT "metric","value" FROM "AttemptMeasurement" WHERE "evaluationId" = 'evd_si-failed' ORDER BY "metric"`);
       expect(delivery).toEqual([{ metric: 'confidenceScore', value: 4 }, { metric: 'intonationScore', value: 4 }]);
+    });
+
+    it('audit: an evaluation exists only where the legacy row has the evidence for it, with exact counts by kind, status and dimension', async () => {
+      // the bare row has evidence but nothing to evaluate: no evaluation of either kind
+      expect(await rows(`SELECT 1 FROM "AttemptEvaluation" WHERE "attemptId" = 'att_si-bare'`)).toHaveLength(0);
+      expect(await rows(`SELECT 1 FROM "AttemptEvidence" WHERE "attemptId" = 'att_si-bare'`)).toHaveLength(1);
+      const byType = await rows<{ type: string; status: string; n: number }>(
+        `SELECT CASE WHEN "legacyRef" LIKE '%:delivery' THEN 'delivery' ELSE 'content' END AS type, "status"::text AS status, count(*)::int AS n
+         FROM "AttemptEvaluation" GROUP BY 1,2 ORDER BY 1,2`
+      );
+      expect(byType).toEqual([
+        { type: 'content', status: 'COMPLETED', n: 2 },
+        { type: 'content', status: 'FAILED', n: 1 },
+        { type: 'delivery', status: 'COMPLETED', n: 3 },
+      ]);
+      const byDimension = await rows<{ d: string; n: number }>(
+        `SELECT coalesce("dimension"::text,'(none)') AS d, count(*)::int AS n FROM "AttemptMeasurement" GROUP BY 1 ORDER BY 1`
+      );
+      // ok: 6 content + 2 delivery; old: 3 content (star, impact, clarity) + 2 delivery; failed: 0 content + 2 delivery
+      expect(byDimension).toEqual([
+        { d: '(none)', n: 6 }, // ok: answerQuality, star, impact, terminology (4) + old: star, impact (2)
+        { d: 'DELIVERY', n: 6 },
+        { d: 'EXPLANATION', n: 2 }, // ok + old clarityScore
+        { d: 'RECALL', n: 1 }, // ok technicalAccuracy; old has none
+      ]);
+      // every measurement belongs to a COMPLETED evaluation, and none came from a fallback
+      expect(await rows(`SELECT 1 FROM "AttemptMeasurement" m JOIN "AttemptEvaluation" e ON e."id" = m."evaluationId" WHERE e."status" <> 'COMPLETED'`)).toHaveLength(0);
     });
 
     it('does not touch the legacy rows: the UI keeps reading exactly what it read before', async () => {
@@ -462,29 +498,44 @@ describe.skipIf(!ADMIN_URL)('learner and attempt ledger (P1)', () => {
       expect((await app.sessionItem.findUniqueOrThrow({ where: { id: out.sessionItemId } })).answerQuality).toBe(4);
     });
 
-    it('if the ledger write fails the answer is still saved, unlinked, and the divergence check can find it', async () => {
-      vi.spyOn(console, 'error').mockImplementation(() => undefined);
-      const session = await app.session.create({ data: { userId: 'u-two', title: 'Diverge', bankId: null } });
+    it('if the ledger write fails the request fails and neither representation commits', async () => {
+      const session = await app.session.create({ data: { userId: 'u-two', title: 'Atomic', bankId: null } });
       const q = await app.question.findFirstOrThrow({ where: { text: 'Explain closures.' } });
-      const out = await persistPracticeAnswer(
-        app,
-        { sessionId: session.id, questionId: q.id, transcript: 'x', whatWasRight: [], whatWasWrong: [], betterWording: [], dontForget: [] },
-        {
-          userId: 'u-two', sessionId: session.id, question: { id: q.id, text: '   ', tags: [], bankId: null }, // an empty prompt is refused by the ledger
-          evidence: { transcript: 'x', audioRef: null, words: 1, wpm: null, fillerCount: null, fillerRate: null, longPauses: null },
-          provenance: { status: 'COMPLETED' }, questionAnswered: null, scores: {}, feedback: {}, confidenceScore: null, intonationScore: null,
-        }
-      );
-      expect(out.attemptId).toBeNull();
-      const { CHECKS } = await import('@/scripts/ledger-check');
-      const check = CHECKS.find((c) => c.name === 'owned-session-items-without-attempt')!;
-      const [{ n }] = await rows<{ n: number }>(check.sql);
-      expect(Number(n)).toBeGreaterThanOrEqual(1);
+      await expect(
+        persistPracticeAnswer(
+          app,
+          { sessionId: session.id, questionId: q.id, transcript: 'x', whatWasRight: [], whatWasWrong: [], betterWording: [], dontForget: [] },
+          {
+            userId: 'u-two', sessionId: session.id, question: { id: q.id, text: '   ', tags: [], bankId: null }, // an empty prompt is refused by the ledger
+            evidence: { transcript: 'x', audioRef: null, words: 1, wpm: null, fillerCount: null, fillerRate: null, longPauses: null },
+            provenance: { status: 'COMPLETED' }, questionAnswered: null, scores: {}, feedback: {}, confidenceScore: null, intonationScore: null,
+          }
+        )
+      ).rejects.toThrow();
+      expect(await app.sessionItem.count({ where: { sessionId: session.id } })).toBe(0);
+      expect(await app.attempt.count({ where: { sessionId: session.id } })).toBe(0);
+    });
+
+    it('if the legacy insert fails after the attempt was written, the attempt is rolled back too', async () => {
+      const q = await app.question.findFirstOrThrow({ where: { text: 'Explain closures.' } });
+      const before = await app.attempt.count();
+      await expect(
+        persistPracticeAnswer(
+          app,
+          { sessionId: 'no-such-session', questionId: q.id, transcript: 'x', whatWasRight: [], whatWasWrong: [], betterWording: [], dontForget: [] },
+          {
+            userId: 'u-two', sessionId: 'no-such-session', question: { id: q.id, text: q.text, tags: [], bankId: null },
+            evidence: { transcript: 'x', audioRef: null, words: 1, wpm: null, fillerCount: null, fillerRate: null, longPauses: null },
+            provenance: { status: 'COMPLETED' }, questionAnswered: null, scores: {}, feedback: {}, confidenceScore: null, intonationScore: null,
+          }
+        )
+      ).rejects.toThrow();
+      expect(await app.attempt.count()).toBe(before);
     });
   });
 
   describe('divergence check', () => {
-    it('every check runs; identity and score checks are clean, and the one failed ledger write above is the only unlinked answer', async () => {
+    it('every check runs and every check is clean: no unlinked answer exists, because a failed ledger write fails the request', async () => {
       const { CHECKS } = await import('@/scripts/ledger-check');
       const result: Record<string, number> = {};
       for (const c of CHECKS) result[c.name] = Number((await rows<{ n: number }>(c.sql))[0].n);
@@ -496,7 +547,30 @@ describe.skipIf(!ADMIN_URL)('learner and attempt ledger (P1)', () => {
         'overall-score-differs': 0,
         'quiz-attempts-without-attempt': 0,
       });
-      expect(result['owned-session-items-without-attempt']).toBe(1);
+      expect(result['owned-session-items-without-attempt']).toBe(0);
+    });
+  });
+
+  describe('identity boundaries', () => {
+    it('a machine principal must be bound to a learner: the binding is required, with no fallback through its user', async () => {
+      await expect(
+        run(`INSERT INTO "MachinePrincipal" ("id","name","tokenHash","tokenPrefix","scopes","userId") VALUES ('mp-x','x','${'g'.repeat(64)}','ipm_xxxx',ARRAY['banks:read'],'u-admin')`)
+      ).rejects.toThrow(/23502/); // not-null violation
+    });
+
+    it('a principal is never a learner: no learner row is keyed by a principal, and attempts record it only as the actor', async () => {
+      expect(await rows(`SELECT 1 FROM "Learner" l JOIN "MachinePrincipal" m ON m."id" = l."id" OR m."id" = l."userId"`)).toHaveLength(0);
+      const col = await rows<{ column_name: string }>(`SELECT column_name FROM information_schema.columns WHERE table_name = 'Learner'`);
+      expect(col.map((c) => c.column_name).sort()).toEqual(['createdAt', 'id', 'userId']);
+    });
+
+    it('goals are context only: creating or completing one produces no attempt, evidence or measurement', async () => {
+      const before = await rows<{ n: number }>(`SELECT ((SELECT count(*) FROM "Attempt") + (SELECT count(*) FROM "AttemptEvidence") + (SELECT count(*) FROM "AttemptMeasurement"))::int AS n`);
+      await run(`INSERT INTO "Goal" ("id","learnerId","title","updatedAt") VALUES ('g1','lrn_u-admin','Interview prep',now())`);
+      await run(`UPDATE "Goal" SET "status" = 'ACHIEVED', "updatedAt" = now() WHERE "id" = 'g1'`);
+      const after = await rows<{ n: number }>(`SELECT ((SELECT count(*) FROM "Attempt") + (SELECT count(*) FROM "AttemptEvidence") + (SELECT count(*) FROM "AttemptMeasurement"))::int AS n`);
+      expect(after).toEqual(before);
+      expect(await rows(`SELECT 1 FROM "Attempt" WHERE "goalId" IS NOT NULL`)).toHaveLength(0);
     });
   });
 

@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { appendReanalysis, persistPracticeAnswer, spokenAnswerEvaluations, type PracticeCanonical } from '@/lib/attempt-compat';
+import { applyReanalysis, persistPracticeAnswer, spokenAnswerEvaluations, type PracticeCanonical } from '@/lib/attempt-compat';
 
 const legacy = { sessionId: 's1', questionId: 'q1', transcript: 'hello there', whatWasRight: [], whatWasWrong: [], betterWording: [], dontForget: [] };
 
@@ -61,18 +61,23 @@ describe('persistPracticeAnswer', () => {
     expect(kinds).toEqual(['AI_RUBRIC', 'DETERMINISTIC']);
   });
 
-  it('never loses the learner\'s answer when the ledger write fails: saves the legacy row alone and says so', async () => {
-    const error = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+  it('fails the request when the ledger write fails: nothing is committed and there is no legacy-only fallback', async () => {
     const db = {
       $transaction: vi.fn(async () => {
         throw new Error('relation "Attempt" does not exist');
       }),
-      sessionItem: { create: vi.fn(async () => ({ id: 'item-2' })) },
+      sessionItem: { create: vi.fn() },
     };
-    const out = await persistPracticeAnswer(db as never, legacy, canonical);
-    expect(out).toEqual({ sessionItemId: 'item-2', attemptId: null });
-    expect(db.sessionItem.create).toHaveBeenCalledWith({ data: legacy, select: { id: true } });
-    expect(error).toHaveBeenCalled();
+    await expect(persistPracticeAnswer(db as never, legacy, canonical)).rejects.toThrow(/does not exist/);
+    expect(db.sessionItem.create).not.toHaveBeenCalled();
+  });
+
+  it('writes the legacy row inside the same transaction as the ledger, so a failure after the attempt rolls both back', async () => {
+    const tx = txClient();
+    tx.sessionItem.create.mockRejectedValueOnce(new Error('session deleted'));
+    const db = { $transaction: vi.fn(async (fn: (t: unknown) => unknown) => fn(tx)), sessionItem: { create: vi.fn() } };
+    await expect(persistPracticeAnswer(db as never, legacy, canonical)).rejects.toThrow(/session deleted/);
+    expect(db.sessionItem.create).not.toHaveBeenCalled(); // the rejected transaction is the only write path
   });
 });
 
@@ -90,30 +95,47 @@ describe('spokenAnswerEvaluations', () => {
   });
 });
 
-describe('appendReanalysis', () => {
-  it('appends evaluations and records the corrected text only when it differs from the evidence', async () => {
-    const tx = txClient();
-    const db = { $transaction: vi.fn(async (fn: (t: unknown) => unknown) => fn(tx)) };
-    const ok = await appendReanalysis(db as never, 'attempt-1', {
-      recordedTranscript: 'hello thare',
-      correctedTranscript: 'hello there',
-      provenance: { status: 'COMPLETED' },
-      questionAnswered: true,
-      scores: { answerQuality: 8 },
-      feedback: {},
-      confidenceScore: null,
-      intonationScore: null,
-    });
-    expect(ok).toBe(true);
-    expect(tx.attempt.create).not.toHaveBeenCalled();
-    expect(tx.attemptEvaluation.create).toHaveBeenCalledWith(
-      expect.objectContaining({ data: expect.objectContaining({ evaluatedText: 'hello there', kind: 'AI_RUBRIC' }) })
-    );
+describe('applyReanalysis', () => {
+  const args = {
+    attemptId: 'attempt-1',
+    sessionItemId: 'item-1',
+    legacyUpdate: { answerQuality: 8, transcript: 'hello there' },
+    recordedTranscript: 'hello thare',
+    correctedTranscript: 'hello there',
+    provenance: { status: 'COMPLETED' } as const,
+    questionAnswered: true,
+    scores: { answerQuality: 8 },
+    feedback: {},
+    confidenceScore: null,
+    intonationScore: null,
+  };
+  const dbFor = (tx: ReturnType<typeof txClient> & { sessionItem: { update?: unknown } }) => ({
+    $transaction: vi.fn(async (fn: (t: unknown) => unknown) => fn(tx)),
   });
 
-  it('does nothing for an answer with no canonical attempt (unowned or ledger write failed)', async () => {
+  it('appends the evaluation (with the corrected text) and updates the legacy projection in one transaction', async () => {
+    const tx = { ...txClient(), sessionItem: { update: vi.fn(async () => ({})) } };
+    await applyReanalysis(dbFor(tx as never) as never, args);
+    expect(tx.attempt.create).not.toHaveBeenCalled();
+    expect(tx.attemptEvaluation.create).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ evaluatedText: 'hello there', kind: 'AI_RUBRIC', status: 'COMPLETED' }) })
+    );
+    expect(tx.sessionItem.update).toHaveBeenCalledWith({ where: { id: 'item-1' }, data: args.legacyUpdate });
+  });
+
+  it('a failed evaluator is recorded as FAILED with no measurements and the legacy row is NOT touched', async () => {
+    const tx = { ...txClient(), sessionItem: { update: vi.fn(async () => ({})) } };
+    await applyReanalysis(dbFor(tx as never) as never, { ...args, provenance: { status: 'FAILED', reason: 'timeout' } });
+    expect(tx.attemptEvaluation.create).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ kind: 'AI_RUBRIC', status: 'FAILED', failureReason: 'timeout' }) })
+    );
+    expect(tx.attemptMeasurement.createMany).toHaveBeenCalledTimes(0);
+    expect(tx.sessionItem.update).not.toHaveBeenCalled();
+  });
+
+  it('refuses an answer with no canonical attempt', async () => {
     const db = { $transaction: vi.fn() };
-    expect(await appendReanalysis(db as never, null, {} as never)).toBe(false);
+    await expect(applyReanalysis(db as never, { ...args, attemptId: null })).rejects.toThrow(/no canonical attempt/);
     expect(db.$transaction).not.toHaveBeenCalled();
   });
 });

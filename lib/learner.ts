@@ -28,12 +28,16 @@ export interface LearnerActor {
 
 /**
  * Who an access context writes evidence for. A human acts as their own learner. A machine principal acts as the
- * learner it is bound to; it never becomes one.
+ * learner it is explicitly bound to; it never becomes one and never inherits one through its user (so an admin
+ * user's learner is not reachable by a principal bound elsewhere, whatever the user's role).
  */
 export async function resolveLearnerActor(
-  ctx: { user: { id: string }; principal?: { id: string; learnerId?: string | null } },
+  ctx: { user: { id: string }; principal?: { id: string; learnerId: string } },
   db: Db
 ): Promise<LearnerActor> {
-  const learnerId = ctx.principal?.learnerId ?? (await ensureLearner(ctx.user.id, db)).id;
-  return { learnerId, actorPrincipalId: ctx.principal?.id ?? null };
+  if (ctx.principal) {
+    if (!ctx.principal.learnerId) throw new Error('A machine principal must be bound to a learner.');
+    return { learnerId: ctx.principal.learnerId, actorPrincipalId: ctx.principal.id };
+  }
+  return { learnerId: (await ensureLearner(ctx.user.id, db)).id, actorPrincipalId: null };
 }

@@ -22,13 +22,14 @@ import {
 	handleApiError,
 	ValidationError,
 	NotFoundError,
+	ExternalServiceError,
 } from "@/lib/errors";
 import { requireAuth } from "@/lib/auth";
 import { ownsRecord } from "@/lib/access";
 import { enforceAiLimits } from "@/lib/rate-limit";
 import { getFactSheet } from "@/lib/fact-sheet";
 import { checkClaims } from "@/lib/claims-check";
-import { appendReanalysis } from "@/lib/attempt-compat";
+import { applyReanalysis } from "@/lib/attempt-compat";
 
 export async function POST(request: NextRequest) {
 	try {
@@ -113,10 +114,12 @@ export async function POST(request: NextRequest) {
 			repeatedWordsAnalysis.hasExcessiveRepetition
 		);
 
-		// Update the session item with corrected transcript and new analysis
-		await prisma.sessionItem.update({
-			where: { id: sessionItemId },
-			data: {
+		// One transaction: append the re-evaluation to the ledger and, only if the evaluator really completed, update
+		// the legacy projection. The recorded evidence and earlier evaluations are never edited.
+		await applyReanalysis(prisma, {
+			attemptId: sessionItem.attemptId,
+			sessionItemId,
+			legacyUpdate: {
 				transcript: trimmedTranscript,
 				words: wordCount,
 				wpm,
@@ -135,12 +138,7 @@ export async function POST(request: NextRequest) {
 				betterWording: analysis.betterWording,
 				dontForget: analysis.dontForget || [],
 				aiFeedback: analysis.tips.join(" | "),
-			} as Parameters<typeof prisma.sessionItem.update>[0]["data"],
-		});
-
-		// Canonical record: the corrected transcript is re-evaluated by appending a new evaluation. The recorded
-		// evidence and earlier evaluations are never edited. A fallback is recorded as FAILED, not as scores.
-		await appendReanalysis(prisma, sessionItem.attemptId, {
+			},
 			recordedTranscript: sessionItem.transcript,
 			correctedTranscript: trimmedTranscript,
 			provenance: analysis.fallbackReason
@@ -164,6 +162,15 @@ export async function POST(request: NextRequest) {
 			confidenceScore,
 			intonationScore,
 		});
+
+		// The evaluator failed: the failure is on record, the learner's previous evaluation is untouched, and no
+		// canned numbers are shown or stored as if they were knowledge scores.
+		if (analysis.fallbackReason) {
+			throw new ExternalServiceError(
+				"analysis",
+				"We could not re-analyse your answer just now. Your previous analysis is unchanged; please try again."
+			);
+		}
 
 		return NextResponse.json({
 			id: sessionItemId,
