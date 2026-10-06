@@ -193,6 +193,7 @@ export default function FolderView({
         {folder.banks.length > 0 && (
           <div className="px-5">
             <FolderPlaylist
+              folderId={folder.id}
               banks={folder.banks.map((b) => ({ id: b.id, title: b.title }))}
               folderTitle={folder.title}
               onClose={() => setShowPlaylist(false)}

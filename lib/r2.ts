@@ -1,4 +1,9 @@
-import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
+import {
+  S3Client,
+  PutObjectCommand,
+  GetObjectCommand,
+  HeadObjectCommand,
+} from '@aws-sdk/client-s3';
 import { randomBytes } from 'crypto';
 
 function getS3Client() {
@@ -61,7 +66,8 @@ export function getAudioUrl(key: string): string {
 export async function uploadStudyAudio(
   bankId: string,
   mp3Buffer: Buffer,
-  transcriptText?: string
+  transcriptText?: string,
+  meta?: object
 ): Promise<{ audioUrl: string; transcriptUrl?: string }> {
   const s3Client = getS3Client();
   const audioKey = `audio/study/${bankId}.mp3`;
@@ -89,5 +95,41 @@ export async function uploadStudyAudio(
     transcriptUrl = getAudioUrl(transcriptKey);
   }
 
+  if (meta) {
+    // Sidecar used by scripts/generate-bank-episodes.ts to detect stale episodes.
+    await s3Client.send(
+      new PutObjectCommand({
+        Bucket: process.env.R2_BUCKET_NAME!,
+        Key: `audio/study/${bankId}.json`,
+        Body: Buffer.from(JSON.stringify(meta)),
+        ContentType: 'application/json',
+      })
+    );
+  }
+
   return { audioUrl: getAudioUrl(audioKey), transcriptUrl };
+}
+
+/** Whether a study episode exists for the bank, and its generation metadata if we made it. */
+export async function getStudyAudioState<T = unknown>(
+  bankId: string
+): Promise<{ hasAudio: boolean; meta: T | null }> {
+  const s3Client = getS3Client();
+  const Bucket = process.env.R2_BUCKET_NAME!;
+  try {
+    await s3Client.send(
+      new HeadObjectCommand({ Bucket, Key: `audio/study/${bankId}.mp3` })
+    );
+  } catch {
+    return { hasAudio: false, meta: null };
+  }
+  try {
+    const res = await s3Client.send(
+      new GetObjectCommand({ Bucket, Key: `audio/study/${bankId}.json` })
+    );
+    const body = await res.Body?.transformToString();
+    return { hasAudio: true, meta: body ? (JSON.parse(body) as T) : null };
+  } catch {
+    return { hasAudio: true, meta: null };
+  }
 }
