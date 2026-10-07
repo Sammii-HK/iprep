@@ -23,7 +23,7 @@ export async function POST(request: NextRequest) {
     // Validate bank exists and belongs to user (required for quizzes)
     const bank = await prisma.questionBank.findUnique({
       where: { id: validated.bankId },
-      include: { questions: true },
+      include: { questions: { where: { archivedAt: null } } },
     });
 
     if (!bank || isFactsBankTitle(bank.title)) {
@@ -50,7 +50,7 @@ export async function POST(request: NextRequest) {
       include: {
         bank: {
           include: {
-            questions: true,
+            questions: { where: { archivedAt: null } },
           },
         },
       },
@@ -90,7 +90,7 @@ export async function GET(request: NextRequest) {
         bank: {
           include: {
             _count: {
-              select: { questions: true },
+              select: { questions: { where: { archivedAt: null } } },
             },
           },
         },

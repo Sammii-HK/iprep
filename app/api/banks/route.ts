@@ -70,7 +70,7 @@ export async function POST(request: NextRequest) {
         }),
       },
       include: {
-        _count: { select: { questions: true } },
+        _count: { select: { questions: { where: { archivedAt: null } } } },
       },
     });
 
@@ -103,7 +103,7 @@ export async function GET(request: NextRequest) {
         include: {
           _count: {
             select: {
-              questions: true,
+              questions: { where: { archivedAt: null } },
             },
           },
         },
@@ -120,7 +120,7 @@ export async function GET(request: NextRequest) {
       prisma.questionBank.findMany({
         where: { userId: user.id, ...notFactsBank },
         include: {
-          _count: { select: { questions: true } },
+          _count: { select: { questions: { where: { archivedAt: null } } } },
           folderItems: { select: { folderId: true } },
         },
         orderBy: { order: 'asc' },
@@ -133,7 +133,7 @@ export async function GET(request: NextRequest) {
             include: {
               bank: {
                 include: {
-                  _count: { select: { questions: true } },
+                  _count: { select: { questions: { where: { archivedAt: null } } } },
                 },
               },
             },
