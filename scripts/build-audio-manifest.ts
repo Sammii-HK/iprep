@@ -33,6 +33,8 @@ import { loadExplicitEnvFile, printTarget, resolveScriptTarget, TargetError } fr
 const AUDIO_BASE = (process.env.AUDIO_PUBLIC_BASE || 'https://iprep.sammii.dev').replace(/\/$/, '');
 /** Public, auth-free deployment used for the legacy static files and for the audio check. */
 const PUBLIC_API_BASE = 'https://iprep-five.vercel.app';
+/** Public R2 domain, where the restored legacy files live under audio/study/legacy/. */
+const R2_PUBLIC_BASE = 'https://iprep.sammii.dev';
 
 const PAST_ROLES = 'Past roles';
 /** Past-role companies, in display order. `match` is tested against bank titles. */
@@ -237,7 +239,7 @@ async function main() {
   }
 
   for (const legacy of LEGACY) {
-    const url = `${PUBLIC_API_BASE}/audio/study/${legacy.id}.mp3`;
+    const url = `${R2_PUBLIC_BASE}/audio/study/legacy/${legacy.id}.mp3`;
     const bytes = await headBytes(url);
     if (!bytes) {
       console.warn(`  skipping legacy episode ${legacy.id}: not reachable`);
