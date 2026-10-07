@@ -11,7 +11,7 @@
  *   - default is a DRY RUN. Deleting needs --execute AND --expect-delete <N>, where N is
  *     the count the dry run reported, so a changed dataset cannot surprise you;
  *   - production additionally needs --confirm <production database endpoint id>;
- *   - orphaned objects are only reported unless --delete-orphans is also given.
+ *   - --delete-orphans is DISABLED (see the guard below): the orphan report is a hint only and nothing orphaned is deleted.
  *
  * Usage:
  *   npx tsx scripts/cleanup-audio.ts --target preview --env-file <file>                       # dry run
@@ -32,6 +32,22 @@ import {
 import { loadExplicitEnvFile, printTarget, resolveScriptTarget, TargetError } from "./lib/target";
 
 const args = process.argv.slice(2);
+
+// DISABLED: the orphan-deleting mode is unsafe and must not run, not even as a dry run of the deletion.
+// It decides an object is an orphan when no SessionItem.audioUrl equals the endpoint-form URL of its key. That is
+// wrong in three ways: it ignores QuizAttempt.audioUrl and AttemptEvidence.audioRef (legitimate audio would be
+// deleted), it compares a URL string so audio stored through a public-domain URL always looks orphaned, and it knows
+// nothing about the study episode files keyed by bank id. Ownership of historical R2 objects is an open gate
+// (docs/P2_GATES_AND_DEBT.md). Nothing is contacted before this check, so refusing here cannot touch R2 or the database.
+if (args.includes("--delete-orphans")) {
+  console.error(
+    "Refused: --delete-orphans is disabled because it can delete legitimate audio (quiz answers, AttemptEvidence audio, " +
+      "public-URL audio and study episodes are all misclassified as orphans). See docs/P2_GATES_AND_DEBT.md, " +
+      "\"R2 ownership gate\". The reporting mode (without --delete-orphans) over-reports for the same reasons: treat it as a hint only."
+  );
+  process.exit(4);
+}
+
 Object.assign(process.env, loadExplicitEnvFile(args));
 
 let dryRun = true;
