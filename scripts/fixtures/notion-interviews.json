@@ -2,6 +2,7 @@
   "results": [
     {
       "id": "11111111-aaaa-4bbb-8ccc-000000000001",
+      "last_edited_time": "2026-10-05T18:30:00.000Z",
       "properties": {
         "Title": { "title": [{ "plain_text": "Attio design systems screen" }] },
         "Company": { "rich_text": [{ "plain_text": "Attio" }] },

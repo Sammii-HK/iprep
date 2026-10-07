@@ -303,8 +303,10 @@ model Interview {
   bookingLink String?
   interviewer String?
   status      String    @default("scheduled") // scheduled | completed | cancelled
-  source      String    @default("manual")    // manual | notion
+  source      String    @default("manual")    // manual | notion | calendar (calendar: designed, not built)
   externalId  String?                         // id in the source system (Notion page id)
+  timeZone    String?                         // IANA zone the source gave the time in (display only; startsAt is an instant)
+  sourceUpdatedAt DateTime?                   // when the source system last changed this record, not when iPrep synced it
   notes       String?
   folderId    String?                         // BankFolder holding the prep banks (not a FK: folders can be deleted)
   createdAt   DateTime  @default(now())
