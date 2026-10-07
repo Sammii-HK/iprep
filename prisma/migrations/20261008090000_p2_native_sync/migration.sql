@@ -319,12 +319,16 @@ SELECT a."learnerId", 'attempt', a."id" FROM "Attempt" a ORDER BY a."occurredAt"
 INSERT INTO "SyncEpoch" ("id", "epoch") VALUES (1, 1) ON CONFLICT ("id") DO NOTHING;
 
 -- ============================================================================================================
--- Privileges: the runtime role never edits a revision. (Skipped where the role does not exist.)
+-- Privileges. (Skipped where the role does not exist.)
+--  - the runtime role never edits a revision or a deletion receipt;
+--  - SyncChange is the first table with a sequence-backed id, and default privileges do not cover sequences, so the
+--    runtime role is granted the one sequence it needs. Without this every attempt write would fail at the feed insert.
 -- ============================================================================================================
 DO $$
 BEGIN
   IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'iprep_app') THEN
     REVOKE UPDATE, TRUNCATE ON "QuestionRevision" FROM "iprep_app";
     REVOKE UPDATE, DELETE, TRUNCATE ON "AccountDeletionReceipt" FROM "iprep_app";
+    GRANT USAGE, SELECT ON SEQUENCE "SyncChange_id_seq" TO "iprep_app";
   END IF;
 END $$;

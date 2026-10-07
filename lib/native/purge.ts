@@ -32,7 +32,7 @@ export class PurgeRefusedError extends AppError {
 /** R2 object keys always start with "audio/". Works for endpoint URLs, public-domain URLs and bare keys. */
 export function audioKeyFromRef(ref: string | null | undefined): string | null {
   if (!ref) return null;
-  const m = ref.match(/(?:^|\/)(audio\/[^?#]+)$/);
+  const m = ref.match(/(?:^|\/)(audio\/[^?#]+)(?:[?#].*)?$/);
   return m ? m[1] : null;
 }
 

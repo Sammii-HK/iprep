@@ -170,13 +170,27 @@ export async function resolvePrompt(db: Db, actor: { id: string }, prompt: Promp
 
   const bankKey = prompt.clientRef?.bankKey;
   const questionKey = prompt.clientRef?.questionKey;
-  if (bankKey && questionKey) {
+  if (bankKey) {
     const banks = await db.questionBank.findMany({
       where: { externalKey: bankKey, OR: [{ userId: actor.id }, { userId: null }] },
       select: { id: true, title: true },
     });
     // Two candidate banks for one key is uncertainty, not a tie to break.
     if (banks.length !== 1 || isFactsBankTitle(banks[0].title)) return UNLINKED;
+
+    if (!questionKey) {
+      // Migration machinery for history that only recorded a bank: link only when exactly ONE question in that bank
+      // ever said exactly this. Several matches (or none) is uncertainty, so it stays unlinked. This is a lookup
+      // aid for old records, not a permanent identity.
+      const candidates = await db.questionRevision.findMany({
+        where: { question: { bankId: banks[0].id } },
+        orderBy: { revision: 'desc' },
+        select: { id: true, questionId: true, text: true, question: { select: { bankId: true } } },
+      });
+      const hits = candidates.filter((r) => normalisePrompt(r.text) === wanted);
+      const questions = new Set(hits.map((h) => h.questionId));
+      return questions.size === 1 ? linkedTo(hits[0]) : UNLINKED;
+    }
     const question = await db.question.findUnique({
       where: { bankId_externalKey: { bankId: banks[0].id, externalKey: questionKey } },
       select: { id: true },

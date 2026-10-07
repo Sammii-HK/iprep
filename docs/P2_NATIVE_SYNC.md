@@ -100,7 +100,81 @@ applied. No cursor expires; `409 EPOCH_CHANGED {epoch}` means discard the cursor
 
 Identity: `User -> Learner` (P1) plus `AuthIdentity`, `Device`, rotating `NativeRefreshToken`s. Native access tokens
 use a separate signing key and audience from the web cookie JWT, so neither authenticates in the other's context.
-Content: `Question` ids are stable; edits add immutable `QuestionRevision`s; `externalKey` only maps client keys.
-An attempt is `linked` only when its snapshot equals a retained revision; otherwise `unlinked` with the client's
-references kept. Feed: `SyncChange(txid, id)` with a transaction-horizon pull (see docs/P2_CURSOR_PROOF.md).
+Content: `Question` ids are stable; edits add immutable `QuestionRevision`s (recorded by a database trigger, so no code
+path can forget); `externalKey` only maps client keys. An attempt is `linked` only when its snapshot equals a retained
+revision; otherwise `unlinked` with the client's references kept. Feed: `SyncChange(txid, id)` with a
+transaction-horizon pull (see docs/P2_CURSOR_PROOF.md).
 
+## 4. Behaviour notes added during implementation
+
+- **Legacy import of a known event is a duplicate.** `origin: legacy-import` for an event id the ledger already holds
+  returns `duplicate` even if its payload is thinner than the original; the first writer's record stands and the import
+  never overwrites. A NEW event reusing an id with different content is still a `conflict`.
+- **Bank-only legacy references.** A legacy record that only knows its bank (`clientRef.bankKey`, no `questionKey`)
+  links when exactly one question in that bank has ever said exactly this text; zero or several matches stays unlinked.
+  This is migration machinery, not a permanent identity.
+- **Linkage never leaks.** Linking requires the learner to be able to read the bank (their own, or an unowned shared
+  one); the private facts bank is never linked; two candidate banks for one key is uncertainty (unlinked).
+- **Evaluation.** Nothing evaluates a synced attempt in P2 and no FAILED or SKIPPED row is created for that. The pull
+  reports `not_evaluated` until some evaluation exists (for example one appended by existing web behaviour).
+- **Idempotency scope.** `UNIQUE (learnerId, clientEventId)`: another learner reusing an id neither collides nor sees it.
+- **Deletion-pending accounts** are refused by `requireAuth` (web), `requireDevice` (native) and machine access.
+
+## 5. Account lifecycle and the purge
+
+`POST /api/account/deletion` marks the account DELETION_PENDING, revokes every native device immediately and records
+`purgeAfter` = request + 30 days (asking again does not extend it). The purge itself is `scripts/purge-accounts.ts`
+with the OWNER credential (never the runtime role): it refuses until the grace period has ended, and runs in one
+transaction that opts in to maintenance (`SET LOCAL iprep.ledger_maintenance = 'on'`, honoured by the append-only
+triggers for that transaction only). It deletes every row that can identify or reproduce the learner (attempts,
+transcripts, prompt snapshots, evaluations, measurements, legacy session items and quiz attempts, sessions, owned banks
+and their questions and revisions, progress, insights, goals, interviews, folders, machine principals, devices,
+tokens, identities, link codes, sync feed and log, rate-limit rows keyed by their id, the learner and the user),
+nulls the invite redemption, and leaves a receipt with row counts only. R2 audio objects cannot be deleted from SQL:
+the script lists their keys and, given `--delete-audio --r2-env-file`, deletes them (that R2 path is not covered by
+automated tests; no real bucket is touched in tests). It has been tested for refusal paths, isolation from other
+learners, atomicity and leakage, and has NOT been run against any real account.
+
+Ambiguities reported, not decided: whether truly aggregate counters elsewhere (for example admin statistics derived from
+tables) may persist (none are stored today); whether backups (Neon restore branches) containing a purged learner must
+be rotated out on a schedule (they are retained deliberately for rollback); R2 retention beyond the explicit delete.
+
+## 6. Operations
+
+- Invites: `npx tsx scripts/native-invites.ts create|list --target <t> --env-file <file> [--execute]`.
+- Catalog: `npx tsx scripts/publish-catalog.ts --target <t> --env-file <file> --catalog <bundled-catalog.json> [--execute]`
+  publishes the bundled iOS banks as unowned shared banks keyed by their existing slugs.
+- Diagnostics: `npx tsx scripts/sync-inspect.ts --target <t> --env-file <runtime env> --user <id> [--event <eventId>]`.
+- Epoch: `scripts/sync-epoch.ts` (see docs/P2_CURSOR_PROOF.md).
+- Purge: `scripts/purge-accounts.ts list|purge`.
+- Minimum client: set `NATIVE_MIN_CLIENT_BUILD` to refuse older builds with 426 `CLIENT_TOO_OLD`.
+- Apple audience: `APPLE_CLIENT_ID` (defaults to the bundle id `app.lunary.iprep`).
+
+## 7. Manual actions (Apple Developer account) before real accounts are created
+
+Not needed for the server dark launch, the test learner or Preview database work. REQUIRED before the TestFlight
+cohort or any broad native account creation. I cannot do these and have not tried to.
+
+1. **Sign in with Apple capability.** developer.apple.com > Certificates, Identifiers & Profiles > Identifiers >
+   `app.lunary.iprep` > enable Sign in with Apple (primary App ID). Regenerate and download the provisioning profile
+   (or let Xcode manage signing). The entitlement is already in the repo.
+2. **Server-to-server notification endpoint.** In the same Identifier, Sign in with Apple > Edit > set the
+   *Server to Server Notification Endpoint* to `https://<production host>/api/auth/native/apple/notifications`
+   (Apple requires HTTPS). The route verifies Apple's signed JWT; there is no shared secret to configure. Apple sends
+   `consent-revoked` and `account-delete` events there. (If sign-in must also work for a web Services ID, that is a
+   separate Services ID; P2 uses the app's bundle id only.)
+3. Confirm `APPLE_CLIENT_ID` in Vercel Production is unset (default `app.lunary.iprep`) or set to the bundle id exactly.
+4. Generate invites on the target environment with `scripts/native-invites.ts` and hand them to testers.
+
+## 8. Rollback
+
+`docs/p2-rollback.sql` (owner, by hand) restores exactly the P1 schema and leaves the P1 ledger and legacy tables
+untouched (tested, chained before the P1 rollback). Users created through Apple sign-in remain as ordinary users with
+their learners and attempts but lose their Apple sign-in. Canonical attempts written by the sync are never deleted by a
+rollback.
+
+## 9. Implementation status
+
+See the PR description for the verification record and what remains. Out of P2 by decision: server AI evaluation of
+iOS attempts, RevenueCat entitlement, bank mirroring, two-way bank editing, audio, learner feedback, FSRS and any
+scheduler, CloudKit teardown.

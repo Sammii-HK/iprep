@@ -12,7 +12,7 @@
     "test:ui": "vitest --ui",
     "test:coverage": "vitest --coverage",
     "test:watch": "vitest --watch",
-    "test:db": "TEST_PG_ADMIN_URL=${TEST_PG_ADMIN_URL:-postgresql://$USER@localhost:5432/postgres} vitest run __tests__/db",
+    "test:db": "TEST_PG_ADMIN_URL=${TEST_PG_ADMIN_URL:-postgresql://$USER@localhost:5432/postgres} vitest run --no-file-parallelism __tests__/db",
     "ledger:check": "npx tsx scripts/ledger-check.ts",
     "db:generate": "prisma generate",
     "db:status": "npx tsx scripts/db/run.ts status",

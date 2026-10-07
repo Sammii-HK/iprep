@@ -148,14 +148,20 @@ async function existingResult(
   db: PrismaClient,
   actor: SyncActor,
   eventId: string,
-  hash: string
+  hash: string,
+  origin: 'device' | 'legacy-import'
 ): Promise<EventResult | null> {
   const found = await db.attempt.findUnique({
     where: { learnerId_clientEventId: { learnerId: actor.learnerId, clientEventId: eventId } },
     select: { id: true, payloadHash: true, contentLinkage: true, evaluations: { select: { status: true } } },
   });
   if (!found) return null;
-  if (found.payloadHash !== hash) return { eventId, status: 'conflict', attemptId: found.id, code: 'EVENT_ID_CONFLICT' };
+  // A legacy import re-announces a record the device already holds. If the event is already in the ledger, whatever
+  // the first writer recorded stands (the import is lower fidelity and never overwrites), so it is a duplicate, not
+  // a conflict. Two different NEW events sharing an id are still a conflict.
+  if (found.payloadHash !== hash && origin !== 'legacy-import') {
+    return { eventId, status: 'conflict', attemptId: found.id, code: 'EVENT_ID_CONFLICT' };
+  }
   return {
     eventId,
     status: 'duplicate',
@@ -185,7 +191,7 @@ export async function processEvent(
   const ev = parsed.data;
   const hash = canonicalPayloadHash(ev);
 
-  const prior = await existingResult(db, actor, ev.eventId, hash);
+  const prior = await existingResult(db, actor, ev.eventId, hash, ev.origin);
   if (prior) {
     await log(db, actor, ev.eventId, prior.status, prior.code ?? null, hash);
     return prior;
@@ -260,7 +266,7 @@ export async function processEvent(
   } catch (error) {
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
       // A concurrent duplicate won the race: the database constraint decided, so answer from the winner.
-      const raced = await existingResult(db, actor, ev.eventId, hash);
+      const raced = await existingResult(db, actor, ev.eventId, hash, ev.origin);
       if (raced) {
         await log(db, actor, ev.eventId, raced.status, raced.code ?? null, hash);
         return raced;
