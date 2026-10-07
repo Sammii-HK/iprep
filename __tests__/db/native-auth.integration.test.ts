@@ -203,6 +203,46 @@ describe.skipIf(!ADMIN_URL)('native identity (real database)', () => {
     });
   });
 
+  describe('an existing web account links once, then never needs a code again', () => {
+    it('link code once; afterwards plain Apple sign-in resolves the same user and learner on any device, with no invite and no email matching', async () => {
+      const { userId, learnerId } = await makeUser(t.owner, 'owner1', { email: 'owner1@example.com' });
+      await t.owner.attempt.create({
+        data: { learnerId, surface: 'WRITTEN_TO_SPOKEN', responseMode: 'SPOKEN', promptSnapshot: 'Tell me about yourself.', source: 'practice-api', occurredAt: new Date() },
+      });
+      const spareInvite = await newInvite();
+      const usersBefore = await t.owner.user.count();
+      const learnersBefore = await t.owner.learner.count();
+      const { code } = await createLinkCode(db, userId);
+
+      // 1. The one-time bootstrap: link code only, no invite.
+      const first = await signInWithApple(deps({ a: 'sub-owner1' }), input('a', { linkCode: code }));
+      expect(first).toMatchObject({ status: 200, userId, learnerId });
+      expect((await db.accountLinkCode.findFirstOrThrow({ where: { userId } })).usedAt).not.toBeNull();
+      expect((await db.nativeInvite.findUniqueOrThrow({ where: { codeHash: hashCode(spareInvite) } })).usedAt).toBeNull();
+      expect(await db.authIdentity.count({ where: { userId, provider: 'apple', revokedAt: null } })).toBe(1);
+
+      // 2. Same phone again, another device, and after a sign-out: no code of any kind.
+      const again = await signInWithApple(deps({ a: 'sub-owner1' }), input('a'));
+      const otherDevice = await signInWithApple(deps({ a: 'sub-owner1' }), input('a'));
+      await t.owner.$executeRawUnsafe(`UPDATE "Device" SET "revokedAt" = now() WHERE id = $1`, again.deviceId);
+      const afterSignOut = await signInWithApple(deps({ a: 'sub-owner1' }), input('a'));
+      for (const r of [again, otherDevice, afterSignOut]) {
+        expect(r).toMatchObject({ status: 200, userId, learnerId });
+      }
+      expect(new Set([first.deviceId, again.deviceId, otherDevice.deviceId, afterSignOut.deviceId]).size).toBe(4);
+
+      // 3. Nothing was created or consumed along the way, and the history is still on the same learner.
+      expect(await t.owner.user.count()).toBe(usersBefore);
+      expect(await t.owner.learner.count()).toBe(learnersBefore);
+      expect(await db.authIdentity.count({ where: { userId } })).toBe(1);
+      expect((await db.nativeInvite.findUniqueOrThrow({ where: { codeHash: hashCode(spareInvite) } })).usedAt).toBeNull();
+      expect(await t.owner.attempt.count({ where: { learnerId } })).toBe(1);
+
+      // 4. The link code was a one-time bootstrap: it cannot be used again, and it is not needed.
+      await expect(signInWithApple(deps({ b: 'sub-owner1-second' }), input('b', { linkCode: code }))).rejects.toMatchObject({ code: 'LINK_CODE_INVALID' });
+    });
+  });
+
   describe('Apple credential revoked', () => {
     it('consent-revoked signs every device out but keeps the account and history; signing in again reinstates it', async () => {
       const r = await signInWithApple(deps({ k: 'sub-consent' }), input('k', { inviteCode: await newInvite() }));
