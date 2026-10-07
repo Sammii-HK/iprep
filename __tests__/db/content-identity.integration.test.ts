@@ -137,6 +137,66 @@ describe.skipIf(!ADMIN_URL)('question identity and revisions (real database)', (
     expect(await db.questionRevision.count({ where: { questionId: id } })).toBe(0); // revisions go with their question
   });
 
+  describe('revision trigger audit', () => {
+    it('a change to several revisioned fields at once creates exactly one revision', async () => {
+      const bankId = await newBank();
+      const [{ id }] = await applyQuestionSet(db, bankId, [{ text: 'Multi?', tags: ['a'], difficulty: 2 }], 'append');
+      await db.question.update({ where: { id }, data: { text: 'Multi, reworded?', hint: 'a hint', tags: ['a', 'b'], difficulty: 4, type: 'TECHNICAL' } });
+      const r = await revs(id);
+      expect(r.map((x) => x.revision)).toEqual([1, 2]);
+      expect(r[1]).toMatchObject({ text: 'Multi, reworded?', hint: 'a hint', tags: ['a', 'b'], difficulty: 4, type: 'TECHNICAL' });
+    });
+
+    it('metadata that is not content never creates a revision: external key, bank move, archive, unarchive, no-op rewrite', async () => {
+      const bankId = await newBank();
+      const other = await newBank();
+      const [{ id }] = await applyQuestionSet(db, bankId, [{ text: 'Metadata only?' }], 'append');
+      await db.question.update({ where: { id }, data: { externalKey: 'k-meta' } });
+      await db.question.update({ where: { id }, data: { bankId: other } });
+      await db.question.update({ where: { id }, data: { archivedAt: new Date() } });
+      await db.question.update({ where: { id }, data: { archivedAt: null } });
+      await db.question.update({ where: { id }, data: { text: 'Metadata only?', tags: [], difficulty: 3 } });
+      expect(await revs(id)).toHaveLength(1);
+    });
+
+    it('concurrent edits cannot duplicate or skip a revision number: the row lock serialises them and every change is recorded once', async () => {
+      const bankId = await newBank();
+      const [{ id }] = await applyQuestionSet(db, bankId, [{ text: 'Race base?' }], 'append');
+      await Promise.all(Array.from({ length: 8 }, (_, i) => db.question.update({ where: { id }, data: { text: `Race edit ${i}?` } })));
+      const r = await revs(id);
+      expect(r.map((x) => x.revision)).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9]);
+      expect(new Set(r.map((x) => x.text)).size).toBe(9);
+      // eight identical concurrent edits produce one revision, not eight
+      await Promise.all(Array.from({ length: 8 }, () => db.question.update({ where: { id }, data: { text: 'Everyone agrees?' } })));
+      expect((await revs(id)).map((x) => x.text).filter((x) => x === 'Everyone agrees?')).toHaveLength(1);
+      // and the database refuses a hand-made duplicate number outright
+      await expect(t.owner.$executeRawUnsafe(`INSERT INTO "QuestionRevision" ("id","questionId","revision","text","tags","difficulty","type") VALUES ('dup','${id}',2,'x',ARRAY[]::text[],1,'BEHAVIORAL')`)).rejects.toThrow();
+    });
+
+    it('an attempt can only point at a revision of the question it names (database-enforced)', async () => {
+      const bankId = await newBank();
+      const [a, b] = await applyQuestionSet(db, bankId, [{ text: 'First?' }, { text: 'Second?' }], 'append');
+      const revA = (await revs(a.id))[0];
+      const insert = (questionId: string | null, revisionId: string | null) =>
+        t.owner.$executeRawUnsafe(
+          `INSERT INTO "Attempt" ("id","learnerId","surface","responseMode","promptSnapshot","source","occurredAt","questionId","questionRevisionId") VALUES ($1,$2,'WRITTEN_TO_SPOKEN','SPOKEN','p','t',now(),$3,$4)`,
+          `att-rev-${Math.random().toString(36).slice(2)}`, user.learnerId, questionId, revisionId
+        );
+      await expect(insert(a.id, revA.id)).resolves.toBeDefined();
+      await expect(insert(b.id, revA.id)).rejects.toThrow(/must be a revision of/); // a revision of another question
+      await expect(insert(null, revA.id)).rejects.toThrow(/must be a revision of/); // a revision with no question named
+      await expect(insert(a.id, null)).resolves.toBeDefined(); // unlinked-revision attempts remain valid
+      await expect(insert(null, null)).resolves.toBeDefined();
+    });
+
+    it('existing application writers stay compatible: nested bank create, CSV-style import, and the identity-preserving route all yield one current revision per question', async () => {
+      const nested = await db.questionBank.create({ data: { userId: user.userId, title: 'compat', questions: { create: [{ text: 'N1?', tags: [], difficulty: 3 }, { text: 'N2?', tags: [], difficulty: 3 }] } }, include: { questions: true } });
+      for (const q of nested.questions) expect((await revs(q.id)).map((r) => r.revision)).toEqual([1]);
+      const current = await db.question.findMany({ where: { bankId: nested.id } });
+      for (const q of current) expect((await revs(q.id)).at(-1)?.text).toBe(q.text); // the latest revision always equals the projection
+    });
+  });
+
   describe('custom bank import', () => {
     it('is idempotent, reports differing text without changing it, and adds only missing questions', async () => {
       const first = await importCustomBank(db, user.userId, { bankKey: 'imp-1', title: 'Imported', questions: [{ questionKey: 'a', text: 'A?' }, { questionKey: 'b', text: 'B?' }] });

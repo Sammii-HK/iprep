@@ -135,6 +135,37 @@ the script lists their keys and, given `--delete-audio --r2-env-file`, deletes t
 automated tests; no real bucket is touched in tests). It has been tested for refusal paths, isolation from other
 learners, atomicity and leakage, and has NOT been run against any real account.
 
+### R2 ownership audit (what an account purge can and cannot delete)
+
+Audio lives in one bucket under the `audio/` prefix. Ownership exists only through database rows:
+
+| Object | Key | Owner trail | Purge |
+| --- | --- | --- | --- |
+| Web practice/quiz answer audio | `audio/<ms>-<random>.<ext>` (no owner in the key, no object metadata) | `SessionItem.audioUrl`, `QuizAttempt.audioUrl`, `AttemptEvidence.audioRef` | deleted (keys extracted from those rows) |
+| Generated study episode of a bank | `audio/study/<bankId>.mp3`, `.txt`, `.json` | the bank's owner | deleted for every bank the account owns |
+| Shared manifest | `audio/study/manifest.json` | none (shared) | never deleted (refused by the adapter) |
+| **Orphans**: no row references them | same random keys | **none** | **cannot be found** |
+
+**The gap, exactly.** An answer-audio object is attributable only while a row references it. Three existing paths leave
+objects with no trail: (1) deleting a bank or a session deletes the `SessionItem`/`QuizAttempt` rows (including their
+`audioUrl`) without deleting the R2 object; (2) in `POST /api/practice` the row is saved after waiting at most 10 seconds
+for the upload, so a slower upload completes after the row was written with a null `audioUrl`; (3) an upload whose later
+database write fails. Historical orphans of these kinds exist in the bucket today and no ownership can be reconstructed
+for them. `scripts/cleanup-audio.ts --delete-orphans` is not a substitute: it matches only `SessionItem.audioUrl` against
+the endpoint URL form, so it would treat quiz audio, `AttemptEvidence` audio and public-domain URLs as orphans.
+
+What is proven (tests): the keys derived from every referencing row plus owned banks' study files are deleted through
+the `lib/audio-store.ts` adapter (tested against a fake: complete runs, partial failure reported and never called
+complete, refusal of foreign prefixes, path tricks and the shared manifest, idempotent re-run); the adapter and the old
+cleanup script are the only code that deletes R2 objects; no sync or native-auth code touches R2.
+
+What is NOT proven or possible today: complete deletion of every object a person's audio ever created on the web. For
+accounts created through native sign-in this does not matter, because P2 is transcript-only: they never create an R2
+object (a test fails if any sync or native code imports R2). It does matter for web accounts that recorded audio. **Real
+account creation and any web account purge stay gated on closing this**: record ownership at write time (an owner id in the
+object key or metadata, and delete R2 objects in the bank/session delete paths) and run an inventory of the bucket against
+the database to size the historical orphans. That change is not in P2.
+
 Ambiguities reported, not decided: whether truly aggregate counters elsewhere (for example admin statistics derived from
 tables) may persist (none are stored today); whether backups (Neon restore branches) containing a purged learner must
 be rotated out on a schedule (they are retained deliberately for rollback); R2 retention beyond the explicit delete.

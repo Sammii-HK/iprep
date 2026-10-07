@@ -11,7 +11,10 @@
  * they own (and their revisions), progress and insights, goals, interviews, folders, machine principals acting for
  * them, devices, tokens, identities, link codes, invite redemptions, sync log and feed rows, rate-limit buckets keyed
  * by their id, the learner and the user. What remains: an AccountDeletionReceipt holding only row counts.
- * Audio objects in R2 cannot be deleted from SQL: their keys are returned so the caller can delete them.
+ * Audio objects in R2 cannot be deleted from SQL: their keys are returned so the caller can delete them through
+ * lib/audio-store.ts. WHAT IS AND IS NOT COVERED is audited in docs/P2_NATIVE_SYNC.md (R2 ownership audit): every
+ * object a database row references, plus the generated study episode files of banks the account owns. Objects no row
+ * references (orphans left by deletions and upload races) have no ownership trail and cannot be found from here.
  */
 import type { Prisma, PrismaClient } from '@prisma/client';
 import { AppError } from '../errors';
@@ -30,6 +33,11 @@ export class PurgeRefusedError extends AppError {
 }
 
 /** R2 object keys always start with "audio/". Works for endpoint URLs, public-domain URLs and bare keys. */
+/** Generated study episode files are keyed by bank id (lib/r2.ts uploadStudyAudio): audio, transcript and sidecar. */
+export function studyAudioKeys(bankIds: string[]): string[] {
+  return bankIds.flatMap((id) => [`audio/study/${id}.mp3`, `audio/study/${id}.txt`, `audio/study/${id}.json`]);
+}
+
 export function audioKeyFromRef(ref: string | null | undefined): string | null {
   if (!ref) return null;
   const m = ref.match(/(?:^|\/)(audio\/[^?#]+)(?:[?#].*)?$/);
@@ -66,7 +74,8 @@ export async function purgeAccount(db: PrismaClient, userId: string, now: Date =
 
       // Audio keys first (before the rows that reference them disappear).
       const refs = await collectAudioRefs(tx, userId, learnerId);
-      const audioKeys = [...new Set(refs.map(audioKeyFromRef).filter((k): k is string => !!k))];
+      const ownedBanks = await tx.questionBank.findMany({ where: { userId }, select: { id: true } });
+      const audioKeys = [...new Set([...refs.map(audioKeyFromRef).filter((k): k is string => !!k), ...studyAudioKeys(ownedBanks.map((b) => b.id))])];
 
       if (learnerId) {
         await del('syncEventLog', tx.syncEventLog.deleteMany({ where: { learnerId } }));

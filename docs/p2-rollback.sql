@@ -8,6 +8,8 @@
 -- Dropping columns and tables does not fire the append-only row triggers.
 BEGIN;
 
+DROP TRIGGER "Attempt_revision_consistency" ON "Attempt";
+DROP FUNCTION "attempt_revision_consistency"();
 DROP TRIGGER "Question_revision_sync" ON "Question";
 DROP FUNCTION "question_revision_sync"();
 

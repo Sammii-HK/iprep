@@ -131,6 +131,20 @@ describe.skipIf(!ADMIN_URL)('sync push (real database)', () => {
       expect(c.status).toBe('conflict');
     });
 
+    it('legacy imports never create an evaluation or a measurement: old unverifiable scores are not canonical, not even as a SKIPPED row', async () => {
+      const e = event({ origin: 'legacy-import', prompt: { text: 'Legacy provenance probe' } });
+      const [r] = await processBatch(db, A, [e], ctx());
+      const attemptId = (r as { attemptId: string }).attemptId;
+      expect(await db.attemptEvaluation.count({ where: { attemptId } })).toBe(0);
+      expect(await db.attemptMeasurement.count({ where: { attemptId } })).toBe(0);
+      const a = await db.attempt.findUniqueOrThrow({ where: { id: attemptId }, include: { evidence: true } });
+      expect(a.source).toBe('ios-legacy-import');
+      expect(a.evidence).toMatchObject({ transcript: expect.any(String), transcriber: 'apple-sfspeech' });
+      // and the only way to add a score to it is the server's own evaluation path, which a client cannot reach
+      const [forged] = await processBatch(db, A, [{ ...event({ origin: 'legacy-import' }), scores: { answerQuality: 9 }, aiAnswerQuality: 9 }], ctx());
+      expect(forged).toMatchObject({ status: 'rejected' });
+    });
+
     it('five concurrent submissions of one event create exactly one attempt (the database decides)', async () => {
       const e = event();
       const results = await Promise.all(Array.from({ length: 5 }, () => processEvent(db, A, e, ctx())));

@@ -272,6 +272,25 @@ BEGIN
 END;
 $$;
 
+-- An attempt can only point at a revision of the question it names. The application sets both from one resolution,
+-- but the database makes a mismatch impossible, so a bug or a forged payload can never attach evidence to another
+-- question's revision.
+CREATE FUNCTION "attempt_revision_consistency"() RETURNS trigger LANGUAGE plpgsql AS $$
+DECLARE
+  rev_question text;
+BEGIN
+  IF NEW."questionRevisionId" IS NOT NULL THEN
+    SELECT "questionId" INTO rev_question FROM "QuestionRevision" WHERE "id" = NEW."questionRevisionId";
+    IF NEW."questionId" IS NULL OR rev_question IS DISTINCT FROM NEW."questionId" THEN
+      RAISE EXCEPTION 'Attempt.questionRevisionId must be a revision of Attempt.questionId' USING ERRCODE = 'check_violation';
+    END IF;
+  END IF;
+  RETURN NEW;
+END;
+$$;
+CREATE TRIGGER "Attempt_revision_consistency" BEFORE INSERT ON "Attempt"
+  FOR EACH ROW EXECUTE FUNCTION "attempt_revision_consistency"();
+
 -- ============================================================================================================
 -- Backfills (idempotent, nothing invented)
 -- ============================================================================================================
@@ -327,8 +346,14 @@ INSERT INTO "SyncEpoch" ("id", "epoch") VALUES (1, 1) ON CONFLICT ("id") DO NOTH
 DO $$
 BEGIN
   IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'iprep_app') THEN
-    REVOKE UPDATE, TRUNCATE ON "QuestionRevision" FROM "iprep_app";
-    REVOKE UPDATE, DELETE, TRUNCATE ON "AccountDeletionReceipt" FROM "iprep_app";
+    -- Revisions are only ever inserted (by the trigger) and removed by the FK cascade, which runs as the table owner.
+    REVOKE UPDATE, DELETE, TRUNCATE ON "QuestionRevision" FROM "iprep_app";
+    -- The feed and the diagnostic log are append-only for the runtime role; retention is an operator concern.
+    REVOKE UPDATE, DELETE, TRUNCATE ON "SyncChange", "SyncEventLog" FROM "iprep_app";
+    -- The sync epoch is bumped only by an operator (scripts/sync-epoch.ts, owner credential); the runtime role reads it.
+    REVOKE INSERT, UPDATE, DELETE, TRUNCATE ON "SyncEpoch" FROM "iprep_app";
+    -- Receipts are written only by the owner-level purge; the runtime role may not write or change them at all.
+    REVOKE INSERT, UPDATE, DELETE, TRUNCATE ON "AccountDeletionReceipt" FROM "iprep_app";
     GRANT USAGE, SELECT ON SEQUENCE "SyncChange_id_seq" TO "iprep_app";
   END IF;
 END $$;

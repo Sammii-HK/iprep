@@ -6,6 +6,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { PrismaClient } from '@prisma/client';
 import { ADMIN_URL, type TestDb, createTestDb, makeUser } from './helpers';
 import { audioKeyFromRef, dueForPurge, purgeAccount } from '@/lib/native/purge';
+import { type AudioObjectStore, deleteAudioObjects } from '@/lib/audio-store';
 import { requestAccountDeletion } from '@/lib/native/account';
 import { recordAttempt } from '@/lib/attempts';
 import { processBatch } from '@/lib/sync/events';
@@ -125,12 +126,26 @@ describe.skipIf(!ADMIN_URL)('account purge (real database)', () => {
   it('removes every trace of the account, returns the audio keys, and leaves only a receipt of counts', async () => {
     const yBefore = await rowsFor(Y);
     const before = await rowsFor(X);
+    const bankIdOfX = (await owner.questionBank.findFirstOrThrow({ where: { userId: X.userId } })).id;
     expect(before.attempts).toBe(2);
     expect(before.sessionItems).toBe(1);
 
     const out = await purgeAccount(owner, X.userId);
     expect(Object.values(await rowsFor(X)).every((n) => n === 0)).toBe(true); // all 21 categories are gone
-    expect(out.audioKeys.sort()).toEqual(['audio/X-1.webm', 'audio/X-legacy.webm']);
+    // Every object a row referenced for X, plus the generated study episode files of the bank X owned. Nothing of Y's.
+    const bankX = bankIdOfX;
+    expect(out.audioKeys.sort()).toEqual(['audio/X-1.webm', 'audio/X-legacy.webm', `audio/study/${bankX}.json`, `audio/study/${bankX}.mp3`, `audio/study/${bankX}.txt`].sort());
+    expect(out.audioKeys.some((k) => k.includes('Y-'))).toBe(false);
+
+    // Deleting them through the adapter (a fake: no real bucket is ever contacted) removes exactly those objects.
+    const bucket = new Set<string>([...out.audioKeys, 'audio/Y-1.webm', 'audio/orphan-no-owner-trail.webm', 'audio/study/manifest.json']);
+    const fake: AudioObjectStore = { deleteObject: async (k) => { bucket.delete(k); } };
+    const report = await deleteAudioObjects(fake, out.audioKeys);
+    expect(report.complete).toBe(true);
+    expect([...bucket].sort()).toEqual(['audio/Y-1.webm', 'audio/orphan-no-owner-trail.webm', 'audio/study/manifest.json']);
+    // DOCUMENTED LIMIT (docs/P2_NATIVE_SYNC.md, R2 ownership audit): an object that no database row references has no
+    // ownership trail, so no purge can find it. It is still in the bucket above.
+    expect(out.audioKeys).not.toContain('audio/orphan-no-owner-trail.webm');
     expect(out.counts).toMatchObject({ attempt: 2, attemptEvidence: 2, attemptEvaluation: 1, attemptMeasurement: 1, sessionItem: 1, device: 1, authIdentity: 1, machinePrincipal: 1, user: 1, learner: 1, rateLimitBucket: 1 });
 
     // Nobody else was touched.

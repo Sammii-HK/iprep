@@ -13,7 +13,7 @@
 import { readFileSync } from 'fs';
 import { resolve } from 'path';
 import { parse } from 'dotenv';
-import { DeleteObjectCommand, S3Client } from '@aws-sdk/client-s3';
+import { createR2AudioStore, deleteAudioObjects } from '../lib/audio-store';
 import { PrismaClient } from '@prisma/client';
 import { dueForPurge, purgeAccount } from '../lib/native/purge';
 import { loadExplicitEnvFile, printTarget, resolveScriptTarget, TargetError } from './lib/target';
@@ -68,26 +68,30 @@ async function main() {
     console.log(`${ids.length} account(s) ${dryRun ? 'would be' : 'will be'} purged.`);
     if (dryRun) return console.log('Dry run: nothing deleted. Pass --execute.');
 
-    let s3: S3Client | null = null;
-    let bucket = '';
+    let store: ReturnType<typeof createR2AudioStore> | null = null;
     if (argv.includes('--delete-audio')) {
       const r2 = parse(readFileSync(resolve(flag(argv, '--r2-env-file') ?? '')));
-      bucket = r2.R2_BUCKET_NAME;
-      s3 = new S3Client({ region: 'auto', endpoint: r2.R2_ENDPOINT, credentials: { accessKeyId: r2.R2_ACCESS_KEY_ID, secretAccessKey: r2.R2_SECRET_ACCESS_KEY }, forcePathStyle: true });
+      store = createR2AudioStore({ endpoint: r2.R2_ENDPOINT, bucket: r2.R2_BUCKET_NAME, accessKeyId: r2.R2_ACCESS_KEY_ID, secretAccessKey: r2.R2_SECRET_ACCESS_KEY });
     }
+    let incomplete = false;
     for (const id of ids) {
       const out = await purgeAccount(prisma, id);
       console.log(`purged ${id}: ${JSON.stringify(out.counts)}`);
       if (out.audioKeys.length > 0) {
-        if (s3) {
-          for (const key of out.audioKeys) await s3.send(new DeleteObjectCommand({ Bucket: bucket, Key: key }));
-          console.log(`  deleted ${out.audioKeys.length} audio object(s) from R2`);
+        if (store) {
+          const report = await deleteAudioObjects(store, out.audioKeys);
+          console.log(`  R2: ${report.deleted.length} deleted, ${report.failed.length} failed, ${report.refused.length} refused (of ${report.requested})`);
+          for (const f of report.failed) console.log(`    FAILED ${f.key} (${f.error})`);
+          if (!report.complete) incomplete = true;
         } else {
-          console.log(`  MANUAL: ${out.audioKeys.length} audio object(s) in R2 still hold this learner's voice. Re-run with --delete-audio --r2-env-file, or delete these keys:`);
+          incomplete = true;
+          console.log(`  MANUAL: ${out.audioKeys.length} audio object(s) in R2 still hold this learner's data. Re-run with --delete-audio --r2-env-file, or delete these keys:`);
           for (const key of out.audioKeys) console.log(`    ${key}`);
         }
       }
     }
+    console.log('\nNote: R2 objects that no database row references (orphans from past deletions or upload races) cannot be attributed to an account and are NOT covered. See docs/P2_NATIVE_SYNC.md.');
+    if (incomplete) process.exitCode = 1;
   } finally {
     await prisma.$disconnect();
   }
