@@ -20,7 +20,8 @@ function txClient() {
   let evalN = 0;
   const tx = {
     learner: { upsert: vi.fn(async () => ({ id: 'learner-1' })) },
-    attempt: { create: vi.fn<(args: unknown) => Promise<{ id: string }>>(async () => ({ id: 'attempt-1' })), findUnique: vi.fn(async () => ({ surface: 'WRITTEN_TO_SPOKEN' })) },
+    attempt: { create: vi.fn<(args: unknown) => Promise<{ id: string }>>(async () => ({ id: 'attempt-1' })), findUnique: vi.fn(async () => ({ surface: 'WRITTEN_TO_SPOKEN', learnerId: 'learner-1' })) },
+    syncChange: { create: vi.fn<(a: unknown) => Promise<{ id: bigint }>>(async () => ({ id: BigInt(1) })) },
     attemptEvaluation: { create: vi.fn<(args: unknown) => Promise<{ id: string }>>(async () => ({ id: `eval-${++evalN}` })) },
     attemptMeasurement: { createMany: vi.fn<(args: unknown) => Promise<{ count: number }>>(async () => ({ count: 1 })) },
     sessionItem: { create: vi.fn<(args: unknown) => Promise<{ id: string }>>(async () => ({ id: 'item-1' })) },

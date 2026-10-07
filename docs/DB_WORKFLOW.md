@@ -71,7 +71,14 @@ GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO iprep_app
 REVOKE ALL ON TABLE _prisma_migrations FROM iprep_app;
 ALTER DEFAULT PRIVILEGES FOR ROLE neondb_owner IN SCHEMA public
   GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO iprep_app;
+ALTER DEFAULT PRIVILEGES FOR ROLE neondb_owner IN SCHEMA public
+  GRANT USAGE, SELECT ON SEQUENCES TO iprep_app;   -- present on Production and Preview; a fresh environment needs it too
 ```
+
+Sequences are not covered by the table grant. Until P2 no table used one; `SyncChange` does. The P2 migration therefore also
+grants the runtime role `USAGE, SELECT` on `SyncChange_id_seq` explicitly, so it does not depend on the default above, and
+it revokes the runtime role's UPDATE/DELETE/TRUNCATE on the ledger, the feed, the diagnostic log, revisions and receipts
+(the epoch is read-only for it). `__tests__/db/runtime-privileges.integration.test.ts` audits the exact matrix.
 
 This was proven against a throwaway local database: nested creates, includes and interactive
 transactions work; create table, alter table, reading `_prisma_migrations` and creating roles are denied.

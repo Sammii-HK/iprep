@@ -24,6 +24,7 @@ export async function GET(
       },
       include: {
         questions: {
+          where: { archivedAt: null },
           orderBy: {
             id: 'asc',
           },
@@ -110,7 +111,7 @@ export async function DELETE(
       include: {
         _count: {
           select: {
-            questions: true,
+            questions: { where: { archivedAt: null } },
             quizzes: true,
             sessions: true,
           },

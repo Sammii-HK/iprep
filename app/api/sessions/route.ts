@@ -22,7 +22,7 @@ export async function POST(request: NextRequest) {
     // Validate bank exists and belongs to user
     const bank = await prisma.questionBank.findUnique({
       where: { id: validated.bankId },
-      include: { questions: true },
+      include: { questions: { where: { archivedAt: null } } },
     });
 
     if (!bank || isFactsBankTitle(bank.title)) {
