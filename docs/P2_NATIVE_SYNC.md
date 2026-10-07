@@ -209,3 +209,28 @@ rollback.
 See the PR description for the verification record and what remains. Out of P2 by decision: server AI evaluation of
 iOS attempts, RevenueCat entitlement, bank mirroring, two-way bank editing, audio, learner feedback, FSRS and any
 scheduler, CloudKit teardown.
+
+## Device identity: one user + one installation = one Device
+
+Added on top of the P2 migration by `20261008100000_p2_device_install_id` (rollback: `docs/p2-device-install-id-rollback.sql`).
+
+- **Representation.** `Device.installId` is a random UUID the app generates once per installation and keeps for that
+  installation's life. It identifies the installation only: never a person, never hardware (no IDFV, serial or
+  fingerprint). It is stored as sent (lowercased), because it carries no authority and is not a secret; a database
+  CHECK and the route both require the UUID format. A delete/reinstall that loses the id may legitimately create a
+  new Device.
+- **Constraint.** A partial unique index `Device_one_active_per_installation` on `(userId, installId)` for active rows
+  with an id. Revoked rows are history, and legacy rows (NULL) are unaffected. The id is scoped by user, so it can
+  never be used to find or take over another account's Device.
+- **Sign-in.** `getOrCreateDevice` (`lib/native/session.ts`): revive this user's `user-logout` Device for the
+  installation if one exists and none is active; otherwise a single atomic `INSERT ... ON CONFLICT ... DO UPDATE`
+  returning the active row. Concurrent sign-ins converge on one row. Devices revoked for any other reason
+  (`refresh-reuse`, `apple-revoked`, `deletion-requested`, `operator`) stay revoked and a new row is created, so
+  revocation is never undone by signing in again. No `installId` (an older client) means a Device per sign-in, as before.
+- **Credentials.** Reusing a Device adds a refresh-token family beside any existing one and revokes none, so a response
+  lost in flight cannot lock the installation out. Rotation and reuse detection are unchanged (the family is the device).
+- **Sessions that predate the id.** `POST /api/auth/native/refresh` accepts an `X-iPrep-Install-Id` header and fills a
+  missing `installId` on that Device (never overwrites, never if the user already has an active Device for that
+  installation, best effort).
+- **Deliberate debt (not blockers).** No mid-session expiry timer for the cached product grant; the grant snapshot is
+  stored in app preferences rather than the Keychain; reused Devices accumulate refresh-token families until each expires.

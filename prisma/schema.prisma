@@ -642,6 +642,10 @@ model Device {
   revokedAt   DateTime?
   // user-logout | refresh-reuse | apple-revoked | deletion-requested | operator
   revokedReason String?
+  // A random id the app generates once per installation and keeps for that installation's life. It identifies the
+  // INSTALLATION only, never a person or hardware (no IDFV, serial or fingerprint). One user + one installation =
+  // one active Device (partial unique index in the migration). NULL for devices created before this existed.
+  installId   String?
   user        User           @relation(fields: [userId], references: [id], onDelete: Restrict)
   tokens      NativeRefreshToken[]
   attempts    Attempt[]

@@ -13,7 +13,7 @@ import { Prisma, type PrismaClient } from '@prisma/client';
 import { AppError, ValidationError } from '../errors';
 import { type AppleIdentity, AppleVerificationError } from './apple';
 import { hashCode } from './codes';
-import { createDevice, issueTokens, type DeviceInfo, type IssuedTokens } from './session';
+import { getOrCreateDevice, issueTokens, type DeviceInfo, type IssuedTokens } from './session';
 import { sha256Hex } from './apple';
 
 export interface SignInInput {
@@ -182,7 +182,7 @@ async function finish(
   status: 200 | 201
 ): Promise<SignInResult> {
   const learner = await tx.learner.upsert({ where: { userId }, update: {}, create: { userId }, select: { id: true } });
-  const dev = await createDevice(tx, userId, device);
+  const dev = await getOrCreateDevice(tx, userId, device);
   const tokens = await issueTokens(tx, { userId, deviceId: dev.id, secret: deps.secret });
   return { status, tokens, deviceId: dev.id, userId, learnerId: learner.id };
 }

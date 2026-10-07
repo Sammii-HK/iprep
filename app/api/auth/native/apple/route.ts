@@ -15,7 +15,11 @@ const Body = z
     inviteCode: z.string().min(4).max(64).optional(),
     linkCode: z.string().min(4).max(64).optional(),
     cancelDeletion: z.boolean().optional(),
-    device: z.object({ platform: z.string().min(1).max(32), appVersion: z.string().max(64).optional() }),
+    device: z.object({
+      platform: z.string().min(1).max(32),
+      appVersion: z.string().max(64).optional(),
+      installId: z.string().uuid().optional(),
+    }),
   })
   .strict();
 
