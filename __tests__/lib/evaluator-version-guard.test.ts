@@ -12,6 +12,8 @@ import { SPOKEN_ANSWER_EVALUATOR } from '@/lib/attempts';
  */
 const PINNED_PROMPTS: Record<string, string> = {
   'spoken-answer-prompt@1': '5b814b549c63ef5d1e587e4f5106f4a2d97eb318e0522c332cf83f4bfd90e058',
+  // @2: adds the question-aware rubric section (lib/rubrics.ts); same scoring scale.
+  'spoken-answer-prompt@2': '623633f124c8a8b5429f2b2faa83c3436704017cff94a900bd09641e757928aa',
 };
 
 function promptHash(): string {

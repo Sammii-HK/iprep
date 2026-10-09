@@ -6,6 +6,7 @@
  */
 
 import { chatModelInfo } from "./ai-models";
+import { rubricPromptSection, selectRubric } from "./rubrics";
 import OpenAI from "openai";
 import { z } from "zod";
 import {
@@ -423,6 +424,12 @@ export function buildOptimizedUserPrompt(
 			PITCH: 'Type: Pitch. Weight confidence + specificity + conciseness highest. Assess time-awareness.',
 		};
 		prompt += `${typeGuidance[questionType] || ''}\n`;
+	}
+
+	// Question-aware rubric (rubric-*@1): what a good answer for THIS kind of question contains.
+	if (questionText) {
+		const rubric = selectRubric({ text: questionText, type: questionType, tags: questionTags });
+		if (rubric) prompt += `\n${rubricPromptSection(rubric)}\n`;
 	}
 
 	const sheet = factSheet ? sanitizeForPrompt(factSheet).slice(0, FACT_SHEET_MAX_CHARS) : "";

@@ -24,8 +24,8 @@ export const DIMENSION_MAP_VERSION = 'dimensions@1';
 /** The AI spoken-answer evaluator. rubricVersion and promptVersion change independently of the code. */
 export const SPOKEN_ANSWER_EVALUATOR = {
   evaluatorVersion: 'spoken-answer@1',
-  rubricVersion: 'spoken-answer-rubric@1',
-  promptVersion: 'spoken-answer-prompt@1',
+  rubricVersion: 'spoken-answer-rubric@2',
+  promptVersion: 'spoken-answer-prompt@2',
 } as const;
 
 /** The code that turns a transcript into confidence and intonation scores. */

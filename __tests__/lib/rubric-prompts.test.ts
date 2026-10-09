@@ -89,3 +89,25 @@ describe('fact sheet in the user prompt', () => {
     expect(injected).not.toMatch(/ignore all previous instructions/i);
   });
 });
+
+describe('question-aware rubric in the evaluator prompt', () => {
+  const build = (q: string, type?: string) =>
+    buildOptimizedUserPrompt('answer', q, 'hint text that is long enough', [], type, undefined, null).prompt;
+
+  it('adds the matching rubric and forbids penalising subject terminology', () => {
+    const p = build('Explain design tokens in a design system.', 'DEFINITION');
+    expect(p).toMatch(/RUBRIC rubric-technical@1/);
+    expect(p).toMatch(/never a flaw/);
+    expect(p).toMatch(/Only core criteria can lower a score/);
+  });
+
+  it('uses a behavioural rubric for stories and never asks for invented metrics', () => {
+    const p = build('Tell me about a time you led a team.', 'BEHAVIORAL');
+    expect(p).toMatch(/rubric-behavioural@1/);
+    expect(p).toMatch(/must never be invented/);
+  });
+
+  it('does not apply a technical or STAR rubric to administrative questions', () => {
+    expect(build('What are your salary expectations?')).not.toMatch(/RUBRIC/);
+  });
+});
