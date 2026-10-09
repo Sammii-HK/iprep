@@ -79,3 +79,30 @@ Recommended-for-interview strip (`recommendForInterview`), read-only audit scrip
   edited. Stories are not audited. A plan already built today is not rebuilt when a question is left out; the next plan honours it.
 - The on-device model (`FoundationModelsBridge`) is now a real call behind `canImport(FoundationModels)`; it needs an iOS 26 SDK build
   and a device with Apple Intelligence to verify.
+
+
+## Requirement audit against the original brief (honest)
+
+Legend: DONE = built and tested where tests can run. UNVERIFIED = written but not compiled/run (all Swift; the web prompt change
+and on-device model). PARTIAL / NOT DONE are stated plainly.
+
+| Brief | Status |
+|---|---|
+| 1 Remember selections, per-context memory, resume | DONE on web (single bank) and UNVERIFIED on iOS. Named presets exist only as a tested TypeScript library, no preset UI on either platform: PARTIAL |
+| 2 Goal-aware, multiple target roles, interview-specific prep | Web "Recommended for your interview" DONE. iOS Today already interview-aware (existing). Multiple target roles: library only, no screen to set them, web uses only the next interview's role: PARTIAL. No recommendations strip on iOS |
+| 3 Separate learning contexts | DONE on web and UNVERIFIED on iOS (context menu, plan and practice filtering) |
+| 4 Question quality audit | iOS Review questions screen UNVERIFIED. Web CSV audit ran on the 6 seed banks. NOT run on your real banks (no access). Revisions via QuestionRevision not used: nothing is rewritten |
+| 5 Question selection | DONE on web (smart=1) and UNVERIFIED on iOS (QuestionRanker) |
+| 6 Scoring quality | Web: terminology fix DONE, rubrics in prompt@2 but NOT compared with the live model. iOS: fairness fixes UNVERIFIED; on-device model enabled UNVERIFIED |
+| 7 Answer analysis (demonstrated/mentioned/missing/misconceptions, grounding) | Library + tests only (`lib/answer-analysis.ts`), NOT wired into the evaluator output or any screen: NOT DONE in product. iOS already shows per-point coverage from your own notes (existing) |
+| 8 Learning graph | iOS seed graph + "Revisit first" UNVERIFIED. No interactive visual graph screen: NOT DONE |
+| 9 Today | Existing interview-aware plan kept; admin/other-context filtering added UNVERIFIED |
+| 10 Spoken modes | Text follow-ups only (Teach-back UNVERIFIED). Conversational interviewer, scenario/timed/compare modes, spoken teach-back: NOT DONE |
+| 11 Interactive podcasts, Jess/Zac memory | NOT DONE |
+| 12 Chaos | Prompt twist banner UNVERIFIED. Scoring is not twist-aware (no-jargon answers can still be marked down by the keyword depth scorer): PARTIAL |
+| 13 Boss battles | NOT DONE (existing mock interview and "Interview boss level" gauge only) |
+| 14 Better mock interviews | NOT DONE |
+| 15 Readiness | "Not enough practice to tell yet" UNVERIFIED. Per-dimension readiness: NOT DONE |
+| 16 Gamification | Existing XP/levels/streaks untouched. Evidence-aware XP and seasonal celebrations: NOT DONE on iOS (TypeScript rules only) |
+| 17-19 Preserve history / safety | Nothing deleted, nothing migrated, no ledger semantics changed |
+| 21 Verification | Unit tests only. No UI automation, no real-device run, no iOS test run |
