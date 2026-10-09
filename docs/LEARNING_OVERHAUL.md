@@ -16,8 +16,8 @@ routes or UI except where stated. Nothing is deployed, migrated, or deleted.
 | Resume unfinished session | WORKING (latest unfinished server session); saved resume pointer BUILT, unused | practice page |
 | Multi-bank sessions | NOT PRESENT (Session has one `bankId`; needs API/schema change) | n/a |
 | Learning contexts, question-level filtering | BUILT (keyword heuristics), bank list filtered by title only in UI | `lib/learning-context.ts` |
-| Administrative questions excluded | BUILT in selection engine; NOT yet applied by `/api/sessions` | `lib/learning-context.ts` |
-| Intelligent selection (new/due/weak/stale/recent/dedupe/interleave/explain) | BUILT, not wired to `/api/sessions` | `lib/question-selection.ts` |
+| Administrative questions excluded | WORKING in smart session ordering; the default (non-smart) path and other consumers still include them | `lib/learning-context.ts` |
+| Intelligent selection (new/due/weak/stale/recent/dedupe/interleave/explain) | WORKING for session questions via `GET /api/sessions/[id]?smart=1` (the practice session page requests it); stable on resume; administrative questions removed. Interview/role terms are not passed yet | `lib/question-selection.ts`, `lib/session-questions.ts` |
 | Role profiles, multiple targets, interview weighting | BUILT, not wired | `lib/role-profiles.ts` |
 | Question-quality audit | BUILT; ran on the 6 seed CSV banks only (89 questions) | `lib/question-quality.ts`, `scripts/audit-questions.ts` |
 | Terminology no longer penalised as repetition | WORKING in `/api/practice` and reanalyze | `lib/audio-analysis.ts` |
@@ -41,7 +41,7 @@ The audit proposes actions; nothing is archived or edited.
 - Heuristics (contexts, administrative detection, audit classes) are keyword-based and tuned on
   fixtures and the 6 seed banks, not on your real banks.
 - Audit of your real banks needs database access (read-only) and has not been run.
-- Rubrics are not yet part of the live evaluator prompt, so scoring in production is unchanged
+- Putting rubrics into the evaluator prompt requires bumping `promptVersion`/`rubricVersion` and pinning a new hash in `__tests__/lib/evaluator-version-guard.test.ts`. It changes live scoring and adds prompt tokens, so it is held for approval and a before/after run against the real model. Until then rubrics are not part of the live evaluator prompt, so scoring in production is unchanged
   except for the terminology fix. Rolling them in needs a versioned evaluator change and a
   before/after run on a calibration set against the real model.
 - Concept extraction (mapping real questions to concepts) is not done.
