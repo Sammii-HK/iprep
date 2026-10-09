@@ -72,9 +72,10 @@ export function countFillers(transcript: string): number {
     if (/^[\s,]*(?:a|an|the|this|that|it|how|when|what)\b/i.test(after)) continue;
     // Skip if preceded by "looks", "feels", "sounds", "seems", "would", "I"
     if (/\b(?:looks?|feels?|sounds?|seems?|would|i|we|they|you)\s*$/i.test(before)) continue;
-    // Count if followed by comma, pause marker, or another filler
-    if (/^[\s,]*(?:um|uh|you know|I mean|so|well|,)/i.test(after) ||
-        /[,]\s*$/i.test(before) ||
+    // Count only when "like" is itself a pause: followed by a comma, or by another filler, or hanging after
+    // "was/is/and/but". "values, like colours and spacing" is an example list, not a filler.
+    if (/^,/.test(after) ||
+        /^[\s,]*(?:um|uh|you know|I mean|so|well)\b/i.test(after) ||
         /^(?:\s|$)/.test(after) && /(?:was|is|it's|and|but)\s*$/i.test(before)) {
       counted.add(match.index);
       count++;
@@ -91,9 +92,10 @@ export function countFillers(transcript: string): number {
     const before = lower.substring(Math.max(0, match.index - 3), match.index).trim();
     const after = lower.substring(match.index + 2, Math.min(lower.length, match.index + 15)).trim();
 
-    // Only count at sentence start (after period/start) or after comma
+    // Count at sentence start. After a comma, "so" is the ordinary conjunction ("..., so rendering is cheap")
+    // unless it is itself a pause ("..., so, ...").
     const atSentenceStart = match.index === 0 || /[.!?]\s*$/.test(before) || before === '';
-    const afterComma = /^,?\s*$/.test(before) || before.endsWith(',');
+    const afterComma = (/^,?\s*$/.test(before) || before.endsWith(',')) && /^,/.test(lower.substring(match.index + 2).trimStart());
 
     // Skip if followed by "that", "much", "many", "far", "on", adjective patterns
     if (/^(?:that|much|many|far|long|on|few|well|good|bad|great)\b/i.test(after)) continue;

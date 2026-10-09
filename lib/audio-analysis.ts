@@ -257,6 +257,9 @@ export function analyzeRepeatedWords(
     'what', 'which', 'who', 'when', 'where', 'why', 'how', 'can', 'cannot'
   ]);
 
+  // Filler words are penalised as filler; counting them again as "repetition" would double-penalise one habit.
+  const fillerWords = new Set(['know', 'mean', 'kind', 'sort', 'basically', 'literally', 'actually', 'like', 'okay', 'well', 'right', 'hmm', 'uhm', 'umm', 'erm']);
+
   // Calculate repetition threshold
   // Adjusted for concise answers (often 30-50 words for study cards)
   // A word is "repeated" if it appears more than expected for the answer length
@@ -293,6 +296,9 @@ export function analyzeRepeatedWords(
   wordFrequency.forEach((count, word) => {
     // Skip stop words unless they appear excessively (10+ times)
     if (stopWords.has(word) && count < 10) {
+      return;
+    }
+    if (fillerWords.has(word)) {
       return;
     }
     // Subject terminology (e.g. "tokens" in a design-tokens answer) is not overuse.
