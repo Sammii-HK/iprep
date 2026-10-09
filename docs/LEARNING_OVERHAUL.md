@@ -122,3 +122,16 @@ and on-device model). PARTIAL / NOT DONE are stated plainly.
 Still NOT done: interactive podcasts and Jess/Zac memory; conversational/spoken interview modes; multi-stage Boss battles; mock-interview
 improvements; per-dimension readiness; evidence-aware XP and seasonal celebrations on iOS; twist-aware (no-jargon) scoring; model-grounded
 concept analysis (needs a live-model change and comparison); the audit on the real banks; Xcode build, on-device model and iOS UI tests.
+
+
+## Update: iOS items added after the audit
+
+| Brief | Status now |
+|---|---|
+| 12 Chaos: no-jargon / 30-second twists not marked down | DONE in the rule-based scorer (Docker-verified) and passed to the on-device model prompt. The paid backend engine ignores twists |
+| 14 Mock interview debrief (strengths, gaps, points missed more than once, one next step, no prediction) | Logic Docker-verified; the `PracticeView` card is NOT compiled (needs Xcode) |
+| 16 Evidence-aware XP (retention and recovery bonuses; none for retries or repetition) and seasonal celebrations (Halloween, winter, spring, summer windows; Reduce Motion unchanged) | Logic Docker-verified; the burst view change is NOT compiled |
+| Swift pure-logic suite | 75/75 on Linux (`scripts/verify-pure-logic.sh`) |
+
+Still NOT done: interactive podcasts and Jess/Zac memory; conversational/spoken interview modes; multi-stage Boss battles;
+per-dimension readiness; model-grounded concept analysis; the audit on the real banks; Xcode build, on-device model and iOS UI tests.
