@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { interviewWeight, matchRoles, recommendBanks, selectionTerms } from "@/lib/role-profiles";
+import { interviewWeight, matchRoles, recommendBanks, recommendForInterview, selectionTerms } from "@/lib/role-profiles";
 
 const now = new Date("2026-10-09T12:00:00Z");
 const inDays = (d: number) => new Date(now.getTime() + d * 86_400_000);
@@ -62,5 +62,31 @@ describe("role profiles", () => {
 		const t = selectionTerms({ targetRoleTitles: ["AI Product Engineer"], interviews: [{ company: "Prismic", role: "Product Engineer", startsAt: inDays(3) }], now });
 		expect(t.roleTerms).toContain("mcp");
 		expect(t.interviewTerms).toContain("prismic");
+	});
+});
+
+describe("recommendForInterview", () => {
+	const next = {
+		interview: { company: "Prismic", role: "Senior Product Engineer", startsAt: inDays(2).toISOString() },
+		folder: { title: "Prismic Interview Prep", banks: [{ id: "react" }, { id: "gone" }] },
+	};
+
+	it("puts the interview's own prep folder first, explains why, and skips banks that no longer exist", () => {
+		const recs = recommendForInterview({ next, banks, activeContext: "INTERVIEW", now });
+		expect(recs[0]).toEqual({ id: "react", reason: "In your Prismic prep folder" });
+		expect(recs.map((r) => r.id)).not.toContain("gone");
+		expect(new Set(recs.map((r) => r.id)).size).toBe(recs.length);
+	});
+
+	it("never re-suggests selected, excluded or dismissed banks, and has nothing without an interview", () => {
+		const recs = recommendForInterview({ next, banks, activeContext: "INTERVIEW", now, exclude: new Set(["react", "ds"]) });
+		expect(recs.map((r) => r.id)).not.toEqual(expect.arrayContaining(["react"]));
+		expect(recs.map((r) => r.id)).not.toContain("ds");
+		expect(recommendForInterview({ next: null, banks, activeContext: "INTERVIEW", now })).toEqual([]);
+	});
+
+	it("does not suggest fundraising banks for an interview", () => {
+		const recs = recommendForInterview({ next, banks, activeContext: "INTERVIEW", now });
+		expect(recs.map((r) => r.id)).not.toContain("vc");
 	});
 });

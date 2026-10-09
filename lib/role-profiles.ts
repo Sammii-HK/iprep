@@ -151,3 +151,42 @@ export function selectionTerms(input: Pick<RecommendInput, "targetRoleTitles" | 
 	];
 	return { roleTerms, interviewTerms };
 }
+
+export interface NextInterviewInfo {
+	interview: { company: string; role: string; startsAt: string | Date; status?: string };
+	folder: { title: string; banks: { id: string }[] } | null;
+}
+
+/**
+ * Banks to suggest for the next interview, each with a plain-language reason. Banks in the
+ * interview's own prep folder come first, then skill matches. Only existing banks are returned,
+ * each once, and `exclude` (selected, excluded, dismissed) is never re-suggested.
+ */
+export function recommendForInterview(input: {
+	next: NextInterviewInfo | null;
+	banks: readonly BankSummary[];
+	activeContext: LearningContext;
+	now: Date;
+	exclude?: ReadonlySet<string>;
+	limit?: number;
+}): { id: string; reason: string }[] {
+	if (!input.next) return [];
+	const { interview, folder } = input.next;
+	const reasons = new Map<string, string>();
+	for (const b of folder?.banks ?? []) reasons.set(b.id, `In your ${interview.company} prep folder`);
+	for (const r of recommendBanks({
+		targetRoleTitles: [interview.role],
+		interviews: [{ ...interview, startsAt: new Date(interview.startsAt) }],
+		banks: input.banks,
+		activeContext: input.activeContext,
+		now: input.now,
+	})) {
+		if (!reasons.has(r.bankId)) reasons.set(r.bankId, r.reasons[0] ?? "Relevant to your interview");
+	}
+	const known = new Set(input.banks.map((b) => b.id));
+	const exclude = input.exclude ?? new Set<string>();
+	return [...reasons]
+		.filter(([id]) => known.has(id) && !exclude.has(id))
+		.slice(0, input.limit ?? 5)
+		.map(([id, reason]) => ({ id, reason }));
+}

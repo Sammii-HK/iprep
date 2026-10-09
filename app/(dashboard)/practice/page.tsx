@@ -8,8 +8,10 @@ import {
 	inferContexts,
 	type LearningContext,
 } from "@/lib/learning-context";
+import { recommendForInterview } from "@/lib/role-profiles";
 import {
 	DEFAULT_PREFS,
+	dismissRecommendation,
 	getContextState,
 	loadPrefs,
 	reconcileSelection,
@@ -57,6 +59,10 @@ export default function PracticePage() {
 	const [selectedBankId, setSelectedBankId] = useState<string>("");
 	const [maxQuestions, setMaxQuestions] = useState<number>(0); // 0 means "all"
 	const [selectedPreset, setSelectedPreset] = useState<PracticePreset>("interview");
+	const [nextInterview, setNextInterview] = useState<{
+		interview: { company: string; role: string; startsAt: string; status?: string };
+		folder: { title: string; banks: { id: string; title: string }[] } | null;
+	} | null>(null);
 	const [prefs, setPrefs] = useState<PracticePrefs>(DEFAULT_PREFS);
 	const [prefsLoaded, setPrefsLoaded] = useState(false);
 	const [deletingSessionId, setDeletingSessionId] = useState<string | null>(
@@ -145,6 +151,17 @@ export default function PracticePage() {
 				setBanks(banksData);
 			}
 
+			// Optional: the next interview drives "Recommended". Failure just means no recommendations.
+			try {
+				const nextRes = await fetch("/api/interviews/next");
+				if (nextRes.ok) {
+					const next = await nextRes.json();
+					setNextInterview(next?.interview ? next : null);
+				}
+			} catch {
+				setNextInterview(null);
+			}
+
 			if (sessionsRes.ok) {
 				const sessionsData = await sessionsRes.json();
 				setSessions(sessionsData);
@@ -214,6 +231,18 @@ export default function PracticePage() {
 			allSelectedIds.includes(b.id) ||
 			inferContexts({ title: b.title }).includes(activeContext)
 	);
+
+	// Recommended for the next interview. Advice only: it never changes the selection until accepted.
+	const recommended = (() => {
+		const cs = getContextState(prefs);
+		return recommendForInterview({
+			next: nextInterview,
+			banks: banks.map((b) => ({ id: b.id, title: b.title })),
+			activeContext,
+			now: new Date(),
+			exclude: new Set([...cs.selectedBankIds, ...cs.excludedBankIds, ...cs.dismissedBankIds]),
+		});
+	})();
 
 	const toggleBank = (bankId: string) => {
 		const next = allSelectedIds.includes(bankId)
@@ -416,6 +445,48 @@ export default function PracticePage() {
 					</button>
 				))}
 			</div>
+
+			{recommended.length > 0 && nextInterview && (
+				<div className="mb-4 p-4 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800">
+					<div className="text-sm font-semibold text-slate-900 dark:text-slate-100">
+						Recommended for your {nextInterview.interview.role} interview at{" "}
+						{nextInterview.interview.company}
+					</div>
+					<p className="text-xs text-slate-600 dark:text-slate-400 mb-2">
+						Suggestions only. Your own selection is not changed unless you add one.
+					</p>
+					<ul className="space-y-2">
+						{recommended.map((rec) => {
+							const bank = banks.find((b) => b.id === rec.id);
+							if (!bank) return null;
+							return (
+								<li key={rec.id} className="flex items-center justify-between gap-2">
+									<div className="min-w-0">
+										<div className="text-sm text-slate-900 dark:text-slate-100 truncate">{bank.title}</div>
+										<div className="text-xs text-slate-600 dark:text-slate-400">{rec.reason}</div>
+									</div>
+									<div className="flex gap-2 shrink-0">
+										<button
+											type="button"
+											onClick={() => toggleBank(rec.id)}
+											className="px-2 py-1 text-xs rounded bg-purple-200 dark:bg-purple-800 text-purple-800 dark:text-purple-200"
+										>
+											Add
+										</button>
+										<button
+											type="button"
+											onClick={() => updatePrefs(dismissRecommendation(prefs, rec.id))}
+											className="px-2 py-1 text-xs rounded border border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-300"
+										>
+											Dismiss
+										</button>
+									</div>
+								</li>
+							);
+						})}
+					</ul>
+				</div>
+			)}
 
 			{resumableSession && (
 				<button
