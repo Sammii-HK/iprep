@@ -32,7 +32,7 @@ export async function GET(request: NextRequest) {
         items: {
           where: { bank: notFactsBank },
           orderBy: { order: 'asc' },
-          select: { bank: { select: { id: true, title: true, _count: { select: { questions: true } } } } },
+          select: { bank: { select: { id: true, title: true, _count: { select: { questions: { where: { archivedAt: null } } } } } } },
         },
       },
     });

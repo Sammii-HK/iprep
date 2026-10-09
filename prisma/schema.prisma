@@ -47,6 +47,12 @@ model User {
   interviews            Interview[]
   machinePrincipals     MachinePrincipal[]
   learner               Learner?
+  // Account deletion lifecycle (P2): NULL = normal. Set = DELETION_PENDING until the guarded purge runs.
+  deletionRequestedAt   DateTime?
+  purgeAfter            DateTime?
+  authIdentities        AuthIdentity[]
+  devices               Device[]
+  accountLinkCodes      AccountLinkCode[]
 }
 
 model UserQuestionProgress {
@@ -81,6 +87,12 @@ model QuestionBank {
   sessions    Session[]
   folderItems BankFolderItem[]
   attempts    Attempt[]
+  // Maps a client's own stable key (bundled iOS slug, or an imported local id) to this bank. Never an identity
+  // by itself: it is how a device that only knows its own ids finds the server bank.
+  externalKey String?
+  archivedAt  DateTime?
+
+  @@unique([userId, externalKey])
 }
 
 model BankFolder {
@@ -131,8 +143,30 @@ model Question {
   quizAttempts QuizAttempt[]
   userProgress UserQuestionProgress[]
   attempts     Attempt[]
+  // The text/hint/tags/type above are the projection of the latest revision, so existing readers are unchanged.
+  revisions    QuestionRevision[]
+  externalKey  String?     // see QuestionBank.externalKey
+  archivedAt   DateTime?   // removed from a bank without losing identity or history
 
+  @@unique([bankId, externalKey])
   @@index([bankId])
+}
+
+/// An immutable version of a question: what a learner was actually shown. The latest revision is the current one.
+model QuestionRevision {
+  id         String       @id @default(cuid())
+  questionId String
+  revision   Int
+  text       String
+  hint       String?
+  tags       String[]
+  difficulty Int
+  type       QuestionType
+  createdAt  DateTime     @default(now())
+  question   Question     @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  attempts   Attempt[]
+
+  @@unique([questionId, revision])
 }
 
 model Session {
@@ -269,8 +303,10 @@ model Interview {
   bookingLink String?
   interviewer String?
   status      String    @default("scheduled") // scheduled | completed | cancelled
-  source      String    @default("manual")    // manual | notion
+  source      String    @default("manual")    // manual | notion | calendar (calendar: designed, not built)
   externalId  String?                         // id in the source system (Notion page id)
+  timeZone    String?                         // IANA zone the source gave the time in (display only; startsAt is an instant)
+  sourceUpdatedAt DateTime?                   // when the source system last changed this record, not when iPrep synced it
   notes       String?
   folderId    String?                         // BankFolder holding the prep banks (not a FK: folders can be deleted)
   createdAt   DateTime  @default(now())
@@ -420,6 +456,22 @@ model Attempt {
   legacyRef        String?        @unique
   occurredAt       DateTime
   recordedAt       DateTime       @default(now())
+  // P2 client-created events. The client event id is permanent idempotency: a retried event can never create a
+  // second attempt (unique per learner). payloadHash is computed by the server over the immutable fields and
+  // only distinguishes a repeat from a conflicting reuse of the id.
+  clientEventId    String?
+  payloadHash      String?
+  deviceId         String?
+  questionRevisionId String?
+  // The device clock offset at send time; occurredAt itself is never rewritten.
+  occurredAtSkewMs Int?
+  occurredAtSuspect Boolean       @default(false)
+  // What the learner consented to when the event was created. NULL for web and legacy rows. Not an evaluation.
+  evaluationRequested Boolean?
+  // linked | unlinked | n/a: whether the prompt was resolved to canonical content (never guessed).
+  contentLinkage   String         @default("n/a")
+  // The client's own references as sent (bundled keys, local ids): provenance for unlinked attempts.
+  clientRef        Json?
 
   learner      Learner              @relation(fields: [learnerId], references: [id], onDelete: Restrict)
   goal         Goal?                @relation(fields: [goalId], references: [id], onDelete: SetNull)
@@ -431,7 +483,10 @@ model Attempt {
   evaluations  AttemptEvaluation[]
   measurements AttemptMeasurement[]
   sessionItem  SessionItem?
+  device       Device?              @relation(fields: [deviceId], references: [id], onDelete: SetNull)
+  questionRevision QuestionRevision? @relation(fields: [questionRevisionId], references: [id], onDelete: SetNull)
 
+  @@unique([learnerId, clientEventId])
   @@index([learnerId, occurredAt])
   @@index([questionId])
   @@index([sessionId])
@@ -453,6 +508,7 @@ model AttemptEvidence {
   fillerCount  Int?
   fillerRate   Float? // per 100 words
   longPauses   Int?
+  durationMs   Int?
   recordedAt   DateTime @default(now())
   attempt      Attempt  @relation(fields: [attemptId], references: [id], onDelete: Restrict)
 }
@@ -526,4 +582,134 @@ model AttemptMeasurement {
   @@unique([evaluationId, metric])
   @@index([attemptId])
   @@index([dimension])
+}
+
+// ---------------------------------------------------------------------------------------------------------
+// Native identity and sync (P2). See docs/P2_NATIVE_SYNC.md.
+// ---------------------------------------------------------------------------------------------------------
+
+/// A way to prove who is acting. Authentication only: whose learning history it is comes from User -> Learner.
+/// Never linked by email. At most one active Apple identity per user (partial unique index in the migration).
+model AuthIdentity {
+  id            String    @id @default(cuid())
+  userId        String
+  provider      String // "apple"
+  subject       String
+  emailAtLink   String?
+  createdAt     DateTime  @default(now())
+  lastUsedAt    DateTime?
+  revokedAt     DateTime?
+  // consent-revoked | account-deleted | user
+  revokedReason String?
+  user          User      @relation(fields: [userId], references: [id], onDelete: Restrict)
+
+  @@unique([provider, subject])
+  @@index([userId])
+}
+
+/// Single-use invite for native account creation. Only the hash is stored.
+model NativeInvite {
+  id           String    @id @default(cuid())
+  codeHash     String    @unique
+  createdAt    DateTime  @default(now())
+  expiresAt    DateTime
+  usedAt       DateTime?
+  usedByUserId String?
+  note         String?
+}
+
+/// One-time code an existing, signed-in web user creates to link an Apple identity. Only the hash is stored.
+model AccountLinkCode {
+  id        String    @id @default(cuid())
+  userId    String
+  codeHash  String    @unique
+  createdAt DateTime  @default(now())
+  expiresAt DateTime
+  usedAt    DateTime?
+  user      User      @relation(fields: [userId], references: [id], onDelete: Restrict)
+
+  @@index([userId])
+}
+
+/// A signed-in native app installation. The device id is issued by the server.
+model Device {
+  id          String         @id @default(cuid())
+  userId      String
+  platform    String
+  appVersion  String?
+  createdAt   DateTime       @default(now())
+  lastSeenAt  DateTime?
+  lastPushAt  DateTime?
+  lastCursor  String?
+  revokedAt   DateTime?
+  // user-logout | refresh-reuse | apple-revoked | deletion-requested | operator
+  revokedReason String?
+  // A random id the app generates once per installation and keeps for that installation's life. It identifies the
+  // INSTALLATION only, never a person or hardware (no IDFV, serial or fingerprint). One user + one installation =
+  // one active Device (partial unique index in the migration). NULL for devices created before this existed.
+  installId   String?
+  user        User           @relation(fields: [userId], references: [id], onDelete: Restrict)
+  tokens      NativeRefreshToken[]
+  attempts    Attempt[]
+
+  @@index([userId])
+}
+
+/// Refresh tokens form a chain per device (the family is the device). Each use rotates the token. Presenting a
+/// token that was already rotated is reuse: the device is revoked. Only hashes are stored.
+model NativeRefreshToken {
+  id           String    @id @default(cuid())
+  deviceId     String
+  tokenHash    String    @unique
+  createdAt    DateTime  @default(now())
+  expiresAt    DateTime
+  rotatedAt    DateTime?
+  replacedById String?
+  revokedAt    DateTime?
+  device       Device    @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+
+  @@index([deviceId])
+}
+
+/// Per-learner change feed for pull sync. `txid` is the writing transaction id: the pull only serves rows from
+/// transactions older than every in-flight one, so a cursor can never skip a change that commits late.
+model SyncChange {
+  id         BigInt   @id @default(autoincrement())
+  txid       BigInt   @default(dbgenerated("((pg_current_xact_id())::text)::bigint"))
+  learnerId  String
+  entityType String
+  entityId   String
+  kind       String   @default("upsert")
+  createdAt  DateTime @default(now())
+
+  @@index([learnerId, txid, id])
+}
+
+/// Single row. An operator bumps it after a restore so every client re-pulls from the start.
+model SyncEpoch {
+  id    Int @id @default(1)
+  epoch Int @default(1)
+}
+
+/// Diagnostic only. Idempotency never depends on this table.
+model SyncEventLog {
+  id          String   @id @default(cuid())
+  learnerId   String
+  deviceId    String?
+  eventId     String
+  result      String
+  errorCode   String?
+  payloadHash String?
+  receivedAt  DateTime @default(now())
+
+  @@index([learnerId, receivedAt])
+  @@index([learnerId, eventId])
+}
+
+/// What remains after a purge: counts only, never personal data.
+model AccountDeletionReceipt {
+  id          String   @id @default(cuid())
+  requestedAt DateTime
+  purgedAt    DateTime @default(now())
+  counts      Json
 }

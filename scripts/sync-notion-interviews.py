@@ -138,6 +138,9 @@ def map_row(
         "bookingLink": url_value(props.get("Booking Link")),
         "interviewer": plain_text(props.get("Interviewer")) or None,
         "folderId": match_folder(company, folders),
+        # Provenance: the zone Notion shows the time in, and when the row last changed in Notion.
+        "timeZone": tz_name,
+        "sourceUpdatedAt": page.get("last_edited_time"),
     }
     if date_prop.get("end"):
         ends_at = parse_notion_date(date_prop["end"], tz_name)

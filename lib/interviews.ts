@@ -48,6 +48,12 @@ const fields = {
   folderId: idSchema.nullable().optional(),
 };
 
+/** Provenance a SOURCE reports about a record. Manual interviews never carry it. */
+const provenance = {
+  timeZone: z.string().trim().min(1).max(64).nullable().optional(),
+  sourceUpdatedAt: isoDate.nullable().optional(),
+};
+
 function endsAfterStart(v: { startsAt?: Date; endsAt?: Date | null }): boolean {
   return !v.startsAt || !v.endsAt || v.endsAt.getTime() > v.startsAt.getTime();
 }
@@ -76,6 +82,7 @@ export const UpdateInterviewSchema = z
 export const SyncItemSchema = z.object({
   externalId: z.string().trim().min(1).max(200),
   ...fields,
+  ...provenance,
   status: z.enum(INTERVIEW_STATUSES).optional(),
 });
 
@@ -213,4 +220,50 @@ export function planSync(
     }
   }
   return plan;
+}
+
+/**
+ * Which source is trusted most when two records describe the same interview. A synced record carries the richer,
+ * externally maintained facts (round, interviewer, link), so it outranks a hand-typed one; a calendar entry is
+ * usually only a time and a title, so it never outranks Notion.
+ */
+export const SOURCE_PRECEDENCE: Record<string, number> = { notion: 3, calendar: 2, manual: 1 };
+
+/** Two records are the same interview when the company matches and they start within this long of each other. */
+export const SAME_INTERVIEW_WINDOW_MS = 12 * 60 * 60 * 1000;
+
+export interface DedupableInterview extends InterviewLike {
+  company: string;
+  source: string;
+  updatedAt: Date;
+}
+
+function rank(i: DedupableInterview): number {
+  return SOURCE_PRECEDENCE[i.source] ?? 0;
+}
+
+/**
+ * Hides lower-precedence duplicates of the same interview. Nothing is deleted or changed: the hidden record stays
+ * in the database, so a manual interview is still there if the richer source later drops its row. Cancelled
+ * records never hide an active one (a cancelled Notion row must not mask a manual interview that is still on).
+ */
+export function collapseSameInterview<T extends DedupableInterview>(list: T[]): T[] {
+  const active = list.filter((i) => i.status !== 'cancelled');
+  const hidden = new Set<string>();
+  for (const a of active) {
+    for (const b of active) {
+      if (a === b || hidden.has(a.id) || hidden.has(b.id)) continue;
+      if (a.company.trim().toLowerCase() !== b.company.trim().toLowerCase()) continue;
+      if (Math.abs(a.startsAt.getTime() - b.startsAt.getTime()) > SAME_INTERVIEW_WINDOW_MS) continue;
+      const keepA = rank(a) !== rank(b) ? rank(a) > rank(b) : a.updatedAt.getTime() >= b.updatedAt.getTime();
+      hidden.add(keepA ? b.id : a.id);
+    }
+  }
+  return list.filter((i) => !hidden.has(i.id));
+}
+
+/** What a client should list: duplicates collapsed, then upcoming-first order, cancelled and past dropped unless asked for. */
+export function visibleInterviews<T extends DedupableInterview>(all: T[], now: Date, includePast: boolean): T[] {
+  const sorted = sortInterviews(collapseSameInterview(all), now);
+  return includePast ? sorted : sorted.filter((i) => i.status !== 'cancelled' && isUpcoming(i, now));
 }

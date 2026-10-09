@@ -37,6 +37,13 @@ class MappingTests(unittest.TestCase):
         self.assertEqual(first["startsAt"], "2099-10-08T14:00:00+01:00")
         self.assertEqual(first["endsAt"], "2099-10-08T14:45:00+01:00")
 
+    def test_provenance_is_carried_from_notion(self):
+        first, second = self.payload["interviews"][:2]
+        self.assertEqual(first["timeZone"], "Europe/London")
+        self.assertEqual(first["sourceUpdatedAt"], "2026-10-05T18:30:00.000Z")
+        self.assertIsNone(second["timeZone"])
+        self.assertIsNone(second["sourceUpdatedAt"])
+
     def test_date_only_defaults_to_nine(self):
         self.assertEqual(self.payload["interviews"][1]["startsAt"], "2099-11-01T09:00:00+00:00")
 

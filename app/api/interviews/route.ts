@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { requireAuth } from '@/lib/auth';
-import { CreateInterviewSchema, isUpcoming, sortInterviews } from '@/lib/interviews';
+import { CreateInterviewSchema, visibleInterviews } from '@/lib/interviews';
 import { assertFolderOwned, enforceRateLimit, errorResponse, parseJson } from '@/lib/interviews-api';
 
 export async function GET(request: NextRequest) {
@@ -15,10 +15,7 @@ export async function GET(request: NextRequest) {
       where: { userId: user.id },
       orderBy: { startsAt: 'asc' },
     });
-    const sorted = sortInterviews(all, now);
-    const interviews = includePast
-      ? sorted
-      : sorted.filter((i) => i.status !== 'cancelled' && isUpcoming(i, now));
+    const interviews = visibleInterviews(all, now, includePast);
 
     return NextResponse.json({ interviews });
   } catch (error) {
