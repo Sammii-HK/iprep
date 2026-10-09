@@ -89,8 +89,8 @@ export default function PracticeSessionPage() {
       
       // Build URL with maxQuestions query param if it exists
       const url = maxQuestions && maxQuestions > 0 
-        ? `/api/sessions/${sessionId}?maxQuestions=${maxQuestions}`
-        : `/api/sessions/${sessionId}`;
+        ? `/api/sessions/${sessionId}?smart=1&maxQuestions=${maxQuestions}`
+        : `/api/sessions/${sessionId}?smart=1`;
       
       const response = await fetch(url);
       

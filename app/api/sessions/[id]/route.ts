@@ -3,6 +3,8 @@ import { prisma } from "@/lib/db";
 import { requireAuth, requireAccess } from "@/lib/auth";
 import { canAccessOwnedRecord } from "@/lib/access";
 import { handleApiError, NotFoundError, ValidationError } from "@/lib/errors";
+import { LEARNING_CONTEXTS, type LearningContext } from "@/lib/learning-context";
+import { orderSessionQuestions } from "@/lib/session-questions";
 
 export async function GET(
 	request: NextRequest,
@@ -15,6 +17,13 @@ export async function GET(
 		const maxQuestionsParam = searchParams.get("maxQuestions");
 		const maxQuestions = maxQuestionsParam
 			? parseInt(maxQuestionsParam, 10)
+			: undefined;
+
+		// Opt-in: rank by learning value instead of database order (see lib/session-questions).
+		const smart = searchParams.get("smart") === "1";
+		const contextParam = searchParams.get("context");
+		const activeContext = (LEARNING_CONTEXTS as readonly string[]).includes(contextParam ?? "")
+			? (contextParam as LearningContext)
 			: undefined;
 
 		const session = await prisma.session.findUnique({
@@ -70,12 +79,27 @@ export async function GET(
 			);
 		}
 
-		// Keep questions in original order (by id)
-		// Don't reorder - just track which ones have been answered
-
-		// Limit questions based on maxQuestions query param
-		if (maxQuestions && maxQuestions > 0 && questions.length > maxQuestions) {
-			questions = questions.slice(0, maxQuestions);
+		if (smart) {
+			const rows = await prisma.userQuestionProgress.findMany({
+				where: { userId: user.id, questionId: { in: questions.map((q: { id: string }) => q.id) } },
+				select: { questionId: true, nextReviewAt: true, lastPracticed: true, lastScore: true, repetitions: true },
+			});
+			const answeredInSession = [...session.items]
+				.sort((a: { createdAt: Date }, b: { createdAt: Date }) => a.createdAt.getTime() - b.createdAt.getTime())
+				.map((i: { questionId: string }) => i.questionId);
+			questions = orderSessionQuestions({
+				questions: questions.map((q: { id: string; text: string; tags: string[] }) => ({ ...q, bankId: session.bankId ?? "" })),
+				answeredInSession,
+				progress: new Map(rows.map((r: { questionId: string; nextReviewAt: Date; lastPracticed: Date; lastScore: number | null; repetitions: number }) => [r.questionId, r])),
+				sessionCreatedAt: session.createdAt,
+				maxQuestions,
+				activeContext,
+			}) as unknown as typeof questions;
+		} else {
+			// Default: original order (by id). Don't reorder - just track which ones have been answered.
+			if (maxQuestions && maxQuestions > 0 && questions.length > maxQuestions) {
+				questions = questions.slice(0, maxQuestions);
+			}
 		}
 
 		// Track which questions have been answered and count attempts per question
