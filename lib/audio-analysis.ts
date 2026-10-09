@@ -188,17 +188,49 @@ export function analyzeIntonationFromTranscript(
   return Math.min(10, Math.max(0, Math.round(score)));
 }
 
+const TERM_STOP_WORDS = new Set([
+  'the', 'and', 'for', 'with', 'how', 'what', 'why', 'when', 'does', 'did', 'you', 'your',
+  'are', 'can', 'explain', 'describe', 'about', 'between', 'would', 'should', 'this',
+  'that', 'have', 'has', 'was', 'were', 'tell', 'give', 'example', 'use', 'used',
+]);
+
+/**
+ * Words central to what the question asks about (from its text, reference hint, tags and bank
+ * title). Repeating these is necessary precision, not poor communication, so they are exempt
+ * from the repetition penalty. Inflections ("token" / "tokens") are matched by stem.
+ */
+export function deriveExpectedTerms(source: {
+  text?: string | null;
+  hint?: string | null;
+  tags?: readonly string[] | null;
+  bankTitle?: string | null;
+}): string[] {
+  const raw = [source.text, source.hint, source.bankTitle, ...(source.tags ?? [])]
+    .filter(Boolean)
+    .join(' ')
+    .toLowerCase()
+    .replace(/[^\w\s-]/g, ' ')
+    .split(/[\s-]+/)
+    .filter((w) => w.length > 2 && !TERM_STOP_WORDS.has(w));
+  return [...new Set(raw)];
+}
+
+const stem = (w: string) => w.replace(/(ing|ed|es|s)$/, '');
+
 /**
  * Analyze transcript for frequently repeated words
- * Identifies words that are overused (appear too frequently relative to total word count)
+ * Identifies words that are overused (appear too frequently relative to total word count).
+ * Terms in `expectedTerms` are subject-matter vocabulary and never count as overuse.
  */
 export function analyzeRepeatedWords(
   transcript: string,
-  wordCount: number
+  wordCount: number,
+  expectedTerms: readonly string[] = []
 ): {
   repeatedWords: Array<{ word: string; count: number; percentage: number }>;
   hasExcessiveRepetition: boolean;
 } {
+  const expectedStems = new Set(expectedTerms.map((t) => stem(t.toLowerCase())));
   // Extract words (normalize to lowercase, remove punctuation)
   const words = transcript
     .toLowerCase()
@@ -261,6 +293,10 @@ export function analyzeRepeatedWords(
   wordFrequency.forEach((count, word) => {
     // Skip stop words unless they appear excessively (10+ times)
     if (stopWords.has(word) && count < 10) {
+      return;
+    }
+    // Subject terminology (e.g. "tokens" in a design-tokens answer) is not overuse.
+    if (expectedStems.has(stem(word))) {
       return;
     }
 

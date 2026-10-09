@@ -17,6 +17,7 @@ import {
 } from "@/lib/scoring";
 import {
 	analyzeRepeatedWords,
+	deriveExpectedTerms,
 } from "@/lib/audio-analysis";
 import {
 	analyzeConfidenceEnhanced,
@@ -421,7 +422,15 @@ export async function POST(request: NextRequest) {
 		);
 
 		// Analyze repeated words to identify overused vocabulary
-		const repeatedWordsAnalysis = analyzeRepeatedWords(transcript, wordCount);
+		const repeatedWordsAnalysis = analyzeRepeatedWords(
+			transcript,
+			wordCount,
+			deriveExpectedTerms({
+				text: question.text,
+				hint: question.hint,
+				tags: question.tags,
+			})
+		);
 
 		// Calculate conciseness score
 		const concisenessScore = calculateConcisenessScore(

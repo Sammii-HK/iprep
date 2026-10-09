@@ -12,6 +12,7 @@ import {
 } from "@/lib/scoring";
 import {
 	analyzeRepeatedWords,
+	deriveExpectedTerms,
 } from "@/lib/audio-analysis";
 import {
 	analyzeConfidenceEnhanced,
@@ -87,7 +88,15 @@ export async function POST(request: NextRequest) {
 		const confidenceScore = analyzeConfidenceEnhanced(trimmedTranscript, fillerCount, wordCount, undefined);
 		const intonationScore = analyzeIntonationEnhanced(trimmedTranscript, wordCount, undefined);
 		const voiceQuality = analyzeVoiceQuality(trimmedTranscript, undefined, wordCount);
-		const repeatedWordsAnalysis = analyzeRepeatedWords(trimmedTranscript, wordCount);
+		const repeatedWordsAnalysis = analyzeRepeatedWords(
+			trimmedTranscript,
+			wordCount,
+			deriveExpectedTerms({
+				text: question.text,
+				hint: question.hint,
+				tags: question.tags,
+			})
+		);
 
 		// Get coaching preferences from localStorage won't work server-side, use defaults
 		const analysis = await analyzeTranscriptOptimized(
