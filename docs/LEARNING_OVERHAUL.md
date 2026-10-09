@@ -106,3 +106,19 @@ and on-device model). PARTIAL / NOT DONE are stated plainly.
 | 16 Gamification | Existing XP/levels/streaks untouched. Evidence-aware XP and seasonal celebrations: NOT DONE on iOS (TypeScript rules only) |
 | 17-19 Preserve history / safety | Nothing deleted, nothing migrated, no ledger semantics changed |
 | 21 Verification | Unit tests only. No UI automation, no real-device run, no iOS test run |
+
+
+## Verification update (what actually ran)
+
+| Check | Result |
+|---|---|
+| Web unit/API/DB tests (local Postgres 16) | 772 passed, 3 failed. The 3 fail on the base branch too or need network (`sessions` invalid bankId, `learning-analytics` tag performance, `cleanup-audio-guard` fetching `tsx`) |
+| Web lint / typecheck / `next build` | 0 lint errors, 0 type errors, production build succeeds |
+| Browser check of `/practice` (`e2e/practice-page.cjs`, Chromium, mocked API) | 12/12: bank remembered after reload, Interview hides fundraising, Founder/Fundraising show theirs, switching back restores, Recommended does not change selection until Use, roles and presets persist, no page errors |
+| Swift pure logic on Linux (`scripts/verify-pure-logic.sh`, Swift 6.0 container) | 60/60: contexts, preferences, ranker, audit, concept graph, teach-back, chaos, terminology, rubric, scoring fairness, plan filter |
+| Swift UI/SwiftData/CloudKit files (PracticeView wiring, ScorecardView, SettingsView, ReviewQuestionsView, LearningInsightsView, FoundationModelEngine) | NOT compiled or run: they import Apple frameworks. Need Xcode |
+| Scoring calibration (`__tests__/lib/scoring-calibration.test.ts`) | Found and fixed two real filler false positives ("..., like colours", "..., so rendering") |
+
+Still NOT done: interactive podcasts and Jess/Zac memory; conversational/spoken interview modes; multi-stage Boss battles; mock-interview
+improvements; per-dimension readiness; evidence-aware XP and seasonal celebrations on iOS; twist-aware (no-jargon) scoring; model-grounded
+concept analysis (needs a live-model change and comparison); the audit on the real banks; Xcode build, on-device model and iOS UI tests.
