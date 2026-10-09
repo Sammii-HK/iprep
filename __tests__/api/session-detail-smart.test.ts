@@ -4,6 +4,7 @@ vi.mock('@/lib/db', () => ({
   prisma: {
     session: { findUnique: vi.fn() },
     userQuestionProgress: { findMany: vi.fn() },
+    interview: { findMany: vi.fn(async () => []) },
   },
 }));
 vi.mock('@/lib/auth', () => {
@@ -28,7 +29,21 @@ const call = (qs: string) =>
   GET(new Request(`http://localhost/api/sessions/s1${qs}`) as never, { params: Promise.resolve({ id: 's1' }) });
 
 describe('GET /api/sessions/[id] smart ordering', () => {
-  beforeEach(() => vi.clearAllMocks());
+  beforeEach(() => {
+    vi.clearAllMocks();
+    (prisma.interview.findMany as ReturnType<typeof vi.fn>).mockResolvedValue([]);
+  });
+
+  it('an upcoming interview raises relevant questions without removing others', async () => {
+    (prisma.session.findUnique as ReturnType<typeof vi.fn>).mockResolvedValue(session());
+    (prisma.userQuestionProgress.findMany as ReturnType<typeof vi.fn>).mockResolvedValue([]);
+    (prisma.interview.findMany as ReturnType<typeof vi.fn>).mockResolvedValue([
+      { company: 'Prismic', role: 'Senior Product Engineer', startsAt: new Date(Date.now() + 2 * 86_400_000), status: 'scheduled' },
+    ]);
+    const ids = (await (await call('?smart=1')).json()).questions.map((q: { id: string }) => q.id);
+    expect(ids[0]).toBe('q3'); // 'rendering'/'react' matches the product-engineer profile
+    expect(ids).toContain('q1');
+  });
 
   it('default behaviour is unchanged: database order, nothing filtered', async () => {
     (prisma.session.findUnique as ReturnType<typeof vi.fn>).mockResolvedValue(session());

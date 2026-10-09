@@ -5,6 +5,7 @@ import { canAccessOwnedRecord } from "@/lib/access";
 import { handleApiError, NotFoundError, ValidationError } from "@/lib/errors";
 import { LEARNING_CONTEXTS, type LearningContext } from "@/lib/learning-context";
 import { orderSessionQuestions } from "@/lib/session-questions";
+import { selectionTerms } from "@/lib/role-profiles";
 
 export async function GET(
 	request: NextRequest,
@@ -87,6 +88,14 @@ export async function GET(
 			const answeredInSession = [...session.items]
 				.sort((a: { createdAt: Date }, b: { createdAt: Date }) => a.createdAt.getTime() - b.createdAt.getTime())
 				.map((i: { questionId: string }) => i.questionId);
+			// Upcoming scheduled interviews raise relevant questions; they never filter anything out.
+			const interviews = await prisma.interview.findMany({
+				where: { userId: user.id, status: "scheduled", startsAt: { gte: new Date() } },
+				select: { company: true, role: true, startsAt: true, status: true },
+				orderBy: { startsAt: "asc" },
+				take: 5,
+			});
+			const terms = selectionTerms({ targetRoleTitles: [], interviews, now: new Date() });
 			questions = orderSessionQuestions({
 				questions: questions.map((q: { id: string; text: string; tags: string[] }) => ({ ...q, bankId: session.bankId ?? "" })),
 				answeredInSession,
@@ -94,6 +103,8 @@ export async function GET(
 				sessionCreatedAt: session.createdAt,
 				maxQuestions,
 				activeContext,
+				interviewTerms: terms.interviewTerms,
+				roleTerms: terms.roleTerms,
 			}) as unknown as typeof questions;
 		} else {
 			// Default: original order (by id). Don't reorder - just track which ones have been answered.
