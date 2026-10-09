@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { requireAuth, requireAccess } from "@/lib/auth";
-import { canAccessOwnedRecord, canReadBank } from "@/lib/access";
+import { canAccessOwnedRecord } from "@/lib/access";
 import { isFactsBankTitle } from "@/lib/fact-sheet";
 import { handleApiError, NotFoundError, ValidationError } from "@/lib/errors";
 import { LEARNING_CONTEXTS, type LearningContext } from "@/lib/learning-context";
@@ -72,30 +72,8 @@ export async function GET(
 			throw new ValidationError("Session's question bank no longer exists");
 		}
 
-		// Multi-bank sessions: widen the pool with the extra banks' live questions.
-		let questions = session.bank.questions || [];
-		const bankOf = new Map<string, string>(questions.map((q: { id: string }) => [q.id, session.bank!.id]));
-		const extraBankIds = (session as { extraBankIds?: string[] }).extraBankIds ?? [];
-		if (extraBankIds.length > 0) {
-			const banks = await prisma.questionBank.findMany({
-				where: { id: { in: extraBankIds } },
-				select: { id: true, title: true, userId: true },
-			});
-			const readable = banks
-				.filter((b: { title: string; userId: string | null }) => !isFactsBankTitle(b.title) && canReadBank(b as never, user))
-				.map((b: { id: string }) => b.id);
-			if (readable.length > 0) {
-				const extra = await prisma.question.findMany({
-					where: { bankId: { in: readable }, archivedAt: null },
-					select: { id: true, text: true, hint: true, tags: true, difficulty: true, type: true, bankId: true },
-					orderBy: { id: "asc" },
-				});
-				extra.forEach((q: { id: string; bankId: string }) => bankOf.set(q.id, q.bankId));
-				questions = [...questions, ...extra];
-			}
-		}
-
 		// Filter questions by tags if session has filterTags
+		let questions = session.bank.questions || [];
 		const filterTags = (session as { filterTags?: string[] }).filterTags;
 		if (filterTags && filterTags.length > 0) {
 			questions = questions.filter((q: { tags: string[] }) =>
@@ -125,7 +103,7 @@ export async function GET(
 			});
 			const terms = selectionTerms({ targetRoleTitles: [], interviews, now: new Date() });
 			questions = orderSessionQuestions({
-				questions: questions.map((q: { id: string; text: string; tags: string[] }) => ({ ...q, bankId: bankOf.get(q.id) ?? session.bankId ?? "" })),
+				questions: questions.map((q: { id: string; text: string; tags: string[] }) => ({ ...q, bankId: session.bankId ?? "" })),
 				answeredInSession,
 				progress: new Map(rows.map((r: { questionId: string; nextReviewAt: Date; lastPracticed: Date; lastScore: number | null; repetitions: number }) => [r.questionId, r])),
 				sessionCreatedAt: session.createdAt,

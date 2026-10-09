@@ -596,8 +596,7 @@ describe.skipIf(!ADMIN_URL)('learner and attempt ledger (P1)', () => {
 
     it('P2 rollback returns the schema to exactly the P1 shape and leaves the whole P1 ledger and legacy rows untouched', async () => {
       const before = { legacy: await legacyCount(), attempts: (await rows<{ n: bigint }>(`SELECT count(*) AS n FROM "Attempt"`))[0].n };
-      // Newest first: later additive columns were added after P2 and are rolled back before it.
-      for (const st of splitSql(readFileSync(join(root, 'docs', 'session-extra-banks-rollback.sql'), 'utf8'))) await run(st);
+      // Newest first: the interview provenance columns were added after P2 and are rolled back before it.
       for (const st of splitSql(readFileSync(join(root, 'docs', 'p2-interview-provenance-rollback.sql'), 'utf8'))) await run(st);
       for (const st of splitSql(readFileSync(join(root, 'docs', 'p2-rollback.sql'), 'utf8'))) await run(st);
       expect(await legacyCount()).toBe(before.legacy);

@@ -221,17 +221,11 @@ export default function PracticePage() {
 
 	const activeContext = prefs.activeContext;
 	// Banks relevant to the active context, always keeping the remembered selection visible.
-	const allSelectedIds = reconcileSelection(
-		getContextState(prefs).selectedBankIds,
-		banks.map((b) => b.id)
-	).selectedBankIds;
-	const extraBankIds = allSelectedIds.slice(1);
 	const visibleBanks = banks.filter(
 		(b) =>
-			allSelectedIds.includes(b.id) ||
+			b.id === selectedBankId ||
 			inferContexts({ title: b.title }).includes(activeContext)
 	);
-
 	// Recommended for the next interview. Advice only: it never changes the selection until accepted.
 	const recommended = (() => {
 		const cs = getContextState(prefs);
@@ -244,22 +238,15 @@ export default function PracticePage() {
 		});
 	})();
 
-	const toggleBank = (bankId: string) => {
-		const next = allSelectedIds.includes(bankId)
-			? allSelectedIds.filter((id) => id !== bankId)
-			: [...allSelectedIds, bankId];
-		updatePrefs(setSelection(prefs, next));
-		setSelectedBankId(next[0] ?? "");
-		const first = banks.find((b) => b.id === next[0]);
-		if (!next.length) {
-			setNewSessionTitle("");
-			setMaxQuestions(0);
-		} else if (first && next.length === 1) {
-			setNewSessionTitle(first.title);
-			setMaxQuestions(first._count.questions);
-		} else if (next.length > 1) {
-			setNewSessionTitle((t) => t || "Mixed practice");
-		}
+	// Practice one bank for this session (web sessions are single-bank; the iOS app handles several).
+	const chooseBank = (bankId: string) => {
+		const bank = banks.find((b) => b.id === bankId);
+		if (!bank) return;
+		updatePrefs(setSelection(prefs, [bankId]));
+		setSelectedBankId(bankId);
+		setNewSessionTitle(bank.title);
+		setMaxQuestions(bank._count.questions);
+		setShowNewSession(true);
 	};
 	const resumableSession = sessions.find(
 		(s) => !s.isCompleted && (!s.bankId || visibleBanks.some((b) => b.id === s.bankId))
@@ -285,7 +272,6 @@ export default function PracticePage() {
 				body: JSON.stringify({
 					title: newSessionTitle,
 					bankId: selectedBankId,
-					extraBankIds: extraBankIds.length ? extraBankIds : undefined,
 					maxQuestions: maxQuestions > 0 ? maxQuestions : undefined,
 				}),
 			});
@@ -453,7 +439,7 @@ export default function PracticePage() {
 						{nextInterview.interview.company}
 					</div>
 					<p className="text-xs text-slate-600 dark:text-slate-400 mb-2">
-						Suggestions only. Your own selection is not changed unless you add one.
+						Suggestions only. Your own selection is not changed unless you choose one.
 					</p>
 					<ul className="space-y-2">
 						{recommended.map((rec) => {
@@ -468,10 +454,10 @@ export default function PracticePage() {
 									<div className="flex gap-2 shrink-0">
 										<button
 											type="button"
-											onClick={() => toggleBank(rec.id)}
+											onClick={() => chooseBank(rec.id)}
 											className="px-2 py-1 text-xs rounded bg-purple-200 dark:bg-purple-800 text-purple-800 dark:text-purple-200"
 										>
-											Add
+											Use
 										</button>
 										<button
 											type="button"
@@ -525,37 +511,34 @@ export default function PracticePage() {
 							<label className="block text-sm font-medium mb-2 text-slate-900 dark:text-slate-100">
 								Question Bank <span className="text-red-500">*</span>
 							</label>
-							<div
-								className="max-h-56 overflow-y-auto space-y-1 border border-slate-300 dark:border-slate-600 rounded-lg p-2 bg-white dark:bg-slate-700"
-								role="group"
-								aria-label="Question banks"
+							<select
+								value={selectedBankId}
+								onChange={(e) => {
+									const bankId = e.target.value;
+									setSelectedBankId(bankId);
+									updatePrefs(setSelection(prefs, bankId ? [bankId] : []));
+									// Auto-populate title and maxQuestions from selected bank
+									if (bankId) {
+										const selectedBank = banks.find((b) => b.id === bankId);
+										if (selectedBank) {
+											setNewSessionTitle(selectedBank.title);
+											setMaxQuestions(selectedBank._count.questions); // Default to all questions
+										}
+									} else {
+										setNewSessionTitle("");
+										setMaxQuestions(0);
+									}
+								}}
+								className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100"
+								required
 							>
-								{visibleBanks.length === 0 && (
-									<p className="text-sm text-slate-600 dark:text-slate-400 p-1">
-										No banks for this context yet.
-									</p>
-								)}
+								<option value="">Select a question bank...</option>
 								{visibleBanks.map((bank) => (
-									<label
-										key={bank.id}
-										className="flex items-center gap-2 text-sm text-slate-900 dark:text-slate-100 cursor-pointer"
-									>
-										<input
-											type="checkbox"
-											checked={allSelectedIds.includes(bank.id)}
-											onChange={() => toggleBank(bank.id)}
-										/>
-										<span>
-											{bank.title} ({bank._count.questions} questions)
-										</span>
-									</label>
+									<option key={bank.id} value={bank.id}>
+										{bank.title} ({bank._count.questions} questions)
+									</option>
 								))}
-							</div>
-							{allSelectedIds.length > 1 && (
-								<p className="text-xs text-slate-600 dark:text-slate-400 mt-1">
-									{allSelectedIds.length} banks selected. Questions are mixed across them.
-								</p>
-							)}
+							</select>
 						</div>
 						<div>
 							<label className="block text-sm font-medium mb-2 text-slate-900 dark:text-slate-100">
@@ -642,7 +625,6 @@ export default function PracticePage() {
 											body: JSON.stringify({
 												title: `Mock: ${newSessionTitle}`,
 												bankId: selectedBankId,
-												extraBankIds: extraBankIds.length ? extraBankIds : undefined,
 												maxQuestions: maxQuestions > 0 ? maxQuestions : undefined,
 											}),
 										});
@@ -673,7 +655,6 @@ export default function PracticePage() {
 											body: JSON.stringify({
 												title: `Pitch: ${newSessionTitle}`,
 												bankId: selectedBankId,
-												extraBankIds: extraBankIds.length ? extraBankIds : undefined,
 												maxQuestions: maxQuestions > 0 ? maxQuestions : undefined,
 											}),
 										});

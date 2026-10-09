@@ -5,8 +5,6 @@ vi.mock('@/lib/db', () => ({
     session: { findUnique: vi.fn() },
     userQuestionProgress: { findMany: vi.fn() },
     interview: { findMany: vi.fn(async () => []) },
-    questionBank: { findMany: vi.fn(async () => []) },
-    question: { findMany: vi.fn(async () => []) },
   },
 }));
 vi.mock('@/lib/auth', () => {
@@ -74,26 +72,5 @@ describe('GET /api/sessions/[id] smart ordering', () => {
     const body = await (await call('?smart=1&maxQuestions=2')).json();
     expect(body.questions).toHaveLength(2);
     expect(body.questions[0].id).toBe('q3');
-  });
-
-  it('multi-bank sessions mix in the extra banks questions, skipping unreadable and facts banks', async () => {
-    (prisma.session.findUnique as ReturnType<typeof vi.fn>).mockResolvedValue({
-      ...session(),
-      extraBankIds: ['b2', 'bfacts', 'bother'],
-    });
-    (prisma.userQuestionProgress.findMany as ReturnType<typeof vi.fn>).mockResolvedValue([]);
-    (prisma.questionBank.findMany as ReturnType<typeof vi.fn>).mockResolvedValue([
-      { id: 'b2', title: 'TypeScript', userId: 'user-1' },
-      { id: 'bfacts', title: '__facts__', userId: 'user-1' },
-      { id: 'bother', title: 'Someone else', userId: 'user-2' },
-    ]);
-    (prisma.question.findMany as ReturnType<typeof vi.fn>).mockImplementation(async (args: { where: { bankId: { in: string[] } } }) => {
-      expect(args.where.bankId.in).toEqual(['b2']);
-      return [{ id: 'q9', text: 'Explain TypeScript generics', hint: 'h', tags: [], difficulty: 2, type: 'TECHNICAL', bankId: 'b2' }];
-    });
-    const ids = (await (await call('?smart=1')).json()).questions.map((q: { id: string }) => q.id);
-    expect(ids).toContain('q9');
-    expect(ids).toEqual(expect.arrayContaining(['q1', 'q3']));
-    expect(ids).not.toContain('q2');
   });
 });
