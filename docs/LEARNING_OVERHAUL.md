@@ -14,7 +14,7 @@ routes or UI except where stated. Nothing is deployed, migrated, or deleted.
 | Remember selected banks / mode / count (web) | WORKING (single bank), wired in `practice/page.tsx` | `lib/practice-preferences.ts` |
 | Per-context selection memory, presets, manual vs recommended | BUILT, presets and recommendations not yet in UI | `lib/practice-preferences.ts` |
 | Resume unfinished session | WORKING (latest unfinished server session); saved resume pointer BUILT, unused | practice page |
-| Multi-bank sessions | WORKING in code: `Session.extraBankIds` (additive migration `20261009090000_session_extra_banks`, rollback `docs/session-extra-banks-rollback.sql`); practice page uses checkboxes. **Migration not applied to Preview or Production.** | `app/api/sessions` |
+| Multi-bank sessions | NOT NEEDED on the server: the iOS app already practises several banks. The proposed `extraBankIds` migration was reverted and never applied. | n/a |
 | Learning contexts, question-level filtering | BUILT (keyword heuristics), bank list filtered by title only in UI | `lib/learning-context.ts` |
 | Administrative questions excluded | WORKING in smart session ordering; the default (non-smart) path and other consumers still include them | `lib/learning-context.ts` |
 | Intelligent selection (new/due/weak/stale/recent/dedupe/interleave/explain) | WORKING for session questions via `GET /api/sessions/[id]?smart=1` (the practice session page requests it); stable on resume; administrative questions removed. Interview/role terms are not passed yet | `lib/question-selection.ts`, `lib/session-questions.ts` |
@@ -66,6 +66,16 @@ there, private and without a server. Not compiled in the authoring environment: 
 | Interactive podcasts, Jess/Zac memory | NOT PRESENT |
 
 ## Web additions
-Multi-bank sessions (migration `20261009090000_session_extra_banks` NOT applied to any shared database), smart session ordering
+Smart session ordering
 (`?smart=1`, now interview-aware), rubrics in the evaluator prompt (prompt@2/rubric@2, not compared with the live model),
 Recommended-for-interview strip (`recommendForInterview`), read-only audit script with `--db` mode.
+
+## Data lives on the device and in iCloud
+
+- `scripts/export-legacy-banks.ts` exports server banks (read-only, facts bank never read) to the app's full-import JSON so they can
+  live in the app and the learner's iCloud. Run it yourself with `AUDIT_DATABASE_URL`; it was tested only on a throwaway database.
+- iOS **Settings > Question quality > Review questions** audits the banks already on the device and lets the learner leave questions
+  out of practice and Today, reversibly (`PracticePreferences.excludedKeys`, device + iCloud key-value store). Nothing is deleted or
+  edited. Stories are not audited. A plan already built today is not rebuilt when a question is left out; the next plan honours it.
+- The on-device model (`FoundationModelsBridge`) is now a real call behind `canImport(FoundationModels)`; it needs an iOS 26 SDK build
+  and a device with Apple Intelligence to verify.
