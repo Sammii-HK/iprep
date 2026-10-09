@@ -135,3 +135,13 @@ concept analysis (needs a live-model change and comparison); the audit on the re
 
 Still NOT done: interactive podcasts and Jess/Zac memory; conversational/spoken interview modes; multi-stage Boss battles;
 per-dimension readiness; model-grounded concept analysis; the audit on the real banks; Xcode build, on-device model and iOS UI tests.
+
+
+## Update: Boss battles
+
+| Brief | Status |
+|---|---|
+| 13 Boss battles (React performance, System design, Interview, Founder pitch) | Planner and rules DONE and Docker-verified (84/84 Swift tests). Staged mock flow in `PracticeView` (Boss menu, stage banner, boss title) NOT compiled (needs Xcode). Stages change only how a question is introduced; scoring and the debrief are the existing mock flow. A boss is shorter, not padded, when the banks lack matching questions; interview bosses never draw fundraising questions |
+
+Still NOT done: interactive podcasts and Jess/Zac memory; spoken/conversational interview modes; per-dimension readiness;
+model-grounded concept analysis; the audit on the real banks; Xcode build, on-device model and iOS UI tests.
