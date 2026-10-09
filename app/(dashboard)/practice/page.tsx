@@ -204,11 +204,34 @@ export default function PracticePage() {
 
 	const activeContext = prefs.activeContext;
 	// Banks relevant to the active context, always keeping the remembered selection visible.
+	const allSelectedIds = reconcileSelection(
+		getContextState(prefs).selectedBankIds,
+		banks.map((b) => b.id)
+	).selectedBankIds;
+	const extraBankIds = allSelectedIds.slice(1);
 	const visibleBanks = banks.filter(
 		(b) =>
-			b.id === selectedBankId ||
+			allSelectedIds.includes(b.id) ||
 			inferContexts({ title: b.title }).includes(activeContext)
 	);
+
+	const toggleBank = (bankId: string) => {
+		const next = allSelectedIds.includes(bankId)
+			? allSelectedIds.filter((id) => id !== bankId)
+			: [...allSelectedIds, bankId];
+		updatePrefs(setSelection(prefs, next));
+		setSelectedBankId(next[0] ?? "");
+		const first = banks.find((b) => b.id === next[0]);
+		if (!next.length) {
+			setNewSessionTitle("");
+			setMaxQuestions(0);
+		} else if (first && next.length === 1) {
+			setNewSessionTitle(first.title);
+			setMaxQuestions(first._count.questions);
+		} else if (next.length > 1) {
+			setNewSessionTitle((t) => t || "Mixed practice");
+		}
+	};
 	const resumableSession = sessions.find(
 		(s) => !s.isCompleted && (!s.bankId || visibleBanks.some((b) => b.id === s.bankId))
 	);
@@ -233,6 +256,7 @@ export default function PracticePage() {
 				body: JSON.stringify({
 					title: newSessionTitle,
 					bankId: selectedBankId,
+					extraBankIds: extraBankIds.length ? extraBankIds : undefined,
 					maxQuestions: maxQuestions > 0 ? maxQuestions : undefined,
 				}),
 			});
@@ -430,34 +454,37 @@ export default function PracticePage() {
 							<label className="block text-sm font-medium mb-2 text-slate-900 dark:text-slate-100">
 								Question Bank <span className="text-red-500">*</span>
 							</label>
-							<select
-								value={selectedBankId}
-								onChange={(e) => {
-									const bankId = e.target.value;
-									setSelectedBankId(bankId);
-									updatePrefs(setSelection(prefs, bankId ? [bankId] : []));
-									// Auto-populate title and maxQuestions from selected bank
-									if (bankId) {
-										const selectedBank = banks.find((b) => b.id === bankId);
-										if (selectedBank) {
-											setNewSessionTitle(selectedBank.title);
-											setMaxQuestions(selectedBank._count.questions); // Default to all questions
-										}
-									} else {
-										setNewSessionTitle("");
-										setMaxQuestions(0);
-									}
-								}}
-								className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100"
-								required
+							<div
+								className="max-h-56 overflow-y-auto space-y-1 border border-slate-300 dark:border-slate-600 rounded-lg p-2 bg-white dark:bg-slate-700"
+								role="group"
+								aria-label="Question banks"
 							>
-								<option value="">Select a question bank...</option>
+								{visibleBanks.length === 0 && (
+									<p className="text-sm text-slate-600 dark:text-slate-400 p-1">
+										No banks for this context yet.
+									</p>
+								)}
 								{visibleBanks.map((bank) => (
-									<option key={bank.id} value={bank.id}>
-										{bank.title} ({bank._count.questions} questions)
-									</option>
+									<label
+										key={bank.id}
+										className="flex items-center gap-2 text-sm text-slate-900 dark:text-slate-100 cursor-pointer"
+									>
+										<input
+											type="checkbox"
+											checked={allSelectedIds.includes(bank.id)}
+											onChange={() => toggleBank(bank.id)}
+										/>
+										<span>
+											{bank.title} ({bank._count.questions} questions)
+										</span>
+									</label>
 								))}
-							</select>
+							</div>
+							{allSelectedIds.length > 1 && (
+								<p className="text-xs text-slate-600 dark:text-slate-400 mt-1">
+									{allSelectedIds.length} banks selected. Questions are mixed across them.
+								</p>
+							)}
 						</div>
 						<div>
 							<label className="block text-sm font-medium mb-2 text-slate-900 dark:text-slate-100">
@@ -544,6 +571,7 @@ export default function PracticePage() {
 											body: JSON.stringify({
 												title: `Mock: ${newSessionTitle}`,
 												bankId: selectedBankId,
+												extraBankIds: extraBankIds.length ? extraBankIds : undefined,
 												maxQuestions: maxQuestions > 0 ? maxQuestions : undefined,
 											}),
 										});
@@ -574,6 +602,7 @@ export default function PracticePage() {
 											body: JSON.stringify({
 												title: `Pitch: ${newSessionTitle}`,
 												bankId: selectedBankId,
+												extraBankIds: extraBankIds.length ? extraBankIds : undefined,
 												maxQuestions: maxQuestions > 0 ? maxQuestions : undefined,
 											}),
 										});
