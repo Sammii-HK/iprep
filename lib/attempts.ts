@@ -95,6 +95,7 @@ export interface EvidenceInput {
   fillerCount?: number | null;
   fillerRate?: number | null;
   longPauses?: number | null;
+  durationMs?: number | null;
 }
 
 export interface AttemptInput {
@@ -239,6 +240,14 @@ export function validateAttemptInput(input: AttemptInput): void {
   }
 }
 
+/**
+ * Tell the learner's devices that this attempt (or its evaluations) changed. Written in the SAME transaction as the
+ * change, so the pull feed can never show a change that rolled back or miss one that committed.
+ */
+export async function announceAttempt(tx: Prisma.TransactionClient, learnerId: string, attemptId: string): Promise<void> {
+  await tx.syncChange.create({ data: { learnerId, entityType: 'attempt', entityId: attemptId } });
+}
+
 // ---- writing ------------------------------------------------------------------------------------------------
 
 async function insertEvaluation(
@@ -317,6 +326,7 @@ export async function recordAttempt(
                 fillerCount: input.evidence.fillerCount ?? null,
                 fillerRate: input.evidence.fillerRate ?? null,
                 longPauses: input.evidence.longPauses ?? null,
+                durationMs: input.evidence.durationMs ?? null,
               },
             },
           }
@@ -326,6 +336,7 @@ export async function recordAttempt(
   });
   const evaluationIds: string[] = [];
   for (const e of input.evaluations) evaluationIds.push(await insertEvaluation(tx, attempt.id, e));
+  await announceAttempt(tx, input.learnerId, attempt.id);
   return { attemptId: attempt.id, evaluationIds };
 }
 
@@ -335,7 +346,7 @@ export async function appendEvaluation(
   attemptId: string,
   evaluations: EvaluationInput[]
 ): Promise<string[]> {
-  const found = await tx.attempt.findUnique({ where: { id: attemptId }, select: { surface: true } });
+  const found = await tx.attempt.findUnique({ where: { id: attemptId }, select: { surface: true, learnerId: true } });
   if (!found) throw new LedgerInputError('Cannot evaluate an attempt that does not exist.');
   const ids: string[] = [];
   for (const e of evaluations) {
@@ -344,6 +355,7 @@ export async function appendEvaluation(
     }
     ids.push(await insertEvaluation(tx, attemptId, e));
   }
+  await announceAttempt(tx, found.learnerId, attemptId);
   return ids;
 }
 

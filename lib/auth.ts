@@ -57,6 +57,9 @@ export interface AuthUser {
   isPremium: boolean;
   emailVerified: boolean;
   createdAt: Date;
+  /** Set while the account is DELETION_PENDING; every authenticated path refuses such an account. */
+  deletionRequestedAt?: Date | null;
+  purgeAfter?: Date | null;
 }
 
 const USER_SELECT = {
@@ -67,6 +70,8 @@ const USER_SELECT = {
   isPremium: true,
   emailVerified: true,
   createdAt: true,
+  deletionRequestedAt: true,
+  purgeAfter: true,
 } as const;
 
 function bearerToken(request: NextRequest): string | null {
@@ -94,12 +99,22 @@ export async function getCurrentUser(request: NextRequest): Promise<AuthUser | n
   }
 }
 
+/** An account that asked to be deleted keeps no access during the grace period. */
+export function assertNotPendingDeletion(user: Pick<AuthUser, 'deletionRequestedAt' | 'purgeAfter'>): void {
+  if (user.deletionRequestedAt) {
+    throw new AppError('This account is scheduled for deletion', 403, 'ACCOUNT_DELETION_PENDING', {
+      purgeAfter: user.purgeAfter?.toISOString() ?? null,
+    });
+  }
+}
+
 /** A signed-in human. Machine credentials do not satisfy this. */
 export async function requireAuth(request: NextRequest): Promise<AuthUser> {
   const user = await getCurrentUser(request);
   if (!user) {
     throw new AppError('Authentication required', 401, 'AUTHENTICATION_REQUIRED');
   }
+  assertNotPendingDeletion(user);
   return user;
 }
 
@@ -152,6 +167,7 @@ export async function requireAccess(request: NextRequest, scope: MachineScope): 
   if (!allowed) {
     throw new AppError('Insufficient scope', 403, 'INSUFFICIENT_SCOPE');
   }
+  assertNotPendingDeletion(principal.user);
   await prisma.machinePrincipal
     .update({ where: { id: principal.id }, data: { lastUsedAt: now } })
     .catch(() => undefined);

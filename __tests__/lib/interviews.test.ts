@@ -178,3 +178,58 @@ describe('schemas', () => {
     expect(SyncPayloadSchema.safeParse({ source: 'manual', interviews: [] }).success).toBe(false);
   });
 });
+
+describe('collapseSameInterview / visibleInterviews', () => {
+  const rec = (id: string, source: string, startsAt: string, company = 'Prismic', status = 'scheduled', updated = '2026-10-06T10:00:00Z') => ({
+    id,
+    source,
+    company,
+    status,
+    startsAt: at(startsAt),
+    endsAt: null as Date | null,
+    updatedAt: at(updated),
+  });
+
+  it('a Notion record outranks a manual duplicate; the manual one is hidden, not removed', async () => {
+    const { collapseSameInterview } = await import('@/lib/interviews');
+    const list = [rec('manual', 'manual', '2026-10-08T11:00:00Z'), rec('notion', 'notion', '2026-10-08T11:00:00Z')];
+    expect(collapseSameInterview(list).map((i) => i.id)).toEqual(['notion']);
+    expect(list).toHaveLength(2);
+  });
+
+  it('a calendar record never outranks Notion but does outrank manual', async () => {
+    const { collapseSameInterview } = await import('@/lib/interviews');
+    const t = '2026-10-08T11:00:00Z';
+    expect(collapseSameInterview([rec('c', 'calendar', t), rec('n', 'notion', t)]).map((i) => i.id)).toEqual(['n']);
+    expect(collapseSameInterview([rec('c', 'calendar', t), rec('m', 'manual', t)]).map((i) => i.id)).toEqual(['c']);
+  });
+
+  it('keeps different companies, and the same company on a different day', async () => {
+    const { collapseSameInterview } = await import('@/lib/interviews');
+    const list = [
+      rec('a', 'manual', '2026-10-08T11:00:00Z', 'Prismic'),
+      rec('b', 'notion', '2026-10-08T11:00:00Z', 'Personio'),
+      rec('c', 'notion', '2026-10-15T11:00:00Z', 'Prismic'),
+    ];
+    expect(collapseSameInterview(list)).toHaveLength(3);
+  });
+
+  it('a cancelled Notion row does not hide a manual interview that is still on', async () => {
+    const { collapseSameInterview } = await import('@/lib/interviews');
+    const list = [rec('n', 'notion', '2026-10-08T11:00:00Z', 'Prismic', 'cancelled'), rec('m', 'manual', '2026-10-08T11:00:00Z')];
+    expect(collapseSameInterview(list).map((i) => i.id).sort()).toEqual(['m', 'n']);
+  });
+
+  it('a reschedule is one record, not two: same source and id, new time', async () => {
+    const { visibleInterviews } = await import('@/lib/interviews');
+    const list = [rec('n', 'notion', '2026-10-09T15:00:00Z')];
+    expect(visibleInterviews(list, now, false).map((i) => i.id)).toEqual(['n']);
+  });
+
+  it('sync items accept provenance and reject a malformed timestamp', () => {
+    const base = { externalId: 'p1', company: 'Prismic', role: 'Engineer', startsAt: '2026-10-08T11:00:00+01:00' };
+    const ok = SyncPayloadSchema.parse({ interviews: [{ ...base, timeZone: 'Europe/London', sourceUpdatedAt: '2026-10-05T18:30:00.000Z' }] });
+    expect(ok.interviews[0].timeZone).toBe('Europe/London');
+    expect(() => SyncPayloadSchema.parse({ interviews: [{ ...base, sourceUpdatedAt: 'yesterday' }] })).toThrow();
+  });
+});

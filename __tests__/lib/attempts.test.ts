@@ -185,7 +185,7 @@ describe('writing', () => {
     const tx = {
       attempt: {
         create: vi.fn(async (args: unknown) => (calls.push(['attempt.create', args]), { id: 'attempt-1' })),
-        findUnique: vi.fn(async () => ({ surface: 'WRITTEN_TO_SPOKEN' })),
+        findUnique: vi.fn(async () => ({ surface: 'WRITTEN_TO_SPOKEN', learnerId: 'learner-1' })),
       },
       attemptEvaluation: {
         create: vi.fn(async (args: unknown) => (calls.push(['evaluation.create', args]), { id: `eval-${++n}` })),
@@ -193,6 +193,7 @@ describe('writing', () => {
       attemptMeasurement: {
         createMany: vi.fn(async (args: unknown) => (calls.push(['measurement.createMany', args]), { count: 1 })),
       },
+      syncChange: { create: vi.fn(async (args: unknown) => (calls.push(['syncChange.create', args]), { id: BigInt(1) })) },
     };
     return { tx: tx as never, calls, raw: tx };
   }
@@ -211,7 +212,8 @@ describe('writing', () => {
       ],
     });
     expect(result).toEqual({ attemptId: 'attempt-1', evaluationIds: ['eval-1'] });
-    expect(calls.map((c) => c[0])).toEqual(['attempt.create', 'evaluation.create', 'measurement.createMany']);
+    // the pull feed is told about the attempt in the same transaction
+    expect(calls.map((c) => c[0])).toEqual(['attempt.create', 'evaluation.create', 'measurement.createMany', 'syncChange.create']);
     expect(calls[0][1]).toMatchObject({
       data: { learnerId: 'learner-1', questionId: 'q1', promptSnapshot: 'Explain the event loop.', evidence: { create: { transcript: 'hello' } } },
     });

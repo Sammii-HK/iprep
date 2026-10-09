@@ -63,7 +63,7 @@ export async function POST(
       include: {
         bank: {
           include: {
-            _count: { select: { questions: true } },
+            _count: { select: { questions: { where: { archivedAt: null } } } },
           },
         },
       },

@@ -24,7 +24,7 @@ export async function GET(request: NextRequest) {
             bank: {
               include: {
                 _count: {
-                  select: { questions: true },
+                  select: { questions: { where: { archivedAt: null } } },
                 },
               },
             },
@@ -110,7 +110,7 @@ export async function POST(request: NextRequest) {
           include: {
             bank: {
               include: {
-                _count: { select: { questions: true } },
+                _count: { select: { questions: { where: { archivedAt: null } } } },
               },
             },
           },

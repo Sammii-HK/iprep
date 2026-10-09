@@ -16,6 +16,7 @@ import { join } from 'path';
 import { PrismaClient } from '@prisma/client';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { classifyDbTarget } from '@/lib/db-targets';
+import { applyMigrationPrivileges, splitSql } from './helpers';
 import { METRIC_DIMENSIONS, aiEvaluation, appendEvaluation, deliveryEvaluation, recordAttempt } from '@/lib/attempts';
 import { persistPracticeAnswer } from '@/lib/attempt-compat';
 
@@ -28,6 +29,8 @@ const APP = `lg_app_${suffix}`;
 const OWNER_PW = `o${randomBytes(6).toString('hex')}`;
 const APP_PW = `a${randomBytes(6).toString('hex')}`;
 const P1_DIR = readdirSync(join(root, 'prisma', 'migrations')).find((d) => d.endsWith('_p1_learner_attempt_ledger'))!;
+// The schema as it was before P1 existed (the parent of the P1 merge), for the structural rollback comparison.
+const PRE_P1_COMMIT = 'b41e5a7';
 
 function withDb(url: string, user: string, pw: string, db: string): string {
   const u = new URL(url);
@@ -68,7 +71,10 @@ describe.skipIf(!ADMIN_URL)('learner and attempt ledger (P1)', () => {
 
     // 1. The schema as Production has it today: every migration except P1.
     cpSync(join(root, 'prisma'), join(tmp, 'prisma'), { recursive: true });
-    rmSync(join(tmp, 'prisma', 'migrations', P1_DIR), { recursive: true });
+    // The database as Production was before P1: every migration older than P1.
+    for (const d of readdirSync(join(tmp, 'prisma', 'migrations'))) {
+      if (d >= P1_DIR && d !== 'migration_lock.toml') rmSync(join(tmp, 'prisma', 'migrations', d), { recursive: true });
+    }
     migrate(join(tmp, 'prisma'), ownerUrl);
 
     owner = new PrismaClient({ datasources: { db: { url: ownerUrl } } });
@@ -117,9 +123,7 @@ describe.skipIf(!ADMIN_URL)('learner and attempt ledger (P1)', () => {
     await owner.$executeRawUnsafe(`GRANT USAGE ON SCHEMA public TO ${APP}`);
     await owner.$executeRawUnsafe(`GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO ${APP}`);
     await owner.$executeRawUnsafe(`REVOKE ALL ON TABLE _prisma_migrations FROM ${APP}`);
-    const sql = readFileSync(join(root, 'prisma', 'migrations', P1_DIR, 'migration.sql'), 'utf8');
-    const privileges = sql.slice(sql.lastIndexOf('DO $$')).replace(/iprep_app/g, APP);
-    await owner.$executeRawUnsafe(privileges);
+    await applyMigrationPrivileges(owner, APP);
     app = new PrismaClient({ datasources: { db: { url: appUrl } } });
   }, 180_000);
 
@@ -576,29 +580,41 @@ describe.skipIf(!ADMIN_URL)('learner and attempt ledger (P1)', () => {
 
   // ---------------------------------------------------------------------------------------- rollback
 
-  describe('rollback (docs/p1-rollback.sql)', () => {
-    it('returns the schema to exactly the pre-P1 shape and leaves every legacy row untouched', async () => {
-      const before = await rows<{ n: bigint }>(`SELECT (SELECT count(*) FROM "SessionItem") + (SELECT count(*) FROM "Session") + (SELECT count(*) FROM "Question") AS n`);
-      const sql = readFileSync(join(root, 'docs', 'p1-rollback.sql'), 'utf8')
-        .split('\n').filter((l) => !l.startsWith('--')).join('\n');
-      const statements = sql.split(/;\s*\n/).map((x) => x.trim()).filter((x) => x && x !== 'BEGIN' && x !== 'COMMIT');
-      for (const st of statements) await run(st);
-
-      const after = await rows<{ n: bigint }>(`SELECT (SELECT count(*) FROM "SessionItem") + (SELECT count(*) FROM "Session") + (SELECT count(*) FROM "Question") AS n`);
-      expect(after[0].n).toBe(before[0].n);
-      expect(await rows(`SELECT 1 FROM "_prisma_migrations" WHERE "migration_name" LIKE '%p1_learner_attempt_ledger'`)).toHaveLength(0);
-
-      // The previous schema (from git) must match the rolled-back database with no difference at all.
-      const prev = spawnSync('git', ['show', 'origin/main:prisma/schema.prisma'], { cwd: root, encoding: 'utf8' });
-      if (prev.status !== 0) return; // no origin/main in this checkout: the structural diff is skipped
-      const file = join(tmp, 'pre-p1.prisma');
+  describe('rollbacks (docs/p2-rollback.sql, then docs/p1-rollback.sql)', () => {
+    const structuralDiff = (commit: string, file: string) => {
+      const prev = spawnSync('git', ['show', `${commit}:prisma/schema.prisma`], { cwd: root, encoding: 'utf8' });
+      if (prev.status !== 0) return null; // that commit is not in this checkout: the structural diff is skipped
       writeFileSync(file, prev.stdout);
-      const diff = spawnSync(
-        'npx',
-        ['prisma', 'migrate', 'diff', '--from-url', ownerUrl, '--to-schema-datamodel', file, '--exit-code'],
-        { env: { ...process.env, DATABASE_URL: ownerUrl, DATABASE_MIGRATION_URL: ownerUrl }, encoding: 'utf8', cwd: root }
-      );
-      expect(diff.status, diff.stdout + diff.stderr).toBe(0);
+      return spawnSync('npx', ['prisma', 'migrate', 'diff', '--from-url', ownerUrl, '--to-schema-datamodel', file, '--exit-code'], {
+        env: { ...process.env, DATABASE_URL: ownerUrl, DATABASE_MIGRATION_URL: ownerUrl },
+        encoding: 'utf8',
+        cwd: root,
+      });
+    };
+    const legacyCount = async () =>
+      (await rows<{ n: bigint }>(`SELECT (SELECT count(*) FROM "SessionItem") + (SELECT count(*) FROM "Session") + (SELECT count(*) FROM "Question") AS n`))[0].n;
+
+    it('P2 rollback returns the schema to exactly the P1 shape and leaves the whole P1 ledger and legacy rows untouched', async () => {
+      const before = { legacy: await legacyCount(), attempts: (await rows<{ n: bigint }>(`SELECT count(*) AS n FROM "Attempt"`))[0].n };
+      // Newest first: the interview provenance columns were added after P2 and are rolled back before it.
+      for (const st of splitSql(readFileSync(join(root, 'docs', 'p2-interview-provenance-rollback.sql'), 'utf8'))) await run(st);
+      for (const st of splitSql(readFileSync(join(root, 'docs', 'p2-rollback.sql'), 'utf8'))) await run(st);
+      expect(await legacyCount()).toBe(before.legacy);
+      expect((await rows<{ n: bigint }>(`SELECT count(*) AS n FROM "Attempt"`))[0].n).toBe(before.attempts);
+      expect(await rows(`SELECT 1 FROM "_prisma_migrations" WHERE "migration_name" LIKE '%p2_native_sync'`)).toHaveLength(0);
+      const diff = structuralDiff('1952c92', join(tmp, 'p1-shape.prisma'));
+      if (diff) expect(diff.status, diff.stdout + diff.stderr).toBe(0);
+      // the P1 append-only guard is back and still refuses edits
+      await expect(run(`UPDATE "Attempt" SET "promptSnapshot" = 'x' WHERE "id" = 'att_si-ok'`)).rejects.toThrow(/append-only/);
+    });
+
+    it('P1 rollback then returns the schema to exactly the pre-P1 shape and leaves every legacy row untouched', async () => {
+      const before = await legacyCount();
+      for (const st of splitSql(readFileSync(join(root, 'docs', 'p1-rollback.sql'), 'utf8'))) await run(st);
+      expect(await legacyCount()).toBe(before);
+      expect(await rows(`SELECT 1 FROM "_prisma_migrations" WHERE "migration_name" LIKE '%p1_learner_attempt_ledger'`)).toHaveLength(0);
+      const diff = structuralDiff(PRE_P1_COMMIT, join(tmp, 'pre-p1.prisma'));
+      if (diff) expect(diff.status, diff.stdout + diff.stderr).toBe(0);
     });
   });
 

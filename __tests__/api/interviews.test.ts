@@ -88,10 +88,12 @@ describe('POST /api/interviews', () => {
 });
 
 describe('GET /api/interviews', () => {
+  // Stored rows always carry company, source and updatedAt; distinct companies keep them from collapsing.
+  const stored = { source: 'manual', updatedAt: new Date('2026-10-06T10:00:00Z') };
   const rows = [
-    { id: 'past', startsAt: inDays(-5), endsAt: null, status: 'scheduled' },
-    { id: 'cancelled', startsAt: inDays(2), endsAt: null, status: 'cancelled' },
-    { id: 'soon', startsAt: inDays(1), endsAt: null, status: 'scheduled' },
+    { id: 'past', company: 'A', startsAt: inDays(-5), endsAt: null, status: 'scheduled', ...stored },
+    { id: 'cancelled', company: 'B', startsAt: inDays(2), endsAt: null, status: 'cancelled', ...stored },
+    { id: 'soon', company: 'C', startsAt: inDays(1), endsAt: null, status: 'scheduled', ...stored },
   ];
 
   it('returns upcoming, non-cancelled interviews by default', async () => {

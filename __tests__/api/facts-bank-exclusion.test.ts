@@ -202,6 +202,7 @@ describe('listing queries all reference the facts exclusion', () => {
   const allowed = new Set([
     join(root, 'lib', 'fact-sheet.ts'), // owns the storage
     join(root, 'app', 'api', 'health', 'route.ts'), // db ping count
+    join(root, 'lib', 'native', 'purge.ts'), // an account purge must find EVERY bank the account owns, facts bank included
   ]);
 
   const listing = /questionBank\.findMany|bankFolder\.findMany|userQuestionProgress\.findMany|prisma\.question\.count|questionBank\.count/;
