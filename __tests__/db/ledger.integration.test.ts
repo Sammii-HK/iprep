@@ -410,7 +410,7 @@ describe.skipIf(!ADMIN_URL)('learner and attempt ledger (P1)', () => {
       expect(read?.evidence?.responseText).toBe('a function plus its scope');
       expect(read?.evaluations).toHaveLength(2);
       const ai = read?.evaluations.find((e) => e.kind === 'AI_RUBRIC');
-      expect(ai).toMatchObject({ evaluatorVersion: 'spoken-answer@1', rubricVersion: 'spoken-answer-rubric@1', promptVersion: 'spoken-answer-prompt@1', model: 'gpt-4o-mini' });
+      expect(ai).toMatchObject({ evaluatorVersion: 'spoken-answer@1', rubricVersion: 'spoken-answer-rubric@2', promptVersion: 'spoken-answer-prompt@2', model: 'gpt-4o-mini' });
       expect(ai?.measurements.map((m) => `${m.metric}:${m.dimension}`).sort()).toEqual(['answerQuality:null', 'technicalAccuracy:RECALL']);
 
       // re-evaluation appends: the original evaluation is untouched
