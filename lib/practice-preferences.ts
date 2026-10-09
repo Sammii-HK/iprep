@@ -57,7 +57,7 @@ export const emptyContextState = (): ContextState => ({
 export const getContextState = (prefs: PracticePrefs, c = prefs.activeContext): ContextState =>
 	prefs.contexts[c] ?? emptyContextState();
 
-const withContext = (
+export const updateContext = (
 	prefs: PracticePrefs,
 	patch: Partial<ContextState>,
 	c: LearningContext = prefs.activeContext,
@@ -179,7 +179,7 @@ export function savePreset(prefs: PracticePrefs, name: string, id: string): Prac
 export function applyPreset(prefs: PracticePrefs, presetId: string): PracticePrefs {
 	const preset = prefs.presets.find((p) => p.id === presetId);
 	if (!preset) return prefs;
-	const next = withContext(
+	const next = updateContext(
 		{ ...prefs, activeContext: preset.context },
 		{
 			selectedBankIds: [...preset.bankIds],
@@ -208,14 +208,14 @@ export function switchContext(prefs: PracticePrefs, context: LearningContext): P
 /** Manual edits detach from the preset but never discard the selection itself. */
 export function setSelection(prefs: PracticePrefs, bankIds: readonly string[]): PracticePrefs {
 	return {
-		...withContext(prefs, { selectedBankIds: dedupe(bankIds) }),
+		...updateContext(prefs, { selectedBankIds: dedupe(bankIds) }),
 		activePresetId: null,
 	};
 }
 
 export function excludeBank(prefs: PracticePrefs, bankId: string): PracticePrefs {
 	const cs = getContextState(prefs);
-	return withContext(prefs, {
+	return updateContext(prefs, {
 		excludedBankIds: dedupe([...cs.excludedBankIds, bankId]),
 		selectedBankIds: cs.selectedBankIds.filter((b) => b !== bankId),
 	});
@@ -223,7 +223,7 @@ export function excludeBank(prefs: PracticePrefs, bankId: string): PracticePrefs
 
 export function dismissRecommendation(prefs: PracticePrefs, bankId: string): PracticePrefs {
 	const cs = getContextState(prefs);
-	return withContext(prefs, { dismissedBankIds: dedupe([...cs.dismissedBankIds, bankId]) });
+	return updateContext(prefs, { dismissedBankIds: dedupe([...cs.dismissedBankIds, bankId]) });
 }
 
 /** Accepting copies a recommendation into the manual selection, explicitly. */
@@ -246,7 +246,7 @@ export function visibleRecommendations(
 }
 
 export function setResume(prefs: PracticePrefs, sessionId: string | null, now: Date): PracticePrefs {
-	return withContext(prefs, {
+	return updateContext(prefs, {
 		resume: sessionId ? { sessionId, updatedAt: now.toISOString() } : null,
 	});
 }

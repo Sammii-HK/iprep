@@ -3,6 +3,30 @@
 import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { PRACTICE_PRESETS, type PracticePreset } from "@/lib/coaching-config";
+import {
+	LEARNING_CONTEXTS,
+	inferContexts,
+	type LearningContext,
+} from "@/lib/learning-context";
+import {
+	DEFAULT_PREFS,
+	getContextState,
+	loadPrefs,
+	reconcileSelection,
+	savePrefs,
+	setSelection,
+	switchContext,
+	updateContext,
+	type PracticePrefs,
+} from "@/lib/practice-preferences";
+
+const CONTEXT_LABELS: Record<LearningContext, string> = {
+	INTERVIEW: "Interview",
+	TECHNICAL_LEARNING: "Technical",
+	FOUNDER: "Founder",
+	FUNDRAISING: "Fundraising",
+	GENERAL: "General",
+};
 
 interface QuestionBank {
 	id: string;
@@ -33,6 +57,8 @@ export default function PracticePage() {
 	const [selectedBankId, setSelectedBankId] = useState<string>("");
 	const [maxQuestions, setMaxQuestions] = useState<number>(0); // 0 means "all"
 	const [selectedPreset, setSelectedPreset] = useState<PracticePreset>("interview");
+	const [prefs, setPrefs] = useState<PracticePrefs>(DEFAULT_PREFS);
+	const [prefsLoaded, setPrefsLoaded] = useState(false);
 	const [deletingSessionId, setDeletingSessionId] = useState<string | null>(
 		null
 	);
@@ -137,6 +163,55 @@ export default function PracticePage() {
 	useEffect(() => {
 		fetchData();
 	}, [fetchData]);
+
+	// Restore remembered practice context locally and immediately; no network needed.
+	useEffect(() => {
+		try {
+			setPrefs(loadPrefs(window.localStorage));
+		} catch {
+			// Storage unavailable: fall back to defaults.
+		}
+		setPrefsLoaded(true);
+	}, []);
+
+	const updatePrefs = useCallback((next: PracticePrefs) => {
+		setPrefs(next);
+		try {
+			savePrefs(window.localStorage, next);
+		} catch {
+			// Persistence is best-effort; practice still works.
+		}
+	}, []);
+
+	// Re-apply the remembered bank/mode when banks load or the context changes. Only
+	// selections that no longer exist are dropped; other choices are never reset.
+	useEffect(() => {
+		if (!prefsLoaded || banks.length === 0) return;
+		const cs = getContextState(prefs);
+		const { selectedBankIds } = reconcileSelection(
+			cs.selectedBankIds,
+			banks.map((b) => b.id)
+		);
+		const bank = banks.find((b) => b.id === selectedBankIds[0]);
+		setSelectedBankId(bank?.id ?? "");
+		if (bank) {
+			setNewSessionTitle((t) => t || bank.title);
+			setMaxQuestions(cs.questionCount ?? bank._count.questions);
+		}
+		if (cs.mode in PRACTICE_PRESETS) setSelectedPreset(cs.mode as PracticePreset);
+		// eslint-disable-next-line react-hooks/exhaustive-deps
+	}, [prefsLoaded, banks, prefs.activeContext]);
+
+	const activeContext = prefs.activeContext;
+	// Banks relevant to the active context, always keeping the remembered selection visible.
+	const visibleBanks = banks.filter(
+		(b) =>
+			b.id === selectedBankId ||
+			inferContexts({ title: b.title }).includes(activeContext)
+	);
+	const resumableSession = sessions.find(
+		(s) => !s.isCompleted && (!s.bankId || visibleBanks.some((b) => b.id === s.bankId))
+	);
 
 	const createSession = async () => {
 		if (!newSessionTitle.trim()) {
@@ -299,6 +374,40 @@ export default function PracticePage() {
 				</p>
 			</div>
 
+			<div className="flex flex-wrap gap-2 mb-4" role="tablist" aria-label="Learning context">
+				{LEARNING_CONTEXTS.map((c) => (
+					<button
+						key={c}
+						type="button"
+						role="tab"
+						aria-selected={activeContext === c}
+						onClick={() => updatePrefs(switchContext(prefs, c))}
+						className={`px-3 py-1 rounded-full text-sm border ${
+							activeContext === c
+								? "border-purple-500 bg-purple-50 dark:bg-purple-900/20 text-purple-800 dark:text-purple-200"
+								: "border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-300"
+						}`}
+					>
+						{CONTEXT_LABELS[c]}
+					</button>
+				))}
+			</div>
+
+			{resumableSession && (
+				<button
+					type="button"
+					onClick={() => router.push(`/practice/session/${resumableSession.id}`)}
+					className="w-full text-left mb-4 p-4 rounded-lg border border-purple-300 dark:border-purple-700 bg-purple-50 dark:bg-purple-900/20"
+				>
+					<div className="text-sm font-semibold text-purple-900 dark:text-purple-100">
+						Continue where you left off
+					</div>
+					<div className="text-xs text-slate-600 dark:text-slate-400">
+						{resumableSession.title}
+					</div>
+				</button>
+			)}
+
 			{showNewSession ? (
 				<div className="bg-white dark:bg-slate-800 rounded-lg shadow-md p-6 mb-6 border border-slate-200 dark:border-slate-700">
 					<h2 className="text-xl font-semibold mb-4 text-slate-900 dark:text-slate-100">
@@ -326,6 +435,7 @@ export default function PracticePage() {
 								onChange={(e) => {
 									const bankId = e.target.value;
 									setSelectedBankId(bankId);
+									updatePrefs(setSelection(prefs, bankId ? [bankId] : []));
 									// Auto-populate title and maxQuestions from selected bank
 									if (bankId) {
 										const selectedBank = banks.find((b) => b.id === bankId);
@@ -342,7 +452,7 @@ export default function PracticePage() {
 								required
 							>
 								<option value="">Select a question bank...</option>
-								{banks.map((bank) => (
+								{visibleBanks.map((bank) => (
 									<option key={bank.id} value={bank.id}>
 										{bank.title} ({bank._count.questions} questions)
 									</option>
@@ -358,7 +468,9 @@ export default function PracticePage() {
 								value={maxQuestions || ""}
 								onChange={(e) => {
 									const value = e.target.value;
-									setMaxQuestions(value === "" ? 0 : parseInt(value) || 0);
+									const n = value === "" ? 0 : parseInt(value) || 0;
+									setMaxQuestions(n);
+									updatePrefs(updateContext(prefs, { questionCount: n || null }));
 								}}
 								min="1"
 								max={
@@ -392,7 +504,10 @@ export default function PracticePage() {
 									<button
 										key={key}
 										type="button"
-										onClick={() => setSelectedPreset(key)}
+										onClick={() => {
+											setSelectedPreset(key);
+											updatePrefs(updateContext(prefs, { mode: key }));
+										}}
 										className={`p-3 rounded-lg border-2 text-left transition-all ${
 											selectedPreset === key
 												? "border-purple-500 bg-purple-50 dark:bg-purple-900/20"
