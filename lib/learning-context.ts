@@ -42,7 +42,13 @@ export function inferContexts(subject: ContextSubject): LearningContext[] {
 		// Technical material is normally interview-relevant unless it is clearly founder-only.
 		if (!found.has("FUNDRAISING") && !found.has("FOUNDER")) found.add("INTERVIEW");
 	}
-	if (found.size === 0) found.add("GENERAL");
+	// No signal either way: unclassified material stays usable for study, but is never
+	// assumed to be founder/fundraising content.
+	if (found.size === 0) {
+		found.add("GENERAL");
+		found.add("INTERVIEW");
+		found.add("TECHNICAL_LEARNING");
+	}
 	return LEARNING_CONTEXTS.filter((c) => found.has(c));
 }
 
