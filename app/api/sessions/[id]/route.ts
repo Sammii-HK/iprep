@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { requireAuth, requireAccess } from "@/lib/auth";
 import { canAccessOwnedRecord } from "@/lib/access";
+import { isFactsBankTitle } from "@/lib/fact-sheet";
 import { handleApiError, NotFoundError, ValidationError } from "@/lib/errors";
 import { LEARNING_CONTEXTS, type LearningContext } from "@/lib/learning-context";
 import { orderSessionQuestions } from "@/lib/session-questions";
@@ -78,6 +79,11 @@ export async function GET(
 			questions = questions.filter((q: { tags: string[] }) =>
 				q.tags.some((tag: string) => filterTags.includes(tag))
 			);
+		}
+
+		// The facts bank is private source material, never practice content.
+		if (isFactsBankTitle(session.bank.title)) {
+			throw new NotFoundError("Session", id);
 		}
 
 		if (smart) {
