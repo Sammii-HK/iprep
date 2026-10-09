@@ -11,6 +11,10 @@ import {
 import { recommendForInterview } from "@/lib/role-profiles";
 import {
 	DEFAULT_PREFS,
+	addTargetRole,
+	applyPreset,
+	removeTargetRole,
+	savePreset,
 	dismissRecommendation,
 	getContextState,
 	loadPrefs,
@@ -64,6 +68,8 @@ export default function PracticePage() {
 		folder: { title: string; banks: { id: string; title: string }[] } | null;
 	} | null>(null);
 	const [prefs, setPrefs] = useState<PracticePrefs>(DEFAULT_PREFS);
+	const [newRole, setNewRole] = useState("");
+	const [presetName, setPresetName] = useState("");
 	const [prefsLoaded, setPrefsLoaded] = useState(false);
 	const [deletingSessionId, setDeletingSessionId] = useState<string | null>(
 		null
@@ -235,8 +241,23 @@ export default function PracticePage() {
 			activeContext,
 			now: new Date(),
 			exclude: new Set([...cs.selectedBankIds, ...cs.excludedBankIds, ...cs.dismissedBankIds]),
+			targetRoles: prefs.targetRoles,
 		});
 	})();
+
+	// Put the on-screen choice back in line with preferences after a preset is applied.
+	const applySavedPreset = (presetId: string) => {
+		const next = applyPreset(prefs, presetId);
+		updatePrefs(next);
+		const cs = getContextState(next);
+		const bank = banks.find((b) => b.id === cs.selectedBankIds.find((id) => banks.some((x) => x.id === id)));
+		setSelectedBankId(bank?.id ?? "");
+		if (bank) {
+			setNewSessionTitle(bank.title);
+			setMaxQuestions(cs.questionCount ?? bank._count.questions);
+		}
+		if (cs.mode in PRACTICE_PRESETS) setSelectedPreset(cs.mode as PracticePreset);
+	};
 
 	// Practice one bank for this session (web sessions are single-bank; the iOS app handles several).
 	const chooseBank = (bankId: string) => {
@@ -432,11 +453,88 @@ export default function PracticePage() {
 				))}
 			</div>
 
-			{recommended.length > 0 && nextInterview && (
+			<div className="mb-4 p-4 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 space-y-3">
+				<div>
+					<div className="text-sm font-semibold text-slate-900 dark:text-slate-100">Roles you are preparing for</div>
+					<div className="flex flex-wrap gap-2 mt-2">
+						{prefs.targetRoles.map((role) => (
+							<span key={role} className="inline-flex items-center gap-1 px-2 py-1 text-xs rounded-full bg-purple-100 dark:bg-purple-900/30 text-purple-800 dark:text-purple-200">
+								{role}
+								<button
+									type="button"
+									aria-label={`Remove ${role}`}
+									onClick={() => updatePrefs(removeTargetRole(prefs, role))}
+								>
+									×
+								</button>
+							</span>
+						))}
+					</div>
+					<form
+						className="flex gap-2 mt-2"
+						onSubmit={(e) => {
+							e.preventDefault();
+							updatePrefs(addTargetRole(prefs, newRole));
+							setNewRole("");
+						}}
+					>
+						<input
+							value={newRole}
+							onChange={(e) => setNewRole(e.target.value)}
+							placeholder="e.g. Senior Product Engineer"
+							className="flex-1 px-2 py-1 text-sm border border-slate-300 dark:border-slate-600 rounded bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100"
+						/>
+						<button type="submit" className="px-3 py-1 text-sm rounded bg-purple-200 dark:bg-purple-800 text-purple-800 dark:text-purple-200">
+							Add role
+						</button>
+					</form>
+				</div>
+				<div>
+					<div className="text-sm font-semibold text-slate-900 dark:text-slate-100">Presets</div>
+					<div className="flex flex-wrap gap-2 mt-2">
+						{prefs.presets.map((preset) => (
+							<button
+								key={preset.id}
+								type="button"
+								onClick={() => applySavedPreset(preset.id)}
+								className={`px-2 py-1 text-xs rounded border ${
+									prefs.activePresetId === preset.id
+										? "border-purple-500 bg-purple-50 dark:bg-purple-900/20 text-purple-800 dark:text-purple-200"
+										: "border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-300"
+								}`}
+							>
+								{preset.name}
+							</button>
+						))}
+					</div>
+					<form
+						className="flex gap-2 mt-2"
+						onSubmit={(e) => {
+							e.preventDefault();
+							if (!presetName.trim() || !getContextState(prefs).selectedBankIds.length) return;
+							updatePrefs(savePreset(prefs, presetName, crypto.randomUUID()));
+							setPresetName("");
+						}}
+					>
+						<input
+							value={presetName}
+							onChange={(e) => setPresetName(e.target.value)}
+							placeholder="Save the current banks as…"
+							className="flex-1 px-2 py-1 text-sm border border-slate-300 dark:border-slate-600 rounded bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100"
+						/>
+						<button type="submit" className="px-3 py-1 text-sm rounded bg-purple-200 dark:bg-purple-800 text-purple-800 dark:text-purple-200">
+							Save preset
+						</button>
+					</form>
+				</div>
+			</div>
+
+			{recommended.length > 0 && (nextInterview || prefs.targetRoles.length > 0) && (
 				<div className="mb-4 p-4 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800">
 					<div className="text-sm font-semibold text-slate-900 dark:text-slate-100">
-						Recommended for your {nextInterview.interview.role} interview at{" "}
-						{nextInterview.interview.company}
+						{nextInterview
+							? `Recommended for your ${nextInterview.interview.role} interview at ${nextInterview.interview.company}`
+							: "Recommended for your target roles"}
 					</div>
 					<p className="text-xs text-slate-600 dark:text-slate-400 mb-2">
 						Suggestions only. Your own selection is not changed unless you choose one.

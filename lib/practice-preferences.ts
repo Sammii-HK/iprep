@@ -42,6 +42,8 @@ export interface PracticePrefs {
 	contexts: Partial<Record<LearningContext, ContextState>>;
 	activePresetId: string | null;
 	presets: PracticePreset[];
+	/** Roles the learner is preparing for (several at once). Local only. */
+	targetRoles: string[];
 }
 
 export const emptyContextState = (): ContextState => ({
@@ -77,6 +79,7 @@ export const DEFAULT_PREFS: PracticePrefs = {
 	contexts: {},
 	activePresetId: null,
 	presets: [],
+	targetRoles: [],
 };
 
 const dedupe = (ids: unknown): string[] =>
@@ -108,6 +111,7 @@ export function parsePrefs(raw: string | null): PracticePrefs {
 			presets: Array.isArray(p.presets)
 				? p.presets.map((x) => ({ ...x, bankIds: dedupe(x.bankIds) }))
 				: [],
+			targetRoles: dedupe(p.targetRoles),
 		};
 	} catch {
 		return fresh();
@@ -249,4 +253,17 @@ export function setResume(prefs: PracticePrefs, sessionId: string | null, now: D
 	return updateContext(prefs, {
 		resume: sessionId ? { sessionId, updatedAt: now.toISOString() } : null,
 	});
+}
+
+const cleanRole = (r: string) => r.trim().replace(/\s+/g, " ").slice(0, 80);
+
+/** Several target roles at once; duplicates (ignoring case) are ignored. */
+export function addTargetRole(prefs: PracticePrefs, role: string): PracticePrefs {
+	const r = cleanRole(role);
+	if (!r || prefs.targetRoles.some((x) => x.toLowerCase() === r.toLowerCase())) return prefs;
+	return { ...prefs, targetRoles: [...prefs.targetRoles, r].slice(0, 8) };
+}
+
+export function removeTargetRole(prefs: PracticePrefs, role: string): PracticePrefs {
+	return { ...prefs, targetRoles: prefs.targetRoles.filter((x) => x.toLowerCase() !== role.toLowerCase()) };
 }

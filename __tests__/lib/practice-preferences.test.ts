@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
 	acceptRecommendation,
+	addTargetRole,
+	removeTargetRole,
 	applyPreset,
 	dismissRecommendation,
 	excludeBank,
@@ -109,5 +111,14 @@ describe("practice preferences", () => {
 		const back = loadPrefs(store);
 		expect(getContextState(back, "INTERVIEW").resume?.sessionId).toBe("s1");
 		expect(getContextState(back, "FOUNDER").resume).toBeNull();
+	});
+
+	it("keeps several target roles across a restart, ignoring blanks and case-only duplicates", () => {
+		const store = memoryStore();
+		let prefs = loadPrefs(store);
+		for (const r of ["Senior Design Engineer", "  senior design   engineer ", "", "AI Product Engineer"]) prefs = addTargetRole(prefs, r);
+		savePrefs(store, prefs);
+		expect(loadPrefs(store).targetRoles).toEqual(["Senior Design Engineer", "AI Product Engineer"]);
+		expect(removeTargetRole(loadPrefs(store), "ai product engineer").targetRoles).toEqual(["Senior Design Engineer"]);
 	});
 });

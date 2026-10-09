@@ -89,4 +89,21 @@ describe("recommendForInterview", () => {
 		const recs = recommendForInterview({ next, banks, activeContext: "INTERVIEW", now });
 		expect(recs.map((r) => r.id)).not.toContain("vc");
 	});
+
+	it("target roles alone drive suggestions, covering overlapping skills once, with no interview", () => {
+		const recs = recommendForInterview({ next: null, banks, activeContext: "INTERVIEW", now, targetRoles: ["Senior Design Engineer", "AI Product Engineer"] });
+		const ids = recs.map((r) => r.id);
+		expect(ids).toEqual(expect.arrayContaining(["ds", "ai"]));
+		expect(new Set(ids).size).toBe(ids.length);
+		expect(ids).not.toContain("vc");
+	});
+
+	it("an interview adds to the learner's broader targets instead of replacing them", () => {
+		const recs = recommendForInterview({ next, banks, activeContext: "INTERVIEW", now, targetRoles: ["Design Engineer"] });
+		expect(recs.map((r) => r.id)).toEqual(expect.arrayContaining(["react", "ds"]));
+	});
+
+	it("without an interview or target roles there is nothing to suggest", () => {
+		expect(recommendForInterview({ next: null, banks, activeContext: "INTERVIEW", now })).toEqual([]);
+	});
 });

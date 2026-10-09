@@ -169,14 +169,16 @@ export function recommendForInterview(input: {
 	now: Date;
 	exclude?: ReadonlySet<string>;
 	limit?: number;
+	/** The learner's own target roles. They broaden the suggestions and survive the interview passing. */
+	targetRoles?: readonly string[];
 }): { id: string; reason: string }[] {
-	if (!input.next) return [];
-	const { interview, folder } = input.next;
+	const { interview, folder } = input.next ?? { interview: null, folder: null };
+	if (!interview && !(input.targetRoles?.length)) return [];
 	const reasons = new Map<string, string>();
-	for (const b of folder?.banks ?? []) reasons.set(b.id, `In your ${interview.company} prep folder`);
+	if (interview) for (const b of folder?.banks ?? []) reasons.set(b.id, `In your ${interview.company} prep folder`);
 	for (const r of recommendBanks({
-		targetRoleTitles: [interview.role],
-		interviews: [{ ...interview, startsAt: new Date(interview.startsAt) }],
+		targetRoleTitles: [...(interview ? [interview.role] : []), ...(input.targetRoles ?? [])],
+		interviews: interview ? [{ ...interview, startsAt: new Date(interview.startsAt) }] : [],
 		banks: input.banks,
 		activeContext: input.activeContext,
 		now: input.now,
