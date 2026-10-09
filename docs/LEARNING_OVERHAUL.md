@@ -45,3 +45,27 @@ The audit proposes actions; nothing is archived or edited.
   except for the terminology fix. Rolling them in needs a versioned evaluator change and a
   before/after run on a calibration set against the real model.
 - Concept extraction (mapping real questions to concepts) is not done.
+
+
+## iOS (repo `iprep-ios`, branch `feature/local-learning`, based on `p2/native-sync-on-release`)
+
+The app is local-first (SwiftData + CloudKit, local FSRS file, on-device scoring), so the learning intelligence belongs
+there, private and without a server. Not compiled in the authoring environment: run `xcodegen generate`, build, test.
+
+| Capability | State |
+|---|---|
+| Remember chosen banks per context (local, mirrored to the learner's iCloud key-value store, newest wins) | BUILT (`Services/Learning/PracticePreferences.swift`), wired into `PracticeView` |
+| Ranked question picking instead of `randomElement()` | BUILT (`QuestionRanker.swift`), wired into `PracticeView` |
+| Learning context chip (applies to "All banks" only; chosen banks never filtered) | BUILT |
+| Interview-aware Today plan, rest-day streak, XP, mistakes loop, story levels | WORKING already; unchanged |
+| Recruiter logistics / other-context questions kept out of Today | BUILT (`PlanBuilder` filter) |
+| Readiness admits sparse evidence | BUILT ("Not enough practice to tell yet" below 5 answered) |
+| Subject vocabulary not reported as overused; pause-only fillers; no "add numbers" feedback | BUILT (`ScoringService`, `ScoringTerminology`) |
+| Question-aware rubric in the on-device model prompt; missing model score fails instead of defaulting to 3.0 | BUILT, but the model call is still stubbed (`FoundationModelsBridge` always throws), so the rule-based scorer is what runs |
+| Concept graph, Chaos/Boss/Teach-back, per-dimension readiness | NOT BUILT on iOS (TypeScript versions exist in `lib/`) |
+| Interactive podcasts, Jess/Zac memory | NOT PRESENT |
+
+## Web additions
+Multi-bank sessions (migration `20261009090000_session_extra_banks` NOT applied to any shared database), smart session ordering
+(`?smart=1`, now interview-aware), rubrics in the evaluator prompt (prompt@2/rubric@2, not compared with the live model),
+Recommended-for-interview strip (`recommendForInterview`), read-only audit script with `--db` mode.
