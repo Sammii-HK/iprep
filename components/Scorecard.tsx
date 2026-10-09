@@ -3,6 +3,7 @@
 import { useState } from "react";
 import type { ClaimsCheck } from "@/lib/claims-check";
 import { ClaimsCheckSection } from "@/components/ClaimsCheckSection";
+import { followUpsFromMissed } from "@/lib/follow-ups";
 
 interface ScorecardProps {
 	metrics: {
@@ -162,6 +163,7 @@ export function Scorecard({
 	const [reanalyzing, setReanalyzing] = useState(false);
 	const [showTranscript, setShowTranscript] = useState(false);
 
+	const followUps = followUpsFromMissed(dontForget ?? []);
 	const quality = answerQuality ?? 0;
 	const qualityPct = (quality / 10) * 100;
 
@@ -217,6 +219,23 @@ export function Scorecard({
 								</li>
 							))}
 						</ul>
+					</div>
+				)}
+
+				{/* ── Try explaining next (from what was left out) ─ */}
+				{followUps.length > 0 && (
+					<div className="p-3 bg-purple-50 dark:bg-purple-900/10 border border-purple-200 dark:border-purple-800 rounded-lg">
+						<h4 className="text-xs font-semibold uppercase tracking-wide text-purple-700 dark:text-purple-300 mb-2">
+							Try explaining this next
+						</h4>
+						<ul className="space-y-1">
+							{followUps.map((f) => (
+								<li key={f.target} className="text-sm text-slate-700 dark:text-slate-300">{f.question}</li>
+							))}
+						</ul>
+						<p className="text-xs text-slate-500 dark:text-slate-400 mt-2">
+							Built from the key points above. Answer one out loud if you like; it does not change your score.
+						</p>
 					</div>
 				)}
 
@@ -291,7 +310,7 @@ export function Scorecard({
 						<h4 className={`text-xs font-semibold uppercase tracking-wide mb-2 ${
 							hasExcessiveRepetition ? "text-orange-600 dark:text-orange-400" : "text-slate-500"
 						}`}>
-							{hasExcessiveRepetition ? "⚠ Overused Words" : "Repeated Words"}
+							Words you kept returning to
 						</h4>
 						<div className="flex flex-wrap gap-1.5">
 							{repeatedWords.map((item, i) => (
