@@ -145,3 +145,16 @@ per-dimension readiness; model-grounded concept analysis; the audit on the real 
 
 Still NOT done: interactive podcasts and Jess/Zac memory; spoken/conversational interview modes; per-dimension readiness;
 model-grounded concept analysis; the audit on the real banks; Xcode build, on-device model and iOS UI tests.
+
+
+## Update: readiness, podcast-to-practice, spoken follow-ups
+
+| Brief | Status |
+|---|---|
+| 15 Per-dimension readiness (communication, depth, structure, confidence, recent practice) with "not enough evidence", no percentage, no hiring claim | Logic Docker-verified (90/90 Swift tests); Insights card NOT compiled |
+| 11 Podcast to practice: "Test me on this" on the episode and read-aloud screens | Wired to the existing practice router; NOT compiled. Listening already records nothing in the learning store (exposure only) |
+| 10 Spoken follow-up: "Hear it" reads the Teach-back follow-up with the device voice | NOT compiled; on-device speech only, no network |
+
+Still NOT done: interactive podcasts with pause-and-answer markers and Jess/Zac memory (needs an audio pipeline); a full
+spoken, turn-taking interviewer; model-grounded concept analysis (needs a live-model output change and comparison); the audit
+on the real banks; Xcode build, on-device model check and iOS UI tests.
